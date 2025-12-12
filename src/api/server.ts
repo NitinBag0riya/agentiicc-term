@@ -53,11 +53,12 @@ export function createApiServer(port: number = 3000) {
 
     // ============ ACCOUNT ============
     
-    .get('/account', requireAuth(async ({ session }: any) => {
+    .get('/account', requireAuth(async ({ session, query }: any) => {
       try {
+        const exchangeId = (query && query.exchange) || session.exchangeId;
         const adapter = await AdapterFactory.createAdapter(
           session.userId,
-          session.exchangeId
+          exchangeId
         );
 
         const accountInfo = await adapter.getAccount();
@@ -78,9 +79,10 @@ export function createApiServer(port: number = 3000) {
     
     .post('/order', requireAuth(async ({ session, body }: any) => {
       try {
+        const exchangeId = body.exchange || session.exchangeId;
         const adapter = await AdapterFactory.createAdapter(
           session.userId,
-          session.exchangeId
+          exchangeId
         );
 
         const params: PlaceOrderParams = {
@@ -89,6 +91,7 @@ export function createApiServer(port: number = 3000) {
           type: body.type,
           quantity: body.quantity,
           price: body.price,
+          triggerPrice: body.triggerPrice || body.stopPrice,
           takeProfit: body.takeProfit,
           stopLoss: body.stopLoss,
           reduceOnly: body.reduceOnly,
@@ -132,9 +135,10 @@ export function createApiServer(port: number = 3000) {
 
     .get('/orders/history', requireAuth(async ({ session, query }: any) => {
       try {
+        const exchangeId = (query && query.exchange) || session.exchangeId;
         const adapter = await AdapterFactory.createAdapter(
           session.userId,
-          session.exchangeId
+          exchangeId
         );
 
         const limit = query.limit ? parseInt(query.limit) : 50;
@@ -154,9 +158,10 @@ export function createApiServer(port: number = 3000) {
 
     .delete('/order/:orderId', requireAuth(async ({ session, params, query }: any) => {
       try {
+        const exchangeId = (query && query.exchange) || session.exchangeId;
         const adapter = await AdapterFactory.createAdapter(
           session.userId,
-          session.exchangeId
+          exchangeId
         );
 
         const result = await adapter.cancelOrder(params.orderId, query.symbol);
@@ -176,14 +181,28 @@ export function createApiServer(port: number = 3000) {
     // ============ POSITIONS ============
     
     .get('/positions', requireAuth(async ({ session, query }: any) => {
+      // Get positions from specific exchange or all exchanges
       try {
+        // If exchange specified in query, get only that
+        if (query && query.exchange) {
+          const adapter = await AdapterFactory.createAdapter(
+            session.userId,
+            query.exchange
+          );
+          const positions = await adapter.getPositions();
+          return {
+            success: true,
+            data: positions
+          };
+        }
+
+        // Otherwise use session exchange (default)
         const adapter = await AdapterFactory.createAdapter(
           session.userId,
           session.exchangeId
         );
-
-        const positions = await adapter.getPositions(query.symbol);
-
+        const positions = await adapter.getPositions();
+        
         return {
           success: true,
           data: positions

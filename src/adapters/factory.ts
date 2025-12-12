@@ -19,15 +19,15 @@ export class AdapterFactory {
     }
 
     // Decrypt credentials
-    const apiKey = decrypt(credentials.api_key_encrypted);
-    const apiSecret = decrypt(credentials.api_secret_encrypted);
+    const apiKey = decrypt(credentials.api_key_encrypted); // Private Key
+    const apiSecret = decrypt(credentials.api_secret_encrypted); // Wallet Address
 
     // Create appropriate adapter
     if (exchangeId === 'aster') {
       return new AsterAdapter(apiKey, apiSecret);
     } else if (exchangeId === 'hyperliquid') {
-      // For Hyperliquid, apiKey is the wallet address
-      return new HyperliquidAdapter(apiKey);
+      // apiKey is Private Key, apiSecret is Wallet Address
+      return new HyperliquidAdapter(apiSecret, apiKey);
     } else {
       throw new Error(`Unsupported exchange: ${exchangeId}`);
     }
