@@ -429,7 +429,7 @@ export class HyperliquidAdapter implements ExchangeAdapter {
       return filtered.map((o: any) => ({
            orderId: String(o.oid),
            symbol: this.fromExchangeSymbol(o.coin),
-           side: o.side === 'B' ? 'BUY' : 'SELL',
+           side: (o.side === 'B' || o.side === 'b') ? 'BUY' : 'SELL',
            type: 'LIMIT' as any, 
            quantity: o.sz,
            price: o.limitPx,
@@ -458,7 +458,7 @@ export class HyperliquidAdapter implements ExchangeAdapter {
             .map((f: any) => ({
                 orderId: String(f.oid),
                 symbol: this.fromExchangeSymbol(f.coin),
-                side: f.side === 'B' ? 'BUY' : 'SELL',
+                side: (f.side === 'B' || f.side === 'b') ? 'BUY' : 'SELL',
                 type: 'LIMIT' as any,
                 quantity: f.sz,
                 price: f.px,
