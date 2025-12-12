@@ -49,7 +49,7 @@ export interface Position {
 }
 
 // Order types
-export type OrderType = 'MARKET' | 'LIMIT' | 'STOP_MARKET' | 'STOP_LIMIT' | 'TAKE_PROFIT_MARKET' | 'TAKE_PROFIT_LIMIT' | 'TRAILING_STOP_MARKET';
+export type OrderType = 'MARKET' | 'LIMIT' | 'STOP_MARKET' | 'STOP_LIMIT' | 'TAKE_PROFIT_MARKET' | 'TAKE_PROFIT_LIMIT' | 'TRAILING_STOP_MARKET' | 'OCO';
 export type TimeInForce = 'GTC' | 'IOC' | 'FOK';
 
 export interface PlaceOrderParams {
@@ -59,6 +59,7 @@ export interface PlaceOrderParams {
   quantity: string;
   price?: string;
   triggerPrice?: string; // For STOP/TP/TRAILING
+  stopLimitPrice?: string; // For OCO (Limit price of the stop leg) or separate Stop-Limit execution price
   trailingDelta?: string; // For TRAILING_STOP (callback rate/amount)
   timeInForce?: TimeInForce;
   postOnly?: boolean;

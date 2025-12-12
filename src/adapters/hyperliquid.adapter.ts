@@ -137,39 +137,18 @@ export class HyperliquidAdapter implements ExchangeAdapter {
               }
           };
           
-          limitPrice = parseFloat(params.price);
+          limitPrice = parseFloat(params.stopLimitPrice || params.price);
           
       } else if (params.type === 'TRAILING_STOP_MARKET') {
           // Trailing stop orders
-          if (!params.trailingDelta) {
-              throw new Error('TRAILING_STOP_MARKET requires trailingDelta (callback rate)');
-          }
+          // Hyperliquid does not natively support server-side trailing stops in the standard order API.
+          // They must be implemented via the Algo/TWAP system or client-side.
+          // To avoid misleading behavior (placing a static stop), we throw an error.
+          throw new Error('TRAILING_STOP_MARKET is not natively supported by Hyperliquid standard API.');
           
-          // Get current price for initial trigger
-          // @ts-ignore
-          const mids = await this.sdk.info.getAllMids();
-          const currentPrice = parseFloat(mids[symbol] || '0');
-          
-          if (!currentPrice) {
-              throw new Error(`Cannot determine market price for ${symbol}`);
-          }
-          
-          // Calculate initial trigger price based on trailing delta
-          const callbackRate = parseFloat(params.trailingDelta);
-          const initialTrigger = isBuy 
-              ? currentPrice * (1 + callbackRate / 100)
-              : currentPrice * (1 - callbackRate / 100);
-          
-          orderType = {
-              trigger: {
-                  triggerPx: initialTrigger.toString(),
-                  isMarket: true,
-                  tpsl: 'sl' // Trailing stops are stop-loss type
-              }
-          };
-          
-          limitPrice = initialTrigger;
-          
+      } else if (params.type === 'OCO') {
+          throw new Error('OCO orders are not supported by Hyperliquid adapter yet.');
+
       } else if (params.type === 'LIMIT') {
           // Standard limit order
           if (!params.price) {
@@ -273,7 +252,7 @@ export class HyperliquidAdapter implements ExchangeAdapter {
           trigger: {
               triggerPx: triggerPrice,
               isMarket: true,
-              tpsl: isStop ? 'sl' : 'tp'
+              tpsl: (isStop ? 'sl' : 'tp') as 'sl' | 'tp'
           }
       };
 
@@ -484,7 +463,8 @@ export class HyperliquidAdapter implements ExchangeAdapter {
           symbol,
           bids: book.levels[0].slice(0, depth).map((b: any) => [b.px, b.sz]),
           asks: book.levels[1].slice(0, depth).map((a: any) => [a.px, a.sz]),
-          timestamp: book.time
+          // @ts-ignore
+          timestamp: book.time || Date.now()
       };
   }
 

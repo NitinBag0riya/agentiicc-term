@@ -162,6 +162,25 @@ async function main() {
     console.log('✅ \x1b[32mOrder Placed Successfully!\x1b[0m');
     console.log(`   ID: ${order.orderId}, Status: ${order.status}`);
 
+    // 6b. Test Trailing Stop Safeguard (Should Fail)
+    console.log('\n🧪 Testing TRAILING_STOP_MARKET Safeguard (Expect Failure)...');
+    try {
+        await adapter.placeOrder({
+            symbol: symbol,
+            side: 'BUY',
+            type: 'TRAILING_STOP_MARKET',
+            quantity: quantity.toString(),
+            trailingDelta: '1.0'
+        });
+        console.log('❌ Error: TRAILING_STOP_MARKET was accepted (Unexpected!)');
+    } catch (e: any) {
+        if (e.message.includes('natively supported')) {
+            console.log('✅ TRAILING_STOP_MARKET rejected as expected.');
+        } else {
+            console.log(`ℹ️ Rejected with message: ${e.message}`);
+        }
+    }
+
     // 7. Verify Open Orders
     console.log('\n🔍 Verifying Open Orders...');
     await new Promise(r => setTimeout(r, 2000));

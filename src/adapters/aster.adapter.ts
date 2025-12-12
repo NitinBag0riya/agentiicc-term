@@ -78,11 +78,27 @@ export class AsterAdapter implements ExchangeAdapter {
       const orderParams: any = {
         symbol: params.symbol,
         side: params.side,
-        type: params.type,
+        type: params.type === 'STOP_LIMIT' ? 'STOP' : 
+              params.type === 'TAKE_PROFIT_LIMIT' ? 'TAKE_PROFIT' : 
+              params.type,
         quantity: params.quantity
       };
 
-      if (params.price) orderParams.price = params.price;
+      if (params.type === 'STOP_LIMIT' || params.type === 'TAKE_PROFIT_LIMIT') {
+          // For Stop Limit, 'price' is the execution price (limit price)
+          // We prefer stopLimitPrice if available, otherwise fall back to price
+          if (params.stopLimitPrice) {
+              orderParams.price = params.stopLimitPrice;
+          } else if (params.price) {
+              orderParams.price = params.price;
+          }
+      } else if (params.price) {
+        orderParams.price = params.price;
+      }
+      
+      if (params.type === 'OCO') {
+          throw new Error('OCO orders are not supported by Aster adapter yet.');
+      }
       
       // Map Trigger Price -> stopPrice
       if (params.triggerPrice) {

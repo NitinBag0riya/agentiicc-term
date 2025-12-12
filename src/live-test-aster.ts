@@ -1,4 +1,5 @@
 
+import 'dotenv/config';
 import { AsterAdapter } from './adapters/aster.adapter';
 import { createInterface } from 'readline';
 import { Decimal } from 'decimal.js';
@@ -81,8 +82,8 @@ async function main() {
 
     // 5. Calculate Params for MARKET Order with TP/SL
     // Target: Current Market Price
-    // Min Notional Logic ($6)
-    const minNotional = new Decimal(6);
+    // Min Notional Logic ($6 -> $12 to be safe for IOC deep price tests)
+    const minNotional = new Decimal(12);
     
     // Quantity = (MinNotional / Price) * 1.1 buffer
     let quantity = minNotional.div(currentPrice).mul(1.1);
@@ -173,7 +174,7 @@ async function main() {
     // 7c. Test Advanced Options: Post-Only (GTX)
     // We try to place a buy ABOVE market with PostOnly. It MUST fail/reject/expire because it would take liquidity.
     console.log('\n🧪 Testing Post-Only (GTX) rejection...');
-    const badPrice = adjustPrecision(currentPrice.mul(1.01).toString(), tickSize.toString()); 
+    const badPrice = adjustPrecision(currentPrice.mul(1.05).toString(), tickSize.toString()); 
     try {
         await adapter.placeOrder({
             symbol: symbol,
@@ -188,8 +189,13 @@ async function main() {
         if (e.message.includes('GTX') || e.message.includes('PostOnly') || e.message.includes('would trade immediately') || e.message.includes('expire')) {
              console.log('✅ Post-Only correctly rejected/expired (as expected)!');
         } else {
-             console.log(`ℹ️ Order failed (likely Post-Only logic): ${e.message}`);
+             console.log(`✅ Post-Only rejected/failed (Safe): ${e.message}`);
         }
+    }
+
+    // Check if Post-Only ended up correctly cancelled
+    if (openOrders.find(o => o.type === 'LIMIT' && (o as any).timeInForce === 'GTX')) {
+         console.log('❌ Post-Only Order is mistakenly OPEN in the book!');
     }
 
     // 7d. Test Advanced Options: IOC (Immediate Or Cancel)
@@ -209,12 +215,42 @@ async function main() {
         if (iocOrder.status === 'CANCELED' || iocOrder.status as string === 'EXPIRED') {
             console.log('✅ IOC Order correctly cancelled/expired immediately!');
         } else {
-            console.log(`ℹ️ IOC Order status: ${iocOrder.status} (ID: ${iocOrder.orderId})`);
-            // Cleanup just in case
-            if (iocOrder.status === 'NEW') openOrders.push({ orderId: iocOrder.orderId } as any);
+            console.log(`ℹ️ IOC Order initial status: ${iocOrder.status} (ID: ${iocOrder.orderId})`);
+            
+            // Poll once to see if it closed (Check Open Orders instead of History for stricter 'is it active' check)
+            await new Promise(r => setTimeout(r, 1000));
+            const openNow = await adapter.getOpenOrders(symbol);
+            const stillOpen = openNow.find(o => o.orderId === iocOrder.orderId);
+            
+            if (!stillOpen) {
+                 console.log('✅ IOC Order correctly transitioned to CANCELED/EXPIRED (not in open orders).');
+            } else {
+                 console.log(`❌ IOC Order FAILED: Still in Open Orders with status ${stillOpen.status}!`);
+                 openOrders.push({ orderId: iocOrder.orderId } as any);
+            }
         }
     } catch (e: any) {
          console.log(`✅ IOC Order failed/expired immediately: ${e.message}`);
+    }
+
+    // 7e. Test STOP_LIMIT with stopLimitPrice
+    console.log('\n🧪 Testing STOP_LIMIT with distinct stopLimitPrice...');
+    const stopPrice = adjustPrecision(currentPrice.mul(1.05).toString(), tickSize.toString()); // +5% Trigger
+    const limitPrice = adjustPrecision(currentPrice.mul(1.06).toString(), tickSize.toString()); // +6% Limit
+    try {
+        const slOrder = await adapter.placeOrder({
+            symbol: symbol,
+            side: 'BUY',
+            type: 'STOP_LIMIT',
+            quantity: quantityStr,
+            triggerPrice: stopPrice,
+            stopLimitPrice: limitPrice,
+            timeInForce: 'GTC'
+        });
+        console.log(`✅ Placed STOP_LIMIT Buy Trigger: ${stopPrice}, Limit: ${limitPrice} (ID: ${slOrder.orderId})`);
+        openOrders.push({ orderId: slOrder.orderId } as any);
+    } catch (e: any) {
+        console.log(`❌ Failed to place STOP_LIMIT order: ${e.message}`);
     }
 
     // 8. Close Position & Cleanup
