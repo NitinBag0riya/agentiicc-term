@@ -3,7 +3,8 @@
  * Provides normalized endpoints that work across all exchanges
  */
 
-import { Elysia } from 'elysia';
+import { Elysia, t } from 'elysia';
+import { swagger } from '@elysiajs/swagger';
 import { AdapterFactory } from '../adapters/factory';
 import { SessionStore } from '../middleware/session';
 import { requireAuth } from '../middleware/auth';
@@ -11,6 +12,25 @@ import type { PlaceOrderParams } from '../adapters/base.adapter';
 
 export function createApiServer(port: number = 3000) {
   const app = new Elysia()
+    .use(swagger({
+      documentation: {
+        info: {
+          title: 'AgentiFi Universal API',
+          version: '1.0.0',
+          description: 'Unified trading interface for Aster and Hyperliquid. Use /auth/session to get a token.'
+        },
+        components: {
+          securitySchemes: {
+            bearerAuth: {
+              type: 'http',
+              scheme: 'bearer',
+              bearerFormat: 'JWT'
+            }
+          }
+        },
+        security: [{ bearerAuth: [] }]
+      }
+    }))
     // CORS
     .onRequest(({ set }) => {
       set.headers['Access-Control-Allow-Origin'] = '*';
@@ -37,6 +57,15 @@ export function createApiServer(port: number = 3000) {
         token,
         expiresIn: '24h'
       };
+    }, {
+      body: t.Object({
+        userId: t.Number({ description: 'User ID (e.g. 1 or 2)', default: 2 }),
+        exchangeId: t.String({ description: 'Exchange ID (aster or hyperliquid)', default: 'hyperliquid' })
+      }),
+      detail: {
+        summary: 'Create Session',
+        tags: ['Auth']
+      }
     })
 
     .delete('/auth/session', requireAuth(({ session, headers }: any) => {
@@ -72,6 +101,14 @@ export function createApiServer(port: number = 3000) {
           success: false,
           error: error.message
         };
+      }
+    }, {
+      query: t.Object({
+        exchange: t.Optional(t.String({ description: 'Filter by exchange (aster/hyperliquid)' }))
+      }),
+      detail: {
+        summary: 'Get Account Info',
+        tags: ['Account']
       }
     }))
 
@@ -110,13 +147,40 @@ export function createApiServer(port: number = 3000) {
           error: error.message
         };
       }
+    }, {
+      body: t.Object({
+        exchange: t.Optional(t.String({ description: 'Override session exchange' })),
+        symbol: t.String({ default: 'BTC' }),
+        side: t.Union([t.Literal('BUY'), t.Literal('SELL')]),
+        type: t.Union([
+          t.Literal('MARKET'), 
+          t.Literal('LIMIT'), 
+          t.Literal('STOP_MARKET'), 
+          t.Literal('STOP_LIMIT'),
+          t.Literal('TAKE_PROFIT_MARKET'),
+          t.Literal('TAKE_PROFIT_LIMIT')
+        ]),
+        quantity: t.String({ default: '0.001' }),
+        price: t.Optional(t.String()),
+        triggerPrice: t.Optional(t.String({ description: 'For STOP/TP orders' })),
+        stopPrice: t.Optional(t.String({ description: 'Alias for triggerPrice' })),
+        takeProfit: t.Optional(t.String()),
+        stopLoss: t.Optional(t.String()),
+        leverage: t.Optional(t.Number()),
+        reduceOnly: t.Optional(t.Boolean())
+      }),
+      detail: {
+        summary: 'Place Order',
+        tags: ['Orders']
+      }
     }))
 
     .get('/orders', requireAuth(async ({ session, query }: any) => {
       try {
+        const exchangeId = (query && query.exchange) || session.exchangeId;
         const adapter = await AdapterFactory.createAdapter(
           session.userId,
-          session.exchangeId
+          exchangeId
         );
 
         const orders = await adapter.getOpenOrders(query.symbol);
@@ -130,6 +194,15 @@ export function createApiServer(port: number = 3000) {
           success: false,
           error: error.message
         };
+      }
+    }, {
+      query: t.Object({
+        symbol: t.Optional(t.String()),
+        exchange: t.Optional(t.String())
+      }),
+      detail: {
+        summary: 'Get Open Orders',
+        tags: ['Orders']
       }
     }))
 
@@ -154,6 +227,16 @@ export function createApiServer(port: number = 3000) {
           error: error.message
         };
       }
+    }, {
+      query: t.Object({
+        symbol: t.Optional(t.String()),
+        limit: t.Optional(t.String({ default: '50' })),
+        exchange: t.Optional(t.String())
+      }),
+      detail: {
+        summary: 'Get Order History',
+        tags: ['Orders']
+      }
     }))
 
     .delete('/order/:orderId', requireAuth(async ({ session, params, query }: any) => {
@@ -175,6 +258,18 @@ export function createApiServer(port: number = 3000) {
           success: false,
           error: error.message
         };
+      }
+    }, {
+      params: t.Object({
+        orderId: t.String()
+      }),
+      query: t.Object({
+        symbol: t.Optional(t.String()),
+        exchange: t.Optional(t.String())
+      }),
+      detail: {
+        summary: 'Cancel Order',
+        tags: ['Orders']
       }
     }))
 
@@ -212,6 +307,14 @@ export function createApiServer(port: number = 3000) {
           success: false,
           error: error.message
         };
+      }
+    }, {
+      query: t.Object({
+        exchange: t.Optional(t.String())
+      }),
+      detail: {
+        summary: 'Get Positions',
+        tags: ['Account']
       }
     }))
 
@@ -321,6 +424,7 @@ export function createApiServer(port: number = 3000) {
     .listen(port);
 
   console.log(`🌐 API Server running at http://localhost:${port}`);
+  console.log(`📖 Swagger Docs at http://localhost:${port}/swagger`);
   console.log(`📚 Available endpoints:`);
   console.log(`   GET  /health`);
   console.log(`   POST /auth/session`);
