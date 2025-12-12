@@ -11,13 +11,24 @@ export class HyperliquidAdapter implements ExchangeAdapter {
 
   constructor(accountAddress: string, privateKey?: string) {
     this.accountAddress = accountAddress;
-    // Initialize SDK (Mainnet by default)
-    this.sdk = new Hyperliquid(privateKey, false); // Mainnet
+    
+    // Initialize SDK with proper options object for exchange module
     if (privateKey) {
-        // Force initialization of private key to setup exchange module
-        // @ts-ignore
-        this.sdk.initializeWithPrivateKey(privateKey);
-    } 
+      const cleanKey = privateKey.startsWith('0x') ? privateKey : `0x${privateKey}`;
+      // @ts-ignore - SDK type definitions may not match actual implementation
+      this.sdk = new Hyperliquid({
+        enableWs: true,
+        privateKey: cleanKey,
+        walletAddress: accountAddress,
+        testnet: false
+      });
+    } else {
+      // @ts-ignore
+      this.sdk = new Hyperliquid({
+        enableWs: true,
+        testnet: false
+      });
+    }
   }
 
   // Helper to normalize symbols (Exchange -> App)

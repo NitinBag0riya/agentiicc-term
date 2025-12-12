@@ -23,10 +23,18 @@ export function requireAuth(handler: any) {
       return { error: 'Unauthorized: Invalid or expired session' };
     }
 
-    // Attach session to context
-    context.session = session;
+    // Attach session to context and ensure body is available
+    const enhancedContext = {
+      ...context,
+      session,
+      body: context.body,  // Explicitly pass body
+      headers: context.headers,
+      query: context.query,
+      params: context.params,
+      set: context.set
+    };
 
-    // Call the actual handler
-    return handler(context);
+    // Call the actual handler with enhanced context
+    return handler(enhancedContext);
   };
 }
