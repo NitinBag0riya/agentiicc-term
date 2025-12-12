@@ -10,25 +10,30 @@
 
 ## 📊 Test Results Summary
 
-| Component      | Scenario                  | Result  | Notes                                                                                        |
-| -------------- | ------------------------- | ------- | -------------------------------------------------------------------------------------------- |
-| **Auth**       | Login Loop                | ✅ PASS | Verified Token issuance.                                                                     |
-| **Market**     | Ticker/Book/Assets        | ✅ PASS | Large datasets handled with smart truncation.                                                |
-| **Account**    | Get Info                  | ✅ PASS | Verified balances available.                                                                 |
-| **Settings**   | Set Leverage              | ✅ PASS | Aster set explicit; Hyperliquid acknowledged per-order logic.                                |
-| **Settings**   | Set Margin Mode           | ✅ PASS | **Fixed**: Handled Aster's "No need to change" 400 error as Success.                         |
-| **Validation** | Zero Qty Order            | ✅ PASS | Correctly rejected with descriptive error JSON.                                              |
-| **Validation** | Missing Trigger           | ✅ PASS | Correctly rejected `STOP_MARKET` without trigger price.                                      |
-| **Lifecycle**  | Place -> Verify -> Cancel | ✅ PASS | **Fixed**: Hyperliquid Open Orders now correctly map `side: "BUY"` (fixed case-sensitivity). |
+| Component      | Scenario                  | Result  | Notes                                                                                         |
+| -------------- | ------------------------- | ------- | --------------------------------------------------------------------------------------------- |
+| **Auth**       | Login Loop                | ✅ PASS | Verified Token issuance.                                                                      |
+| **Market**     | Ticker/Book/Assets        | ✅ PASS | Large datasets handled with smart truncation.                                                 |
+| **Account**    | Get Info                  | ✅ PASS | Verified balances available.                                                                  |
+| **Settings**   | Set Leverage              | ✅ PASS | Aster set explicit; Hyperliquid acknowledged per-order logic.                                 |
+| **Settings**   | Set Margin Mode           | ✅ PASS | **Fixed**: Handled Aster's "No need to change" 400 error as Success.                          |
+| **Validation** | Zero Qty Order            | ✅ PASS | Correctly rejected with descriptive error JSON.                                               |
+| **Validation** | Missing Trigger           | ✅ PASS | Correctly rejected `STOP_MARKET` without trigger price.                                       |
+| **Lifecycle**  | Place -> Verify -> Cancel | ✅ PASS | **Fixed**: Hyperliquid Open Orders now correctly map `side: "BUY"` (fixed case-sensitivity).  |
+| **Bulk Ops**   | **Place 2 -> Cancel All** | ✅ PASS | **New Feature**: Added `DELETE /orders` endpoint & implemented `cancelAllOrders` in adapters. |
 
 ## 🛠️ Code Improvements Delivered
 
-1.  **`test-zero-to-hero.ts`**:
+1.  **Universal API Upgrade**:
+    - Added `DELETE /orders` endpoint for **Bulk Cancellation**.
+    - Implemented `cancelAllOrders` in `AsterAdapter` (using `/fapi/v1/allOpenOrders`).
+    - Standardized `ExchangeAdapter` interface.
+2.  **`test-zero-to-hero.ts`**:
     - Added **Payload Logging** (Request Body).
-    - Implemented **Smart Truncation** (Depth 5) to keep huge JSON responses readable.
-    - Added logic to catch and "Pass" benign API warnings.
-2.  **`HyperliquidAdapter`**:
-    - Fixed `getOpenOrders` side mapping logic (`B` vs `b`) to ensure Buy orders are identified correctly.
+    - Implemented **Smart Truncation** (Depth 5).
+    - Added **Bulk Cancel Test Case**.
+3.  **`HyperliquidAdapter`**:
+    - Fixed `getOpenOrders` side mapping logic (`B` vs `b`).
 
 ## 🚀 How to Run
 

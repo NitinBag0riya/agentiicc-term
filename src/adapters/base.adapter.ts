@@ -10,6 +10,7 @@ export interface ExchangeAdapter {
   // Order operations
   placeOrder(params: PlaceOrderParams): Promise<OrderResult>;
   cancelOrder(orderId: string, symbol?: string): Promise<CancelResult>;
+  cancelAllOrders?(symbol?: string): Promise<{ success: boolean; canceledCount: number; message: string }>;
   getOpenOrders(symbol?: string): Promise<Order[]>;
   getOrderHistory(symbol?: string, limit?: number): Promise<Order[]>;
   

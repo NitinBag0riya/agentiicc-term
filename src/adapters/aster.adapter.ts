@@ -195,6 +195,28 @@ export class AsterAdapter implements ExchangeAdapter {
       };
     }
   }
+  
+  async cancelAllOrders(symbol?: string): Promise<{ success: boolean; canceledCount: number; message: string }> {
+    if (!symbol) {
+        return { success: false, canceledCount: 0, message: 'Symbol is required to cancel all orders' };
+    }
+    
+    try {
+        const data: any = await this.request('/fapi/v1/allOpenOrders', { symbol }, 'DELETE');
+        // Aster API returns { code: 200, msg: "success" } on success
+        return {
+            success: true,
+            canceledCount: -1, // Unknown count from API
+            message: 'All open orders canceled successfully'
+        };
+    } catch (error: any) {
+        return {
+            success: false,
+            canceledCount: 0,
+            message: `Failed to cancel all orders: ${error.message}`
+        };
+    }
+  }
 
   /**
    * Set leverage for a symbol

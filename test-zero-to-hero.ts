@@ -161,6 +161,42 @@ async function runZeroToHero() {
         console.error(`   ❌ Failed to place order. Stopping lifecycle test.`);
     }
 
+    // 5b. CANCEL ALL ORDERS
+    console.log(`\n--- [5b] Bulk Order Cancellation (Cancel All) ---`);
+    
+    // Place 2 Orders
+    const o1 = await makeRequest('Place Order 1', '/order', 'POST', { 
+        exchange, symbol: config.symbol, side: 'BUY', type: 'LIMIT', price: (config.price * 0.5).toString(), quantity: config.quantity 
+    }, headers);
+    const o2 = await makeRequest('Place Order 2', '/order', 'POST', { 
+        exchange, symbol: config.symbol, side: 'BUY', type: 'LIMIT', price: (config.price * 0.4).toString(), quantity: config.quantity 
+    }, headers);
+
+    if (o1.success && o2.success) {
+        console.log(`   ✅ Placed 2 orders for bulk cancel test.`);
+        await new Promise(r => setTimeout(r, 1500));
+        
+        const openBefore = await makeRequest('Get Open Orders (Before)', `/orders?exchange=${exchange}&symbol=${config.symbol}`, 'GET', undefined, headers);
+        const countBefore = openBefore.data?.length || 0;
+        console.log(`   Context: ${countBefore} open orders.`);
+
+        // Cancel All
+        const cancelAll = await makeRequest('Cancel All Orders', `/orders?exchange=${exchange}&symbol=${config.symbol}`, 'DELETE', undefined, headers);
+        logResponse(cancelAll);
+
+        await new Promise(r => setTimeout(r, 1500));
+        const openAfter = await makeRequest('Get Open Orders (After)', `/orders?exchange=${exchange}&symbol=${config.symbol}`, 'GET', undefined, headers);
+        const countAfter = openAfter.data?.length || 0;
+        
+        if (countAfter < countBefore) {
+             console.log(`   ✅ Bulk Cancel Effective: ${countBefore} -> ${countAfter}`);
+        } else {
+             console.log(`   ⚠️ Bulk Cancel might have failed or latent: ${countBefore} -> ${countAfter}`);
+        }
+    } else {
+        console.log(`   ⚠️ Skipping Bulk Cancel test (limit orders failed).`);
+    }
+
     // 6. HISTORY
     console.log(`\n--- [6] Order History ---`);
     await makeRequest('Get Order History', `/orders/history?exchange=${exchange}&symbol=${config.symbol}&limit=2`, 'GET', undefined, headers);

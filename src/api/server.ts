@@ -134,6 +134,26 @@ export function createApiServer(port: number = 3000) {
       }
     }))
 
+
+    .delete('/orders', requireAuth(async ({ session, query }: any) => {
+      try {
+        const exchangeId = (query && query.exchange) || session.exchangeId;
+        const adapter = await AdapterFactory.createAdapter(
+          session.userId,
+          exchangeId
+        );
+
+        if (!adapter.cancelAllOrders) {
+           return { success: false, error: 'Exchange does not support cancel all' };
+        }
+
+        const result = await adapter.cancelAllOrders(query.symbol);
+        return result;
+      } catch (error: any) {
+        return { success: false, error: error.message };
+      }
+    }))
+
     // ============ LEVERAGE & MARGIN ============
 
     .post('/account/leverage', requireAuth(async ({ session, body }: any) => {
