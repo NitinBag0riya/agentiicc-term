@@ -76,11 +76,11 @@ async function runUnifiedTestSuite(exchangeName: string, adapter: ExchangeAdapte
     
     // LIMIT BUY: 20% below market (Safe Fill)
     // If price > 100 (like ETH), ensure we don't hit weird float dust issues
-    let limitPrice: string;
+     let limitPrice: string;
     if (exchangeName === 'Hyperliquid' && currentPrice.greaterThan(100)) {
-         limitPrice = currentPrice.mul(0.8).toDecimalPlaces(0).toString();
+         limitPrice = currentPrice.mul(0.95).toDecimalPlaces(0).toString();
     } else {
-         limitPrice = adjustPrecision(currentPrice.mul(0.8), tickSize);
+         limitPrice = adjustPrecision(currentPrice.mul(0.95), tickSize);
     }
     
     // Quantity: ~$15 USD
@@ -160,6 +160,9 @@ async function runUnifiedTestSuite(exchangeName: string, adapter: ExchangeAdapte
              // If Hyperliquid complains about price even at 2%, we treat it as a pass (Safe Rejection)
              // But 2% should work.
              logResult(exchangeName, 'IOC Expiration', true, `Safely Rejected (Price Band): ${e.message}`);
+        } else if (e.message.includes('Order could not immediately match')) {
+             // Hyperliquid specific IOC rejection
+             logResult(exchangeName, 'IOC Expiration', true, `Correctly Rejected (IOC not matched): ${e.message}`);
         } else {
              logResult(exchangeName, 'IOC Expiration', false, `Unexpected API Error: ${e.message}`);
         }
@@ -229,6 +232,98 @@ async function runUnifiedTestSuite(exchangeName: string, adapter: ExchangeAdapte
         } else {
              logResult(exchangeName, 'Feature: Trailing Stop', false, `Failed on supported exchange: ${e.message}`);
         }
+    }
+
+    // TEST F: MARKET Order (Lifecycle)
+    // We will BUY small amount MARKET, then SELL small amount MARKET to close.
+    // NOTE: This uses REAL funds.
+    console.log(`   🔸 Testing MARKET Order Flow...`);
+    try {
+        // 1. Market BUY
+        const marketBuy = await adapter.placeOrder({
+             symbol,
+             side: 'BUY',
+             type: 'MARKET',
+             quantity: quantityStr
+        });
+        logResult(exchangeName, 'Market BUY', true, `Filled at ? (Status: ${marketBuy.status})`);
+        
+        await new Promise(r => setTimeout(r, 2000)); // Wait for fill propagation
+
+        // 2. Market SELL (Close)
+        const marketSell = await adapter.placeOrder({
+            symbol,
+            side: 'SELL',
+            type: 'MARKET',
+            quantity: quantityStr
+       });
+       logResult(exchangeName, 'Market SELL', true, `Filled at ? (Status: ${marketSell.status})`);
+
+    } catch (e: any) {
+        logResult(exchangeName, 'Market Order Flow', false, e.message);
+    }
+
+    // TEST G: STOP_MARKET (Trigger)
+    // Place a Conditional Order well BELOW market (Sell Stop) or ABOVE (Buy Stop)
+    // We'll use Sell Stop below market price.
+    console.log(`   🔸 Testing STOP_MARKET...`);
+    try {
+        const stopPrice = adjustPrecision(currentPrice.mul(0.95), tickSize);
+        const stopOrder = await adapter.placeOrder({
+            symbol,
+            side: 'SELL',
+            type: 'STOP_MARKET',
+            quantity: quantityStr,
+            triggerPrice: stopPrice
+        });
+        
+        logResult(exchangeName, 'STOP_MARKET Place', true, `ID: ${stopOrder.orderId}, Status: ${stopOrder.status}`);
+        
+        // Clean up
+        await adapter.cancelOrder(stopOrder.orderId, symbol).catch(() => {});
+    } catch (e: any) {
+        logResult(exchangeName, 'STOP_MARKET Place', false, e.message);
+    }
+
+    // TEST H: STOP_LIMIT
+    console.log(`   🔸 Testing STOP_LIMIT...`);
+    try {
+        const stopPrice = adjustPrecision(currentPrice.mul(0.95), tickSize);
+        const limitExecPrice = adjustPrecision(currentPrice.mul(0.94), tickSize); // Execute lower than trigger
+        
+        const stopLimitOrder = await adapter.placeOrder({
+            symbol,
+            side: 'SELL',
+            type: 'STOP_LIMIT',
+            quantity: quantityStr,
+            triggerPrice: stopPrice,
+            price: limitExecPrice
+        });
+        
+        logResult(exchangeName, 'STOP_LIMIT Place', true, `ID: ${stopLimitOrder.orderId}`);
+        // Clean up
+        await adapter.cancelOrder(stopLimitOrder.orderId, symbol).catch(() => {});
+    } catch (e: any) {
+         logResult(exchangeName, 'STOP_LIMIT Place', false, e.message);
+    }
+
+    // TEST I: TAKE_PROFIT_MARKET
+    // Sell TP above market
+    console.log(`   🔸 Testing TAKE_PROFIT_MARKET...`);
+    try {
+        const tpPrice = adjustPrecision(currentPrice.mul(1.05), tickSize);
+        const tpOrder = await adapter.placeOrder({
+            symbol,
+            side: 'SELL',
+            type: 'TAKE_PROFIT_MARKET',
+            quantity: quantityStr,
+            triggerPrice: tpPrice
+        });
+        
+        logResult(exchangeName, 'TP_MARKET Place', true, `ID: ${tpOrder.orderId}`);
+        await adapter.cancelOrder(tpOrder.orderId, symbol).catch(() => {});
+    } catch (e: any) {
+        logResult(exchangeName, 'TP_MARKET Place', false, e.message);
     }
 }
 

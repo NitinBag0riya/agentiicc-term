@@ -85,6 +85,11 @@ export class HyperliquidAdapter implements ExchangeAdapter {
       let limitPrice = parseFloat(params.price || '0');
       
       // Handle different order types
+      // Helper to match Hyperliquid's strict precision (5 significant figures)
+      const formatPrice = (price: number): number => {
+          return parseFloat(price.toPrecision(5));
+      };
+
       if (params.type === 'MARKET') {
           // Hyperliquid doesn't have true market orders
           // Use aggressive limit order (IOC at far price)
@@ -100,8 +105,7 @@ export class HyperliquidAdapter implements ExchangeAdapter {
           // MUST round to 5 significant figures (Hyperliquid standard)
           const aggressive = isBuy ? currentPrice * 1.05 : currentPrice * 0.95;
           
-          // toPrecision(5) returns string, parseFloat parses it back
-          limitPrice = parseFloat(aggressive.toPrecision(5));
+          limitPrice = formatPrice(aggressive);
           orderType = { limit: { tif: 'Ioc' } }; // IOC to ensure immediate execution
           
       } else if (params.type === 'STOP_MARKET' || params.type === 'TAKE_PROFIT_MARKET') {
@@ -115,14 +119,14 @@ export class HyperliquidAdapter implements ExchangeAdapter {
           
           orderType = {
               trigger: {
-                  triggerPx: triggerPrice.toString(),
+                  triggerPx: formatPrice(triggerPrice).toString(),
                   isMarket: true,
                   tpsl: isStop ? 'sl' : 'tp'
               }
           };
           
           // For trigger orders, we still need a limit price (use trigger price)
-          limitPrice = triggerPrice;
+          limitPrice = formatPrice(triggerPrice);
           
       } else if (params.type === 'STOP_LIMIT' || params.type === 'TAKE_PROFIT_LIMIT') {
           // Trigger orders with limit execution
@@ -135,13 +139,14 @@ export class HyperliquidAdapter implements ExchangeAdapter {
           
           orderType = {
               trigger: {
-                  triggerPx: triggerPrice.toString(),
+                  triggerPx: formatPrice(triggerPrice).toString(),
                   isMarket: false,
                   tpsl: isStop ? 'sl' : 'tp'
               }
           };
           
-          limitPrice = parseFloat((params.stopLimitPrice || params.price) as string);
+          const rawLimit = parseFloat((params.stopLimitPrice || params.price) as string);
+          limitPrice = formatPrice(rawLimit);
           
       } else if (params.type === 'TRAILING_STOP_MARKET') {
           // Trailing stop orders
@@ -159,7 +164,7 @@ export class HyperliquidAdapter implements ExchangeAdapter {
               throw new Error('LIMIT order requires price');
           }
           
-          limitPrice = parseFloat(params.price);
+          limitPrice = formatPrice(parseFloat(params.price));
           
           // Handle special time-in-force options
           if (params.postOnly) {
@@ -252,9 +257,17 @@ export class HyperliquidAdapter implements ExchangeAdapter {
       const isBuy = side === 'BUY';
       const isStop = type.includes('STOP');
       
+      // Helper to match Hyperliquid's strict precision (5 significant figures)
+      const formatPrice = (price: number): number => {
+          return parseFloat(price.toPrecision(5));
+      };
+      
+      const priceVal = parseFloat(triggerPrice);
+      const formattedPrice = formatPrice(priceVal);
+
       const orderType = {
           trigger: {
-              triggerPx: triggerPrice,
+              triggerPx: formattedPrice.toString(),
               isMarket: true,
               tpsl: (isStop ? 'sl' : 'tp') as 'sl' | 'tp'
           }
@@ -265,7 +278,7 @@ export class HyperliquidAdapter implements ExchangeAdapter {
           coin: symbol,
           is_buy: isBuy,
           sz: parseFloat(quantity),
-          limit_px: parseFloat(triggerPrice),
+          limit_px: formattedPrice,
           order_type: orderType,
           reduce_only: true
       });

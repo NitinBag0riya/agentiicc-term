@@ -1,7 +1,15 @@
 
 import { createApiServer } from './api/server';
+import { connectPostgres, initSchema } from './db/postgres';
 
-console.log('🚀 Starting Standalone API Server (No DB)...');
-console.log('⚠️  Only public endpoints will work (Orderbook, Ticker, Assets)');
+async function start() {
+    console.log('🔌 Connecting to PostgreSQL...');
+    await connectPostgres();
+    await initSchema();
+    console.log('✅ Database ready');
 
-createApiServer(3000);
+    console.log('🚀 Starting Standalone API Server...');
+    createApiServer(3000);
+}
+
+start();

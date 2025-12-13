@@ -1,0 +1,592 @@
+{
+  "info": {
+    "_postman_id": "universal-api-collection",
+    "name": "Universal Trading API",
+    "description": "Postman collection for the Universal Trading API. Supports Aster and Hyperliquid exchanges.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:3000",
+      "type": "string"
+    },
+    {
+      "key": "authToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "exchangeId",
+      "value": "aster",
+      "type": "string"
+    },
+    {
+      "key": "userId",
+      "value": "2",
+      "type": "string"
+    },
+    {
+      "key": "userId_Aster",
+      "value": "2",
+      "type": "string"
+    },
+    {
+      "key": "userId_Hyperliquid",
+      "value": "2",
+      "type": "string"
+    },
+    {
+      "key": "exchangeId_Aster",
+      "value": "aster",
+      "type": "string"
+    },
+    {
+      "key": "exchangeId_Hyperliquid",
+      "value": "hyperliquid",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Create Session",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData.success) {",
+                  "    pm.collectionVariables.set(\"authToken\", jsonData.token);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"userId\": \"{{userId}}\",\n    \"exchangeId\": \"{{exchangeId}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/session",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "session"]
+            },
+            "description": "Creates a session token. Copy the token from response to 'authToken' variable or it is auto-set by the script."
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Session",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authToken}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/session",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "session"]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Market Data (Public)",
+      "item": [
+        {
+          "name": "Get Assets",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/assets?exchange={{exchangeId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["assets"],
+              "query": [
+                {
+                  "key": "exchange",
+                  "value": "{{exchangeId}}"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Ticker",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/ticker/ETHUSDT?exchange={{exchangeId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["ticker", "ETHUSDT"],
+              "query": [
+                {
+                  "key": "exchange",
+                  "value": "{{exchangeId}}"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Orderbook",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/orderbook/ETHUSDT?depth=10&exchange={{exchangeId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["orderbook", "ETHUSDT"],
+              "query": [
+                {
+                  "key": "depth",
+                  "value": "10"
+                },
+                {
+                  "key": "exchange",
+                  "value": "{{exchangeId}}"
+                }
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Account",
+      "item": [
+        {
+          "name": "Get Account Info",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authToken}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/account?exchange={{exchangeId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["account"],
+              "query": [
+                {
+                  "key": "exchange",
+                  "value": "{{exchangeId}}"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Positions",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authToken}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/positions?exchange={{exchangeId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["positions"],
+              "query": [
+                {
+                  "key": "exchange",
+                  "value": "{{exchangeId}}"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Set Leverage",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authToken}}",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"symbol\": \"ETHUSDT\",\n    \"leverage\": \"5\",\n    \"exchange\": \"{{exchangeId}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/account/leverage",
+              "host": ["{{baseUrl}}"],
+              "path": ["account", "leverage"]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Order Placement",
+      "item": [
+        {
+          "name": "1. LIMIT Order",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authToken}}",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"symbol\": \"ETHUSDT\",\n    \"side\": \"BUY\",\n    \"type\": \"LIMIT\",\n    \"quantity\": \"0.01\",\n    \"price\": \"3000\",\n    \"exchange\": \"{{exchangeId}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/order",
+              "host": ["{{baseUrl}}"],
+              "path": ["order"]
+            },
+            "description": "Standard GTC Limit Order. Price set to 3000 (below market 3200)."
+          },
+          "response": []
+        },
+        {
+          "name": "2. MARKET Order",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authToken}}",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"symbol\": \"ETHUSDT\",\n    \"side\": \"BUY\",\n    \"type\": \"MARKET\",\n    \"quantity\": \"0.005\",\n    \"exchange\": \"{{exchangeId}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/order",
+              "host": ["{{baseUrl}}"],
+              "path": ["order"]
+            },
+            "description": "Executes immediately at best available price"
+          },
+          "response": []
+        },
+        {
+          "name": "3. IOC (Immediate Or-Cancel)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authToken}}",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"symbol\": \"ETHUSDT\",\n    \"side\": \"BUY\",\n    \"type\": \"LIMIT\",\n    \"quantity\": \"0.01\",\n    \"price\": \"3200\",\n    \"timeInForce\": \"IOC\",\n    \"exchange\": \"{{exchangeId}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/order",
+              "host": ["{{baseUrl}}"],
+              "path": ["order"]
+            },
+            "description": "Limit order that must fill immediately or be cancelled."
+          },
+          "response": []
+        },
+        {
+          "name": "4. POST_ONLY",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authToken}}",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"symbol\": \"ETHUSDT\",\n    \"side\": \"BUY\",\n    \"type\": \"LIMIT\",\n    \"quantity\": \"0.01\",\n    \"price\": \"3000\",\n    \"postOnly\": true,\n    \"exchange\": \"{{exchangeId}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/order",
+              "host": ["{{baseUrl}}"],
+              "path": ["order"]
+            },
+            "description": "Limit order that acts as Maker only. Rejected if it crosses spread."
+          },
+          "response": []
+        },
+        {
+          "name": "5. STOP_MARKET",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authToken}}",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"symbol\": \"ETHUSDT\",\n    \"side\": \"SELL\",\n    \"type\": \"STOP_MARKET\",\n    \"quantity\": \"0.01\",\n    \"triggerPrice\": \"2900\",\n    \"exchange\": \"{{exchangeId}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/order",
+              "host": ["{{baseUrl}}"],
+              "path": ["order"]
+            },
+            "description": "Triggers a Market sell when price falls to triggerPrice. Should be below market (3200)."
+          },
+          "response": []
+        },
+        {
+          "name": "6. STOP_LIMIT",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authToken}}",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"symbol\": \"ETHUSDT\",\n    \"side\": \"SELL\",\n    \"type\": \"STOP_LIMIT\",\n    \"quantity\": \"0.01\",\n    \"triggerPrice\": \"2900\",\n    \"price\": \"2850\",\n    \"exchange\": \"{{exchangeId}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/order",
+              "host": ["{{baseUrl}}"],
+              "path": ["order"]
+            },
+            "description": "Triggers a Limit sell at 'price' when price falls to 'triggerPrice'."
+          },
+          "response": []
+        },
+        {
+          "name": "7. TAKE_PROFIT_MARKET",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authToken}}",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"symbol\": \"ETHUSDT\",\n    \"side\": \"SELL\",\n    \"type\": \"TAKE_PROFIT_MARKET\",\n    \"quantity\": \"0.01\",\n    \"triggerPrice\": \"3500\",\n    \"exchange\": \"{{exchangeId}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/order",
+              "host": ["{{baseUrl}}"],
+              "path": ["order"]
+            },
+            "description": "Triggers a Market sell when price rises to triggerPrice."
+          },
+          "response": []
+        },
+        {
+          "name": "8. TRAILING_STOP (Aster Only)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authToken}}",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"symbol\": \"ETHUSDT\",\n    \"side\": \"SELL\",\n    \"type\": \"TRAILING_STOP_MARKET\",\n    \"quantity\": \"0.01\",\n    \"callbackRate\": \"1.0\",\n    \"exchange\": \"aster\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/order",
+              "host": ["{{baseUrl}}"],
+              "path": ["order"]
+            },
+            "description": "Trailing stop with callback rate %"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Order Management",
+      "item": [
+        {
+          "name": "Get Open Orders",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authToken}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/orders?symbol=ETHUSDT&exchange={{exchangeId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["orders"],
+              "query": [
+                {
+                  "key": "symbol",
+                  "value": "ETHUSDT"
+                },
+                {
+                  "key": "exchange",
+                  "value": "{{exchangeId}}"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Cancel Order",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authToken}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/order/ORDER_ID?symbol=ETHUSDT&exchange={{exchangeId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["order", "ORDER_ID"],
+              "query": [
+                {
+                  "key": "symbol",
+                  "value": "ETHUSDT"
+                },
+                {
+                  "key": "exchange",
+                  "value": "{{exchangeId}}"
+                }
+              ]
+            },
+            "description": "Replace ORDER_ID with actual ID"
+          },
+          "response": []
+        },
+        {
+          "name": "Cancel ALL Orders",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authToken}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/orders?symbol=ETHUSDT&exchange={{exchangeId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["orders"],
+              "query": [
+                {
+                  "key": "symbol",
+                  "value": "ETHUSDT"
+                },
+                {
+                  "key": "exchange",
+                  "value": "{{exchangeId}}"
+                }
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    }
+  ]
+}
