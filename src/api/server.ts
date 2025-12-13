@@ -95,7 +95,8 @@ export function createApiServer(port: number = 3000) {
           takeProfit: body.takeProfit,
           stopLoss: body.stopLoss,
           reduceOnly: body.reduceOnly,
-          leverage: body.leverage
+          leverage: body.leverage,
+          trailingDelta: body.trailingDelta || body.callbackRate
         };
 
         const result = await adapter.placeOrder(params);

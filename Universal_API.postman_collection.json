@@ -8,7 +8,17 @@
   "variable": [
     {
       "key": "baseUrl",
+      "value": "{{baseUrl_Local}}",
+      "type": "string"
+    },
+    {
+      "key": "baseUrl_Local",
       "value": "http://localhost:3000",
+      "type": "string"
+    },
+    {
+      "key": "baseUrl_Live",
+      "value": "https://976f696fbe90.ngrok-free.app",
       "type": "string"
     },
     {
@@ -477,7 +487,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n    \"symbol\": \"ETHUSDT\",\n    \"side\": \"SELL\",\n    \"type\": \"TRAILING_STOP_MARKET\",\n    \"quantity\": \"0.01\",\n    \"callbackRate\": \"1.0\",\n    \"exchange\": \"aster\"\n}",
+              "raw": "{\n    \"symbol\": \"ETHUSDT\",\n    \"side\": \"SELL\",\n    \"type\": \"TRAILING_STOP_MARKET\",\n    \"quantity\": \"0.01\",\n    \"callbackRate\": \"2\",\n    \"exchange\": \"aster\"\n}",
               "options": {
                 "raw": {
                   "language": "json"

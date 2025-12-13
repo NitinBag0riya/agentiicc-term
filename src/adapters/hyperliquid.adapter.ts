@@ -39,7 +39,14 @@ export class HyperliquidAdapter implements ExchangeAdapter {
   // Helper to denormalize symbols (App -> Exchange)
   private toExchangeSymbol(sym: string): string {
       if (sym.includes('-PERP')) return sym;
-      return `${sym}-PERP`;
+      
+      // Handle "ETHUSDT" -> "ETH" for universal compatibility
+      let clean = sym;
+      if (clean.endsWith('USDT')) {
+          clean = clean.replace('USDT', '');
+      }
+      
+      return `${clean}-PERP`;
   }
 
   async getAccount(): Promise<AccountInfo> {
