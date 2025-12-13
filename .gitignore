@@ -45,3 +45,10 @@ temp/
 
 # Docker
 .dockerignore
+
+# Database files
+*.db
+*.sql
+backups/
+*.sqlite
+*.sqlite3
