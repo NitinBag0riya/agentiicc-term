@@ -170,3 +170,74 @@ All endpoints are validated and operational.
 100% test pass rate achieved.
 
 **LET'S ROCK! 🚀🎸**
+
+---
+
+## 🌍 Live Testing with Ngrok
+
+To verify the API from external networks or mobile devices, use the automated `ngrok` integration.
+
+### Quick Start
+
+This command auto-discovers or creates a live endpoint and runs a verification suite against it:
+
+```bash
+bun run start:live
+```
+
+**Then verify (optional):**
+
+```bash
+bun src/verify-live.ts <URL_FROM_OUTPUT>
+```
+
+### Manual Setup
+
+1. **Start Ngrok Tunnel**:
+   ```bash
+   ngrok http 3000
+   ```
+2. **Copy URL**: (e.g., `https://example.ngrok-free.app`)
+3. **Verify via Curl**:
+   _Note: Ngrok displays a browser warning page. Use the header below to bypass._
+   ```bash
+   curl -H "ngrok-skip-browser-warning: true" "https://example.ngrok-free.app/ticker/ETHUSDT?exchange=aster"
+   ```
+
+---
+
+## 📮 Postman Collection Guide
+
+The project includes a comprehensive **Universal_API** Postman collection.
+
+### 1. Import
+
+- File: `Universal_API.postman_collection.json`
+- Import into Postman (Import -> Upload Files).
+
+### 2. Environment Variables
+
+The collection uses robust variables for easy switching.
+
+| Variable        | Description        | Default                           |
+| :-------------- | :----------------- | :-------------------------------- |
+| `baseUrl`       | Current active URL | `{{baseUrl_Local}}`               |
+| `baseUrl_Local` | Local Dev Server   | `http://localhost:3000`           |
+| `baseUrl_Live`  | Hosted/Ngrok URL   | `https://your-url.ngrok-free.app` |
+| `authToken`     | Session Token      | Auto-set by `Auth/Create Session` |
+
+### 3. How to Live Test
+
+1. **Update URL**: Set `baseUrl_Live` to your Ngrok URL.
+2. **Switch**: Change `baseUrl` value to `{{baseUrl_Live}}`.
+3. **Run Requests**: All requests will now route to your live endpoint.
+
+### 4. Verified Scenarios
+
+- ✅ **Auth**: Create/Delete Session
+- ✅ **Market Data**: Ticker, Orderbook, Assets
+- ✅ **Order Placement**:
+  - **Limit/Market**: Standard execution.
+  - **IOC/PostOnly**: Advanced time-in-force.
+  - **Stop/TP**: Conditional triggers.
+  - **Trailing Stop**: Dynamic callback rates.

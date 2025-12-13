@@ -5,6 +5,7 @@
   "private": true,
   "scripts": {
     "start": "bun src/index.ts",
+    "start:live": "./scripts/start-live.sh",
     "dev": "bun --watch src/index.ts",
     "server:api": "bun src/server-bun.ts",
     "server:docs": "bun src/run-api-docs.ts",
