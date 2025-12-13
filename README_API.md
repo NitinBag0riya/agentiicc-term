@@ -241,3 +241,34 @@ The collection uses robust variables for easy switching.
   - **IOC/PostOnly**: Advanced time-in-force.
   - **Stop/TP**: Conditional triggers.
   - **Trailing Stop**: Dynamic callback rates.
+
+---
+
+## ☁️ Cloud-Only Development
+
+The project is configured for a 100% cloud-based development workflow. Zero local dependencies (like Postgres or Redis) are required.
+
+### 1. Prerequisite
+
+- [Bun](https://bun.sh) (or Node.js/npm)
+
+### 2. Quick Setup
+
+The included setup script automates the configuration:
+
+```bash
+# Make executable
+chmod +x scripts/setup.sh
+
+# Run setup
+./scripts/setup.sh
+```
+
+### 3. Manual Configuration
+
+1. **Copy Env**: `cp .env.example .env`
+2. **Configure Supabase**: Set `DATABASE_URL` to your Supabase Transaction Pooler URL.
+3. **Install**: `bun install`
+4. **Run**: `bun start`
+
+---

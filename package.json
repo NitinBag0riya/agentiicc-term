@@ -11,8 +11,8 @@
     "server:docs": "bun src/run-api-docs.ts",
     "test:hyperliquid": "bun src/live-test-hyperliquid.ts",
     "test:hyperliquid:advanced": "bun src/test-hyperliquid-advanced.ts",
-    "test:api": "bun src/test-universal-api.ts",
-    "test:api:robust": "bun src/test-api-robust.ts",
+    "test:api": "bun test src/universal-api.test.ts",
+    "test:api:robust": "bun test src/api-robust.test.ts",
     "test:advanced": "bun src/test-advanced-features.ts"
   },
   "devDependencies": {
