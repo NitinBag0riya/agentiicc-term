@@ -22,19 +22,35 @@ if [ -z "$TARGET_DB_URL" ]; then
     exit 1
 fi
 
+# Clean DB URL for psql (remove pgbouncer param)
+CLEAN_DB_URL=$(echo "$TARGET_DB_URL" | sed 's/?pgbouncer=true//g' | sed 's/&pgbouncer=true//g')
+
 echo ""
-echo "🎯 Target (Cloud): $TARGET_DB_URL" 
+echo "🎯 Target (Cloud): $TARGET_DB_URL"  
 echo "(Hidden for security)"
 echo ""
 
 # 2. Identify Source
 echo "Which local database do you want to migrate FROM?"
-echo "1) Standard Local Supabase (127.0.0.1:54322)"
+echo "1) Standard Local Supabase (Auto-Update)"
 echo "2) Custom Local Postgres (Enter URL)"
 read -p "Selection: " CHOICE
 
+SOURCE_IS_DOCKER=false
+CONTAINER_NAME=""
+
 if [ "$CHOICE" == "1" ]; then
-    SOURCE_DB_URL="postgresql://postgres:postgres@127.0.0.1:54322/postgres"
+    # Try to find the running supabase db container
+    CONTAINER_NAME=$(docker ps --format "{{.Names}}" | grep "supabase_db_" | head -n 1)
+    if [ -z "$CONTAINER_NAME" ]; then
+        echo "❌ No running Supabase DB container found!"
+        echo "   Please make sure your local Supabase is running (bun run supabase start)."
+        exit 1
+    fi
+    echo "🐳 Found Local Supabase Container: $CONTAINER_NAME"
+    SOURCE_IS_DOCKER=true
+    # We will use docker exec, so no URL needed here really, but let's keep var for consistency if needed
+    SOURCE_DB_URL="docker-exec" 
 elif [ "$CHOICE" == "2" ]; then
     read -p "Enter Local DB URL: " SOURCE_DB_URL
 else
@@ -55,6 +71,16 @@ fi
 # 3. Perform Migration
 echo ""
 echo "📦 Dumping and restoring..."
+
+if [ "$SOURCE_IS_DOCKER" = true ]; then
+    echo "🔹 Dumping from Docker container ($CONTAINER_NAME)..."
+    # Dump from inside container (postgres user, postgres db)
+    # --data-only to keep schema safe (since remote likely has schema from migrations)
+    docker exec "$CONTAINER_NAME" pg_dump -U postgres --data-only --column-inserts postgres | psql "$CLEAN_DB_URL"
+else
+    echo "🔹 Dumping from URL..."
+    pg_dump "$SOURCE_DB_URL" --data-only --column-inserts | psql "$CLEAN_DB_URL"
+fi
 
 # Check tools
 if ! command -v pg_dump &> /dev/null; then
@@ -96,11 +122,10 @@ if command -v docker &> /dev/null; then
     # BUT if the user entered a custom source URL that is also v15, then we have an issue.
     # Let's leave migration script alone for now unless tested otherwise.
     
-    pg_dump "$SOURCE_DB_URL" --data-only --column-inserts | psql "$TARGET_DB_URL"
-else
-    pg_dump "$SOURCE_DB_URL" --data-only --column-inserts | psql "$TARGET_DB_URL"
+    pg_dump "$SOURCE_DB_URL" --data-only --column-inserts | psql "$CLEAN_DB_URL"
 fi
 
+# Clean up pgbouncer param
 if [ $? -eq 0 ]; then
     echo ""
     echo "✅ Migration Complete!"
