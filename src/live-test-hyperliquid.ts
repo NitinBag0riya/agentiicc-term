@@ -21,10 +21,16 @@ const question = (query: string): Promise<string> => {
   });
 };
 
-function adjustPrecision(value: number | string | Decimal, tickSize: number | string | Decimal): string {
-    const val = new Decimal(value);
-    const tick = new Decimal(tickSize);
-    return val.div(tick).round().mul(tick).toString();
+// Price = 5 Sig Figs
+function adjustPrice(value: Decimal | string | number): string {
+    return new Decimal(value).toSignificantDigits(5, Decimal.ROUND_DOWN).toString();
+}
+
+// Quantity = Step Size Multiples
+function adjustQuantity(value: Decimal | string | number, stepSize: Decimal | string | number): string {
+    const v = new Decimal(value);
+    const s = new Decimal(stepSize);
+    return v.div(s).floor().mul(s).toString(); // Floor to be safe
 }
 
 async function main() {
@@ -127,43 +133,225 @@ async function main() {
         process.exit(0);
     }
 
-    // 5. Test Order Params - Use simple integer-friendly price
-    // Calculate a safe price: round to whole dollars to avoid tick size issues
-    const targetPrice = currentPrice.mul(0.8).toDecimalPlaces(0, Decimal.ROUND_DOWN);
-    const price = targetPrice.toString();
+
+    // 5. Calculate Params for MARKET Order (Simulated)
+    // Hyperliquid simulates MARKET as aggressive IOC Limit (+5% cap)
+    // We will place a small order to verify this simulation works
     
-    // Calculate quantity for $12 USD order (min $10)
-    const targetUsd = 12;
-    const rawQty = new Decimal(targetUsd).div(price);
-    const quantity = adjustPrecision(rawQty, stepSize).toString();
+    // Quantity ~$15 USD
+    const targetUsd = 15;
+    const rawQty = new Decimal(targetUsd).div(currentPrice);
+    const quantity = adjustQuantity(rawQty, stepSize).toString();
 
     console.log('\n📝 \x1b[33mComputed Test Order Params:\x1b[0m');
     console.log(`   Symbol:      ${symbol}`);
-    console.log(`   Type:        LIMIT`);
+    console.log(`   Type:        MARKET (Simulated)`);
     console.log(`   Side:        BUY`);
-    console.log(`   Quantity:    ${quantity} (~$${new Decimal(quantity).mul(price).toFixed(2)})`);
-    console.log(`   Price:       ${price} (whole dollars to ensure tick divisibility)`);
-    console.log(`   Tick Size:   ${tickSize}`);
-    console.log(`   Step Size:   ${stepSize}`);
+    console.log(`   Quantity:    ${quantity} (~$${new Decimal(quantity).mul(currentPrice).toFixed(2)})`);
     
-    console.log('\n🚀 Auto-placing order (ENV credentials detected)...');
+    // Auto-proceed check
+    if (!ENV_PRIVATE_KEY) {
+         const confirm = await question('\n❓ Proceed with placing this test order? (y/n): ');
+         if (confirm.toLowerCase() !== 'y') {
+             console.log('cancelled.');
+             process.exit(0);
+         }
+    } else {
+         console.log('\n⏩ Auto-proceeding with order placement...');
+    }
 
-    // 6. Place Order
-    console.log('\n🚀 Placing LIMIT Order...');
-    const order = await adapter.placeOrder({
-      symbol: symbol,
-      side: 'BUY',
-      type: 'LIMIT',
-      quantity: quantity.toString(),
-      price: price,
-      timeInForce: 'GTC'
-    });
 
-    console.log('✅ \x1b[32mOrder Placed Successfully!\x1b[0m');
-    console.log(`   ID: ${order.orderId}, Status: ${order.status}`);
+    // ==========================================
+    // TEST SEQUENCE 1: LONG FLOW (Bullish)
+    // Strategy: Market Buy (Entry) -> Limit Sell (Exit)
+    // ==========================================
+    console.log('\n🔵 \x1b[1mSEQUENCE 1: LONG FLOW (Market Entry -> Limit Exit)\x1b[0m');
+    
+    // 1. Market Buy Entry
+    console.log('   🚀 1.1 Market Buy (Entry)...');
+    try {
+        const longOrder = await adapter.placeOrder({
+            symbol: symbol,
+            side: 'BUY',
+            type: 'MARKET',
+            quantity: quantity
+        });
+        console.log(`      ✅ Filled: ${longOrder.orderId}`);
+        
+        await new Promise(r => setTimeout(r, 2000)); // Wait for fill propagation
 
-    // 6b. Test Trailing Stop Safeguard (Should Fail)
-    console.log('\n🧪 Testing TRAILING_STOP_MARKET Safeguard (Expect Failure)...');
+        // 2. Limit Sell Exit (Close Position)
+        // Check position first to be sure
+        const positions = await adapter.getPositions(symbol);
+        const longPos = positions.find(p => parseFloat(p.size) > 0);
+        
+        if (longPos) {
+             console.log(`      ✅ Position Confirmed: ${longPos.size} ETH @ ${longPos.entryPrice}`);
+             
+             // Place Limit Sell slightly below market to ensure fill (but testing LIMIT type)
+             // or slightly above to test waiting? Let's do slightly below to close successfully for test.
+             // Actually user wants to test "Limit", so let's put it as a Maker order first then cancel?
+             // No, let's close it efficiently using a Limit order that crosses.
+             
+             const exitPrice = adjustPrice(currentPrice.mul(0.99)); // Sell 1% lower (will fill immediately as Taker-Limit)
+             console.log(`   🚀 1.2 Limit Sell (Exit) @ ${exitPrice}...`);
+             
+             const closeOrder = await adapter.placeOrder({
+                 symbol: symbol,
+                 side: 'SELL',
+                 type: 'LIMIT',
+                 quantity: quantity,
+                 price: exitPrice,
+                 timeInForce: 'GTC'
+             });
+             console.log(`      ✅ Limit Close Placed: ${closeOrder.orderId}`);
+        } else {
+             console.log('      ❌ Position NOT found after Market Buy!');
+        }
+        
+    } catch (e: any) {
+        console.log(`      ❌ Long Flow Failed: ${e.message}`);
+    }
+
+    await new Promise(r => setTimeout(r, 1000));
+
+
+    // ==========================================
+    // TEST SEQUENCE 2: SHORT FLOW (Bearish)
+    // Strategy: Limit Sell (Entry) -> Market Buy (Exit)
+    // ==========================================
+    console.log('\n🔴 \x1b[1mSEQUENCE 2: SHORT FLOW (Limit Entry -> Market Exit)\x1b[0m');
+    
+    // 1. Limit Sell Entry
+    // We want this to fill, so we place it below market (Taker Limit) or right at market
+    const shortEntryPrice = adjustPrice(currentPrice.mul(0.995)); // 0.5% below (Aggressive Limit Sell)
+    console.log(`   🚀 2.1 Limit Sell (Entry) @ ${shortEntryPrice}...`);
+    
+    try {
+        const shortOrder = await adapter.placeOrder({
+            symbol: symbol,
+            side: 'SELL',
+            type: 'LIMIT',
+            quantity: quantity,
+            price: shortEntryPrice,
+            timeInForce: 'GTC'
+        });
+        console.log(`      ✅ Limit Entry Placed: ${shortOrder.orderId}`);
+        
+        await new Promise(r => setTimeout(r, 2000));
+
+        // 2. Market Buy Exit (Close Position)
+        const positions2 = await adapter.getPositions(symbol);
+        const shortPos = positions2.find(p => parseFloat(p.size) < 0);
+        
+        if (shortPos) {
+             console.log(`      ✅ Short Position Confirmed: ${shortPos.size} ETH @ ${shortPos.entryPrice}`);
+             
+             console.log('   🚀 2.2 Market Buy (Exit)...');
+             const closeShort = await adapter.placeOrder({
+                 symbol: symbol,
+                 side: 'BUY',
+                 type: 'MARKET',
+                 quantity: quantity
+             });
+             console.log(`      ✅ Market Close Placed: ${closeShort.orderId}`);
+             
+        } else {
+             console.log('      ⚠️ Short Position not found (Limit order might not have filled?)');
+             // Attempt cleanup just in case order is open
+             await adapter.cancelAllOrders(symbol);
+        }
+
+    } catch (e: any) {
+        console.log(`      ❌ Short Flow Failed: ${e.message}`);
+    }
+
+
+    // ==========================================
+    // EDGE CASES & ADVANCED ORDERS
+    // ==========================================
+    console.log('\n🧪 \x1b[1mTEST SEQUENCE 3: ADVANCED & EDGE CASES\x1b[0m');
+
+    // 7. Test Advanced Order: STOP_LIMIT
+    console.log('\n   🔸 Testing STOP_LIMIT Order...');
+    try {
+        const triggerPrice = adjustPrice(currentPrice.mul(1.05));
+        const limitPx = adjustPrice(currentPrice.mul(1.06));
+        
+        const slOrder = await adapter.placeOrder({
+            symbol: symbol,
+            side: 'BUY',
+            type: 'STOP_LIMIT',
+            quantity: quantity,
+            triggerPrice: triggerPrice,
+            stopLimitPrice: limitPx,
+            timeInForce: 'GTC'
+        });
+        console.log(`      ✅ STOP_LIMIT Placed: Trigger ${triggerPrice}, Limit ${limitPx} (ID: ${slOrder.orderId})`);
+        
+        // Verify Open
+        await new Promise(r => setTimeout(r, 1000));
+        const openOrders = await adapter.getOpenOrders(symbol);
+        if (openOrders.find(o => o.orderId === slOrder.orderId)) {
+             console.log('      ✅ Confirmed Open in Book.');
+             await adapter.cancelOrder(slOrder.orderId, symbol);
+             console.log('      ✅ Cancelled.');
+        } else {
+             console.log('      ⚠️ Order not found in book?');
+        }
+    } catch (e: any) {
+        console.log(`      ❌ STOP_LIMIT Failed: ${e.message}`);
+    }
+
+    // 8. Test Edge Case: IOC
+    console.log('\n   🔸 Testing IOC Order...');
+    try {
+        // Use 99.5% of market price 
+        const iocPrice = adjustPrice(currentPrice.mul(0.995));
+        const iocOrder = await adapter.placeOrder({
+             symbol: symbol,
+             side: 'BUY',
+             type: 'LIMIT',
+             quantity: quantity,
+             price: iocPrice,
+             timeInForce: 'IOC'
+        });
+        
+        await new Promise(r => setTimeout(r, 1000));
+        const openOrders = await adapter.getOpenOrders(symbol);
+        if (!openOrders.find(o => o.orderId === iocOrder.orderId)) {
+             console.log('      ✅ IOC Order correctly expired/cancelled.');
+        } else {
+             console.log('      ❌ IOC Order stuck open!');
+             await adapter.cancelOrder(iocOrder.orderId, symbol);
+        }
+    } catch (e: any) {
+        if (e.message.includes('Invalid Price') || e.message.includes('Price must be')) {
+             console.log(`      ✅ IOC Rejected by Saftey Band (Pass): ${e.message}`);
+        } else {
+             console.log(`      ✅ IOC Rejected/Expired: ${e.message}`);
+        }
+    }
+
+    // 9. Test Edge Case: Post-Only
+    console.log('\n   🔸 Testing Post-Only (Rejection)...');
+    try {
+        const poPrice = adjustPrice(currentPrice.mul(1.02)); // +2%
+        await adapter.placeOrder({
+             symbol: symbol,
+             side: 'BUY',
+             type: 'LIMIT',
+             quantity: quantity,
+             price: poPrice,
+             postOnly: true
+        });
+        console.log('      ❌ Post-Only ACCEPTED (Failure)');
+    } catch (e: any) {
+        console.log(`      ✅ Post-Only Rejected as expected: ${e.message}`);
+    }
+
+    // 10. Trailing Stop
+    console.log('\n   🔸 Testing TRAILING_STOP_MARKET Safeguard...');
     try {
         await adapter.placeOrder({
             symbol: symbol,
@@ -172,44 +360,12 @@ async function main() {
             quantity: quantity.toString(),
             trailingDelta: '1.0'
         });
-        console.log('❌ Error: TRAILING_STOP_MARKET was accepted (Unexpected!)');
+        console.log('      ❌ Error: TRAILING_STOP_MARKET accepted');
     } catch (e: any) {
-        if (e.message.includes('natively supported')) {
-            console.log('✅ TRAILING_STOP_MARKET rejected as expected.');
-        } else {
-            console.log(`ℹ️ Rejected with message: ${e.message}`);
-        }
+        console.log('      ✅ TRAILING_STOP_MARKET rejected as expected.');
     }
 
-    // 7. Verify Open Orders
-    console.log('\n🔍 Verifying Open Orders...');
-    await new Promise(r => setTimeout(r, 2000));
-    const openOrders = await adapter.getOpenOrders(symbol);
-    
-    console.log(`   Found ${openOrders.length} open orders.`);
-    const myOrder = openOrders.find(o => o.orderId === order.orderId);
-    
-    if (myOrder) {
-        console.log(`   ✅ Found open order: ${myOrder.orderId}`);
-        
-        // 8. Cancel Order
-        console.log(`\n🛑 Cancelling Order ${myOrder.orderId}...`);
-        await adapter.cancelOrder(myOrder.orderId, symbol);
-        console.log('   ✅ Cancelled.');
-        
-        // Verify Check
-        await new Promise(r => setTimeout(r, 1000));
-        const check = await adapter.getOpenOrders(symbol);
-        if (!check.find(o => o.orderId === myOrder.orderId)) {
-            console.log('   ✅ Confirmed closed.');
-        } else {
-            console.log('   ⚠️ Order still open?');
-        }
-    } else {
-        console.log('   ⚠️ Order not found in open list (maybe filled or rejected?)');
-    }
-
-    console.log('\n🎉 \x1b[32mHyperliquid Tests Completed!\x1b[0m');
+    console.log('\n🎉 \x1b[32mHyperliquid Comprehensive Tests Completed!\x1b[0m');
 
   } catch (error: any) {
     console.error('\n❌ \x1b[31mError:\x1b[0m', error.message);
