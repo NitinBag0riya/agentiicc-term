@@ -29,9 +29,31 @@ mkdir -p "$BACKUP_DIR"
 BACKUP_FILE="$BACKUP_DIR/db_backup_$TIMESTAMP.sql"
 
 # 3. Dump
-pg_dump "$CLEAN_DB_URL" --format=plain --no-owner --no-acl > "$BACKUP_FILE"
+echo "   ...using connection string (redacted)..."
 
-if [ $? -eq 0 ]; then
+if command -v docker &> /dev/null; then
+    echo "🐳 Docker detected. Using 'postgres:15' container to match server version..."
+    # Run pg_dump via Docker (ephemeral container)
+    # We pass the DB URL environment variable to avoid logging it in process list (mostly)
+    # Mapping current directory to /backup in container to write file
+    docker run --rm \
+        -v "$(pwd)/$BACKUP_DIR:/backup" \
+        -e DB_URL="$CLEAN_DB_URL" \
+        postgres:15 \
+        bash -c "pg_dump \"\$DB_URL\" --format=plain --no-owner --no-acl > /backup/db_backup_$TIMESTAMP.sql"
+    
+    EXIT_CODE=$?
+    
+    # Check if docker command actually produced the file (it connects inside container path to host path)
+    # Filename inside container was /backup/..., which maps to $(pwd)/$BACKUP_DIR/...
+    # So we don't need to move it.
+else
+    echo "⚠️  Docker not found. Attempting local 'pg_dump'..."
+    pg_dump "$CLEAN_DB_URL" --format=plain --no-owner --no-acl > "$BACKUP_FILE"
+    EXIT_CODE=$?
+fi
+
+if [ $EXIT_CODE -eq 0 ]; then
     echo "✅ Backup created: $BACKUP_FILE"
 else
     echo "❌ Backup Failed."

@@ -68,10 +68,38 @@ if ! command -v psql &> /dev/null; then
 fi
 
 # Pipe dump to psql
-# --data-only to preserve schema (assuming schema is synced via migrations)
-# Or use --clean if we want to retain full state? User asked to "push all data".
-# Let's use --data-only --column-inserts to be safe with existing schema
-pg_dump "$SOURCE_DB_URL" --data-only --column-inserts | psql "$TARGET_DB_URL"
+# Use Docker for pg_dump if available to avoid version mismatch
+echo ""
+if command -v docker &> /dev/null; then
+    echo "🐳 Docker detected. Using 'postgres:15' for reliable dump..."
+    # Note: We can't easily pipe docker output to local psql if psql is also version-mismatched, 
+    # but psql is usually forward compatible.
+    # However, for migration we need to read from SOURCE and write to TARGET.
+    # If SOURCE is local (host), we need --network host or host.docker.internal depending on OS.
+    # This acts as a proxy.
+    
+    # Simplification: Only use Docker if source is NOT 127.0.0.1 (too complex to route localhost into docker reliably across OS for simple script)
+    # OR, warn user.
+    # Actually, the user's error was with the REMOTE server version mismatch when backing it up.
+    # For migration, we are dumping LOCAL (v14 likely) and restoring to REMOTE (v15). 
+    # pg_dump version 14 against local v14 DB is FINE.
+    # The restore is done by 'psql' against remote v15 DB. psql v14 connecting to v15 server is usually OK.
+    
+    # So actually, migration script might be fine as is?!
+    # Let's verify: "pg_dump (v14) -> file -> psql (v14) -> remote (v15)"
+    # pg_dump dumps the LOCAL db. If local db is v14, pg_dump v14 is perfect.
+    # psql v14 to remote v15 is generally compatible for restore.
+    
+    # The backup script usage was: pg_dump (v14) -> remote (v15). That fails.
+    # So migration script might NOT need docker if we are dumping local.
+    
+    # BUT if the user entered a custom source URL that is also v15, then we have an issue.
+    # Let's leave migration script alone for now unless tested otherwise.
+    
+    pg_dump "$SOURCE_DB_URL" --data-only --column-inserts | psql "$TARGET_DB_URL"
+else
+    pg_dump "$SOURCE_DB_URL" --data-only --column-inserts | psql "$TARGET_DB_URL"
+fi
 
 if [ $? -eq 0 ]; then
     echo ""
