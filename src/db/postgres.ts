@@ -8,12 +8,13 @@ export function getPool() {
     if (!globalPool) {
         const dbUrl = process.env.DATABASE_URL;
         const config: any = {
-            connectionString: dbUrl
+            connectionString: dbUrl,
+            ssl: { rejectUnauthorized: false } // Enforce SSL for Supabase
         };
         
-        // Disable SSL for localhost/development
+        // STRICT: Block Localhost
         if (dbUrl?.includes('localhost') || dbUrl?.includes('127.0.0.1')) {
-            config.ssl = false;
+            throw new Error("\n🛑 SECURITY ALERT: Local database connections are BLOCKED.\n   Please use the Supabase hosted endpoint as required by project policy.\n");
         }
         
         globalPool = new Pool(config);
