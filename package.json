@@ -9,6 +9,8 @@
     "dev": "bun --watch src/index.ts",
     "server:api": "bun src/server-bun.ts",
     "server:docs": "bun src/run-api-docs.ts",
+    "bot": "bun src/bot/index.ts",
+    "bot:dev": "bun --watch src/bot/index.ts",
     "test:hyperliquid": "bun src/live-test-hyperliquid.ts",
     "test:hyperliquid:advanced": "bun src/test-hyperliquid-advanced.ts",
     "test:api": "bun test src/universal-api.test.ts",
