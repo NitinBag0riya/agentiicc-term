@@ -56,8 +56,8 @@ export class HyperliquidAdapter implements ExchangeAdapter {
 
       return {
         exchange: 'hyperliquid',
-        totalBalance: marginSummary.accountValue || '0',
-        availableBalance: state.withdrawable || '0',
+        totalBalance: String(marginSummary.accountValue || '0'),
+        availableBalance: String(state.withdrawable || '0'),
         positions: state.assetPositions.map((p: any) => ({
           symbol: this.fromExchangeSymbol(p.position.coin),
           size: p.position.szi,
