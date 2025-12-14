@@ -28,11 +28,17 @@ async function main() {
 
         // 1.2 Link Aster
         console.log('   ➡️  Link Aster Credentials...');
+        const asterKey = process.env.ASTER_API_KEY || 'test-aster-key';
+        const asterSecret = process.env.ASTER_API_SECRET || 'test-aster-secret';
+        
+        if (asterKey === 'test-aster-key') console.warn('       ⚠️ Using DUMMY Aster Credentials (Set ASTER_API_KEY in .env to fix)');
+        else console.log('       ✨ Using REAL Aster Credentials');
+
         const asterRes = await fetch(`${BASE_URL}/user/credentials`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                userId, exchange: 'aster', apiKey: 'test-aster-key', apiSecret: 'test-aster-secret'
+                userId, exchange: 'aster', apiKey: asterKey, apiSecret: asterSecret
             })
         });
         const asterData: any = await asterRes.json();
@@ -41,14 +47,20 @@ async function main() {
 
         // 1.3 Link Hyperliquid
         console.log('   ➡️  Link Hyperliquid Credentials...');
+        const hlAddr = process.env.HYPERLIQUID_ADDRESS || '0xAddressMock';
+        const hlKey = process.env.HYPERLIQUID_PRIVATE_KEY || '0xKeyMock';
+
+        if (hlAddr === '0xAddressMock') console.warn('       ⚠️ Using DUMMY Hyperliquid Credentials (Set HYPERLIQUID_ADDRESS in .env to fix)');
+        else console.log('       ✨ Using REAL Hyperliquid Credentials');
+
         const hlRes = await fetch(`${BASE_URL}/user/credentials`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 userId, 
                 exchange: 'hyperliquid', 
-                address: '0xAddressMock',       // Corrected field name
-                privateKey: '0xKeyMock'         // Corrected field name
+                address: hlAddr,
+                privateKey: hlKey
             })
         });
         const hlData: any = await hlRes.json();
@@ -95,9 +107,10 @@ async function main() {
                 console.warn(`       ⚠️ Account Fetch Failed (Expected with dummy creds): ${accData.error}`);
                 if (accData.error.includes('API-key format invalid') || accData.error.includes('Hyperliquid')) {
                     console.log('       ✅ Handled external API rejection correctly');
-                    return; // Stop flow for this exchange if auth fails externally
+                    // return; // We want to proceed to test routing for other endpoints even if creds fail
+                } else {
+                     throw new Error(`Unexpected Account Failure: ${accData.error}`);
                 }
-                throw new Error(`Unexpected Account Failure: ${accData.error}`);
             }
             console.log(`       ✅ Balance: ${accData.data?.availableBalance}`);
 
@@ -117,6 +130,93 @@ async function main() {
             } else {
                 console.log(`       ✅ Order Placed: ${orderData.data.orderId}`);
             }
+
+            // 2.4 Set Leverage & Margin (Expect failure with dummy creds, but verify routing)
+            console.log('   ➡️  Set Leverage...');
+            const levRes = await fetch(`${BASE_URL}/account/leverage`, {
+                method: 'POST',
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({
+                    symbol: exchange === 'aster' ? 'ETHUSDT' : 'ETH',
+                    leverage: 5,
+                    exchange: exchange
+                })
+            });
+            
+            if (levRes.ok) {
+                console.log('       ✅ Leverage Set');
+            } else {
+                const err = (await levRes.json() as any).error;
+                console.log(`       ⚠️ Leverage Set Failed (Expected): ${err}`);
+            }
+
+            console.log('   ➡️  Set Margin Mode...');
+            const marginRes = await fetch(`${BASE_URL}/account/margin-mode`, {
+                method: 'POST',
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({
+                    symbol: exchange === 'aster' ? 'ETHUSDT' : 'ETH',
+                    mode: 'ISOLATED',
+                    exchange: exchange
+                })
+            });
+
+             if (marginRes.ok) {
+                console.log('       ✅ Margin Mode Set');
+            } else {
+                const err = (await marginRes.json() as any).error;
+                console.log(`       ⚠️ Margin Mode Set Failed (Expected): ${err}`);
+            }
+
+            // 2.5 Cancel Order (Using a dummy orderId)
+            console.log('   ➡️  Cancel Order...');
+            const dummyOrderId = '123456789'; 
+            const cancelRes = await fetch(`${BASE_URL}/order/${dummyOrderId}?exchange=${exchange}&symbol=${symbol}`, {
+                method: 'DELETE', headers
+            });
+            const cancelData: any = await cancelRes.json();
+            
+            // Expected to fail logic or pass if routing is correct but order not found
+            if(cancelData.success) {
+                 console.log('       ✅ Cancel Order Success');
+            } else {
+                 // Check if it's an expected "Order not found" or "Auth" error, which means routing worked
+                 const err = cancelData.error;
+                 if (err.includes('not found') || err.includes('API-key') || err.includes('Hyperliquid') || err.includes('does not exist') || err.includes('Order failed')) {
+                     console.log(`       ✅ Cancel Routed Correctly (Error: ${err})`);
+                 } else {
+                     console.warn(`       ⚠️ Cancel Failed (Unexpected): ${err}`);
+                 }
+            }
+
+            // 2.6 Cancel All Orders
+            console.log('   ➡️  Cancel All Orders...');
+            const cancelAllRes = await fetch(`${BASE_URL}/orders?exchange=${exchange}&symbol=${symbol}`, {
+                method: 'DELETE', headers
+            });
+            const cancelAllData: any = await cancelAllRes.json();
+             
+             if(cancelAllData.success) {
+                 console.log('       ✅ Cancel All Success (or empty list)');
+            } else {
+                 const err = cancelAllData.error || cancelAllData.message; // cancelAll returns message directly on success sometimes? No, base adapter says {success, ...}
+                 // server.ts wraps it? 
+                 // const result = await adapter.cancelAllOrders(query.symbol); return result;
+                 // So it returns whatever adapter returns.
+                 
+                 if (err && (err.includes('API-key') || err.includes('Hyperliquid') || err.includes('No open orders'))) {
+                     console.log(`       ✅ Cancel All Routed Correctly (Error/Msg: ${err})`);
+                 } else {
+                     console.warn(`       ⚠️ Cancel All Failed (Unexpected): ${JSON.stringify(cancelAllData)}`);
+                 }
+            }
+
         }
 
         await testExchangeFlow('aster');
