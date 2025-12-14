@@ -1,0 +1,11 @@
+{
+  "version": "1.0",
+  "apis": [
+    {
+      "identifier": "zklighter",
+      "source": "@zklighter/v1.0#6yr6gh2vmj0hint5",
+      "integrity": "sha512-hTVq4fqBj3KyrWpwkiiVQd72xtvanBH6+k+Cx+AvaAIhUI+TECUwXEBuxrhdb3K1kMLHcuk2OSMnosk+ZhEEUw==",
+      "installerVersion": "6.1.3"
+    }
+  ]
+}

@@ -353,7 +353,7 @@
             "header": [
               {
                 "key": "Authorization",
-                "value": "Bearer {{authToken}}",
+                "value": "Bearer {{sessionToken}}",
                 "type": "text"
               }
             ],
@@ -370,7 +370,37 @@
               "raw": "{{baseUrl}}/account/leverage",
               "host": ["{{baseUrl}}"],
               "path": ["account", "leverage"]
-            }
+            },
+            "description": "Sets leverage"
+          },
+          "response": []
+        },
+        {
+          "name": "Set Margin Mode",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{sessionToken}}",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"symbol\": \"ETHUSDT\",\n    \"mode\": \"ISOLATED\",\n    \"exchange\": \"{{exchangeId}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/account/margin-mode",
+              "host": ["{{baseUrl}}"],
+              "path": ["account", "margin-mode"]
+            },
+            "description": "Sets margin mode (ISOLATED or CROSS)"
           },
           "response": []
         }

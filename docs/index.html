@@ -173,6 +173,13 @@
                         <span class="req-name">Set Leverage</span>
                     </a>
                 </li>
+            
+                <li>
+                    <a href="#set-margin-mode-3" class="request-link">
+                        <span class="method method-post">POST</span>
+                        <span class="req-name">Set Margin Mode</span>
+                    </a>
+                </li>
             </ul>
                 </li>
             
@@ -458,7 +465,7 @@
                         <span class="request-url">{{baseUrl}}/account/leverage</span>
                     </div>
                     <h3 class="request-title">Set Leverage</h3>
-                    
+                    <p class="request-desc">Sets leverage</p>
                     
                     
                         <div class="code-block">
@@ -466,6 +473,26 @@
                             <pre><code class="language-json">{
   "symbol": "ETHUSDT",
   "leverage": "5",
+  "exchange": "{{exchangeId}}"
+}</code></pre>
+                        </div>
+                    
+                </div>
+            
+                <div id="set-margin-mode-3" class="request-card">
+                    <div class="request-header">
+                        <span class="method-badge method-post">POST</span>
+                        <span class="request-url">{{baseUrl}}/account/margin-mode</span>
+                    </div>
+                    <h3 class="request-title">Set Margin Mode</h3>
+                    <p class="request-desc">Sets margin mode (ISOLATED or CROSS)</p>
+                    
+                    
+                        <div class="code-block">
+                            <div class="code-label">Request Body (JSON)</div>
+                            <pre><code class="language-json">{
+  "symbol": "ETHUSDT",
+  "mode": "ISOLATED",
   "exchange": "{{exchangeId}}"
 }</code></pre>
                         </div>

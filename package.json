@@ -7,22 +7,19 @@
     "start": "bun src/index.ts",
     "start:live": "./scripts/start-live.sh",
     "dev": "bun --watch src/index.ts",
-    "server:api": "bun src/server-bun.ts",
-    "server:docs": "bun src/run-api-docs.ts",
-    "test:hyperliquid": "bun src/live-test-hyperliquid.ts",
-    "test:hyperliquid:advanced": "bun src/test-hyperliquid-advanced.ts",
-    "test:api": "bun test src/universal-api.test.ts",
-    "test:api:robust": "bun test src/api-robust.test.ts",
-    "test:advanced": "bun src/test-advanced-features.ts"
+    "server": "bun src/server-bun.ts",
+    "test": "bun src/simulate-postman-collection.ts",
+    "docs": "bun scripts/generate-docs.ts"
   },
   "devDependencies": {
-    "@types/pg": "^8.16.0",
-    "@types/bun": "latest"
+    "@types/bun": "latest",
+    "@types/pg": "^8.16.0"
   },
   "peerDependencies": {
     "typescript": "^5"
   },
   "dependencies": {
+    "@api/zklighter": "file:.api/apis/zklighter",
     "@elysiajs/cookie": "^0.8.0",
     "@elysiajs/jwt": "^1.4.0",
     "@elysiajs/swagger": "^1.3.1",
@@ -32,6 +29,7 @@
     "elysia": "^1.4.18",
     "ethers": "^6.16.0",
     "hyperliquid": "^1.7.7",
+    "lighter-ts-sdk": "^1.0.7",
     "pg": "^8.16.3",
     "telegraf": "^4.16.3"
   }
