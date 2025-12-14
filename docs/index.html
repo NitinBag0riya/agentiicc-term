@@ -1,0 +1,713 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Universal Trading API - API Docs</title>
+    <style>
+        :root {
+            --bg-color: #0d1117;
+            --sidebar-bg: #161b22;
+            --text-color: #c9d1d9;
+            --border-color: #30363d;
+            --folder-color: #58a6ff;
+            --accent: #1f6feb;
+            
+            --get: #238636;
+            --post: #d29922;
+            --put: #a371f7;
+            --delete: #f85149;
+        }
+        * { box-sizing: border-box; }
+        body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background: var(--bg-color); color: var(--text-color); display: flex; height: 100vh; overflow: hidden; }
+        
+        /* Sidebar */
+        .sidebar { width: 300px; background: var(--sidebar-bg); border-right: 1px solid var(--border-color); display: flex; flex-direction: column; }
+        .sidebar-header { padding: 20px; border-bottom: 1px solid var(--border-color); }
+        .sidebar-title { margin: 0; font-size: 1.2rem; color: #fff; }
+        .nav-scroll { flex: 1; overflow-y: auto; padding: 10px 0; }
+        ul { list-style: none; padding: 0; margin: 0; }
+        li { margin-bottom: 2px; }
+        
+        .folder-name { display: block; padding: 8px 20px; font-weight: 600; color: var(--folder-color); font-size: 0.9rem; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 15px; }
+        .request-link { display: flex; align-items: center; padding: 8px 20px; text-decoration: none; color: var(--text-color); font-size: 0.9rem; transition: background 0.2s; }
+        .request-link:hover { background: #21262d; color: #fff; }
+        
+        .method { font-size: 0.7rem; font-weight: bold; width: 45px; text-align: center; border-radius: 3px; padding: 2px 0; margin-right: 10px; color: #fff; }
+        .method-get { background: var(--get); }
+        .method-post { background: var(--post); }
+        .method-put { background: var(--put); }
+        .method-delete { background: var(--delete); }
+
+        /* Main Content */
+        .main { flex: 1; padding: 40px; overflow-y: auto; scroll-behavior: smooth; }
+        .container { max-width: 900px; margin: 0 auto; padding-bottom: 100px; }
+        
+        .header-actions { display: flex; justify-content: space-between; align-items: center; margin-bottom: 40px; padding-bottom: 20px; border-bottom: 1px solid var(--border-color); }
+        .download-btn { background: var(--accent); color: white; text-decoration: none; padding: 10px 20px; border-radius: 6px; font-weight: 600; font-size: 0.9rem; transition: background 0.2s; }
+        .download-btn:hover { background: #1158c7; }
+
+        .folder-title { margin-top: 40px; margin-bottom: 20px; color: var(--folder-color); font-size: 1.5rem; border-bottom: 1px solid var(--border-color); padding-bottom: 10px; }
+        .folder-divider { border: 0; border-top: 1px solid var(--border-color); margin: 40px 0; opacity: 0.5; }
+
+        .request-card { background: #0d1117; border: 1px solid var(--border-color); border-radius: 6px; padding: 20px; margin-bottom: 30px; }
+        .request-header { display: flex; align-items: center; margin-bottom: 15px; background: #161b22; padding: 10px; border-radius: 4px; border: 1px solid #30363d; font-family: monospace; }
+        .method-badge { padding: 4px 8px; border-radius: 4px; font-weight: bold; color: white; margin-right: 15px; font-size: 0.8rem; }
+        .request-url { color: #8b949e; word-break: break-all; }
+        
+        .request-title { margin: 0 0 10px 0; color: #fff; font-size: 1.1rem; }
+        .request-desc { color: #8b949e; font-size: 0.95rem; line-height: 1.5; margin-bottom: 15px; }
+
+        .code-block { background: #000; border-radius: 6px; padding: 15px; overflow-x: auto; border: 1px solid #30363d; margin-top: 15px; }
+        .code-label { font-size: 0.75rem; color: #8b949e; margin-bottom: 10px; text-transform: uppercase; letter-spacing: 0.5px; }
+        pre { margin: 0; }
+        code { font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, Courier, monospace; font-size: 0.9rem; color: #c9d1d9; }
+    </style>
+</head>
+<body>
+    <aside class="sidebar">
+        <div class="sidebar-header">
+            <h1 class="sidebar-title">AgentiFi API</h1>
+        </div>
+        <nav class="nav-scroll">
+            <ul class="depth-0">
+                <li class="folder">
+                    <span class="folder-name">User Management</span>
+                    <ul class="depth-1">
+                <li>
+                    <a href="#create-user-0" class="request-link">
+                        <span class="method method-post">POST</span>
+                        <span class="req-name">Create User</span>
+                    </a>
+                </li>
+            
+                <li>
+                    <a href="#link-credentials-(aster)-1" class="request-link">
+                        <span class="method method-post">POST</span>
+                        <span class="req-name">Link Credentials (Aster)</span>
+                    </a>
+                </li>
+            
+                <li>
+                    <a href="#link-credentials-(hyperliquid)-2" class="request-link">
+                        <span class="method method-post">POST</span>
+                        <span class="req-name">Link Credentials (Hyperliquid)</span>
+                    </a>
+                </li>
+            
+                <li>
+                    <a href="#list-exchanges-3" class="request-link">
+                        <span class="method method-get">GET</span>
+                        <span class="req-name">List Exchanges</span>
+                    </a>
+                </li>
+            </ul>
+                </li>
+            
+                <li class="folder">
+                    <span class="folder-name">Auth</span>
+                    <ul class="depth-1">
+                <li>
+                    <a href="#create-session-0" class="request-link">
+                        <span class="method method-post">POST</span>
+                        <span class="req-name">Create Session</span>
+                    </a>
+                </li>
+            
+                <li>
+                    <a href="#delete-session-1" class="request-link">
+                        <span class="method method-delete">DELETE</span>
+                        <span class="req-name">Delete Session</span>
+                    </a>
+                </li>
+            </ul>
+                </li>
+            
+                <li class="folder">
+                    <span class="folder-name">Market Data (Public)</span>
+                    <ul class="depth-1">
+                <li>
+                    <a href="#get-assets-0" class="request-link">
+                        <span class="method method-get">GET</span>
+                        <span class="req-name">Get Assets</span>
+                    </a>
+                </li>
+            
+                <li>
+                    <a href="#get-ticker-1" class="request-link">
+                        <span class="method method-get">GET</span>
+                        <span class="req-name">Get Ticker</span>
+                    </a>
+                </li>
+            
+                <li>
+                    <a href="#get-orderbook-2" class="request-link">
+                        <span class="method method-get">GET</span>
+                        <span class="req-name">Get Orderbook</span>
+                    </a>
+                </li>
+            </ul>
+                </li>
+            
+                <li class="folder">
+                    <span class="folder-name">Account</span>
+                    <ul class="depth-1">
+                <li>
+                    <a href="#get-account-info-0" class="request-link">
+                        <span class="method method-get">GET</span>
+                        <span class="req-name">Get Account Info</span>
+                    </a>
+                </li>
+            
+                <li>
+                    <a href="#get-positions-1" class="request-link">
+                        <span class="method method-get">GET</span>
+                        <span class="req-name">Get Positions</span>
+                    </a>
+                </li>
+            
+                <li>
+                    <a href="#set-leverage-2" class="request-link">
+                        <span class="method method-post">POST</span>
+                        <span class="req-name">Set Leverage</span>
+                    </a>
+                </li>
+            </ul>
+                </li>
+            
+                <li class="folder">
+                    <span class="folder-name">Order Placement</span>
+                    <ul class="depth-1">
+                <li>
+                    <a href="#1.-limit-order-0" class="request-link">
+                        <span class="method method-post">POST</span>
+                        <span class="req-name">1. LIMIT Order</span>
+                    </a>
+                </li>
+            
+                <li>
+                    <a href="#2.-market-order-1" class="request-link">
+                        <span class="method method-post">POST</span>
+                        <span class="req-name">2. MARKET Order</span>
+                    </a>
+                </li>
+            
+                <li>
+                    <a href="#3.-ioc-(immediate-or-cancel)-2" class="request-link">
+                        <span class="method method-post">POST</span>
+                        <span class="req-name">3. IOC (Immediate Or-Cancel)</span>
+                    </a>
+                </li>
+            
+                <li>
+                    <a href="#4.-post_only-3" class="request-link">
+                        <span class="method method-post">POST</span>
+                        <span class="req-name">4. POST_ONLY</span>
+                    </a>
+                </li>
+            
+                <li>
+                    <a href="#5.-stop_market-4" class="request-link">
+                        <span class="method method-post">POST</span>
+                        <span class="req-name">5. STOP_MARKET</span>
+                    </a>
+                </li>
+            
+                <li>
+                    <a href="#6.-stop_limit-5" class="request-link">
+                        <span class="method method-post">POST</span>
+                        <span class="req-name">6. STOP_LIMIT</span>
+                    </a>
+                </li>
+            
+                <li>
+                    <a href="#7.-take_profit_market-6" class="request-link">
+                        <span class="method method-post">POST</span>
+                        <span class="req-name">7. TAKE_PROFIT_MARKET</span>
+                    </a>
+                </li>
+            
+                <li>
+                    <a href="#8.-trailing_stop-(aster-only)-7" class="request-link">
+                        <span class="method method-post">POST</span>
+                        <span class="req-name">8. TRAILING_STOP (Aster Only)</span>
+                    </a>
+                </li>
+            </ul>
+                </li>
+            
+                <li class="folder">
+                    <span class="folder-name">Order Management</span>
+                    <ul class="depth-1">
+                <li>
+                    <a href="#get-open-orders-0" class="request-link">
+                        <span class="method method-get">GET</span>
+                        <span class="req-name">Get Open Orders</span>
+                    </a>
+                </li>
+            
+                <li>
+                    <a href="#cancel-order-1" class="request-link">
+                        <span class="method method-delete">DELETE</span>
+                        <span class="req-name">Cancel Order</span>
+                    </a>
+                </li>
+            
+                <li>
+                    <a href="#cancel-all-orders-2" class="request-link">
+                        <span class="method method-delete">DELETE</span>
+                        <span class="req-name">Cancel ALL Orders</span>
+                    </a>
+                </li>
+            </ul>
+                </li>
+            </ul>
+        </nav>
+    </aside>
+    <main class="main">
+        <div class="container">
+            <div class="header-actions">
+                <h1>Universal Trading API</h1>
+                <a href="./Universal_API.postman_collection.json" download class="download-btn">📥 Download Collection</a>
+            </div>
+            <p>Postman collection for the Universal Trading API. Supports Aster and Hyperliquid exchanges.</p>
+            
+            
+                <section class="folder-section">
+                    <h2 class="folder-title depth-0">User Management</h2>
+                    
+                <div id="create-user-0" class="request-card">
+                    <div class="request-header">
+                        <span class="method-badge method-post">POST</span>
+                        <span class="request-url">{{baseUrl}}/user</span>
+                    </div>
+                    <h3 class="request-title">Create User</h3>
+                    <p class="request-desc">Creates a new user and auto-sets the 'userId' collection variable.</p>
+                    
+                    
+                        <div class="code-block">
+                            <div class="code-label">Request Body (JSON)</div>
+                            <pre><code class="language-json">{
+  "telegramId": 999111,
+  "username": "postman_app_user"
+}</code></pre>
+                        </div>
+                    
+                </div>
+            
+                <div id="link-credentials-(aster)-1" class="request-card">
+                    <div class="request-header">
+                        <span class="method-badge method-post">POST</span>
+                        <span class="request-url">{{baseUrl}}/user/credentials</span>
+                    </div>
+                    <h3 class="request-title">Link Credentials (Aster)</h3>
+                    <p class="request-desc">Links Aster credentials using apiKey and apiSecret.</p>
+                    
+                    
+                        <div class="code-block">
+                            <div class="code-label">Request Body (JSON)</div>
+                            <pre><code class="language-json">{
+  "userId": "{{userId}}",
+  "exchange": "aster",
+  "apiKey": "test-key-123",
+  "apiSecret": "test-secret-456"
+}</code></pre>
+                        </div>
+                    
+                </div>
+            
+                <div id="link-credentials-(hyperliquid)-2" class="request-card">
+                    <div class="request-header">
+                        <span class="method-badge method-post">POST</span>
+                        <span class="request-url">{{baseUrl}}/user/credentials</span>
+                    </div>
+                    <h3 class="request-title">Link Credentials (Hyperliquid)</h3>
+                    <p class="request-desc">Links Hyperliquid credentials using address and privateKey.</p>
+                    
+                    
+                        <div class="code-block">
+                            <div class="code-label">Request Body (JSON)</div>
+                            <pre><code class="language-json">{
+  "userId": "{{userId}}",
+  "exchange": "hyperliquid",
+  "address": "0xUserAddress",
+  "privateKey": "0xUserPrivateKey"
+}</code></pre>
+                        </div>
+                    
+                </div>
+            
+                <div id="list-exchanges-3" class="request-card">
+                    <div class="request-header">
+                        <span class="method-badge method-get">GET</span>
+                        <span class="request-url">{{baseUrl}}/user/exchanges?userId={{userId}}</span>
+                    </div>
+                    <h3 class="request-title">List Exchanges</h3>
+                    
+                    
+                    
+                </div>
+            
+                </section>
+                <hr class="folder-divider">
+            
+                <section class="folder-section">
+                    <h2 class="folder-title depth-0">Auth</h2>
+                    
+                <div id="create-session-0" class="request-card">
+                    <div class="request-header">
+                        <span class="method-badge method-post">POST</span>
+                        <span class="request-url">{{baseUrl}}/auth/session</span>
+                    </div>
+                    <h3 class="request-title">Create Session</h3>
+                    <p class="request-desc">Creates a session token. Copy the token from response to 'authToken' variable or it is auto-set by the script.</p>
+                    
+                    
+                        <div class="code-block">
+                            <div class="code-label">Request Body (JSON)</div>
+                            <pre><code class="language-json">{
+  "userId": "{{userId}}",
+  "exchangeId": "{{exchangeId}}"
+}</code></pre>
+                        </div>
+                    
+                </div>
+            
+                <div id="delete-session-1" class="request-card">
+                    <div class="request-header">
+                        <span class="method-badge method-delete">DELETE</span>
+                        <span class="request-url">{{baseUrl}}/auth/session</span>
+                    </div>
+                    <h3 class="request-title">Delete Session</h3>
+                    
+                    
+                    
+                </div>
+            
+                </section>
+                <hr class="folder-divider">
+            
+                <section class="folder-section">
+                    <h2 class="folder-title depth-0">Market Data (Public)</h2>
+                    
+                <div id="get-assets-0" class="request-card">
+                    <div class="request-header">
+                        <span class="method-badge method-get">GET</span>
+                        <span class="request-url">{{baseUrl}}/assets?exchange={{exchangeId}}</span>
+                    </div>
+                    <h3 class="request-title">Get Assets</h3>
+                    
+                    
+                    
+                </div>
+            
+                <div id="get-ticker-1" class="request-card">
+                    <div class="request-header">
+                        <span class="method-badge method-get">GET</span>
+                        <span class="request-url">{{baseUrl}}/ticker/ETHUSDT?exchange={{exchangeId}}</span>
+                    </div>
+                    <h3 class="request-title">Get Ticker</h3>
+                    
+                    
+                    
+                </div>
+            
+                <div id="get-orderbook-2" class="request-card">
+                    <div class="request-header">
+                        <span class="method-badge method-get">GET</span>
+                        <span class="request-url">{{baseUrl}}/orderbook/ETHUSDT?depth=10&exchange={{exchangeId}}</span>
+                    </div>
+                    <h3 class="request-title">Get Orderbook</h3>
+                    
+                    
+                    
+                </div>
+            
+                </section>
+                <hr class="folder-divider">
+            
+                <section class="folder-section">
+                    <h2 class="folder-title depth-0">Account</h2>
+                    
+                <div id="get-account-info-0" class="request-card">
+                    <div class="request-header">
+                        <span class="method-badge method-get">GET</span>
+                        <span class="request-url">{{baseUrl}}/account?exchange={{exchangeId}}</span>
+                    </div>
+                    <h3 class="request-title">Get Account Info</h3>
+                    
+                    
+                    
+                </div>
+            
+                <div id="get-positions-1" class="request-card">
+                    <div class="request-header">
+                        <span class="method-badge method-get">GET</span>
+                        <span class="request-url">{{baseUrl}}/positions?exchange={{exchangeId}}</span>
+                    </div>
+                    <h3 class="request-title">Get Positions</h3>
+                    
+                    
+                    
+                </div>
+            
+                <div id="set-leverage-2" class="request-card">
+                    <div class="request-header">
+                        <span class="method-badge method-post">POST</span>
+                        <span class="request-url">{{baseUrl}}/account/leverage</span>
+                    </div>
+                    <h3 class="request-title">Set Leverage</h3>
+                    
+                    
+                    
+                        <div class="code-block">
+                            <div class="code-label">Request Body (JSON)</div>
+                            <pre><code class="language-json">{
+  "symbol": "ETHUSDT",
+  "leverage": "5",
+  "exchange": "{{exchangeId}}"
+}</code></pre>
+                        </div>
+                    
+                </div>
+            
+                </section>
+                <hr class="folder-divider">
+            
+                <section class="folder-section">
+                    <h2 class="folder-title depth-0">Order Placement</h2>
+                    
+                <div id="1.-limit-order-0" class="request-card">
+                    <div class="request-header">
+                        <span class="method-badge method-post">POST</span>
+                        <span class="request-url">{{baseUrl}}/order</span>
+                    </div>
+                    <h3 class="request-title">1. LIMIT Order</h3>
+                    <p class="request-desc">Standard GTC Limit Order. Price set to 3000 (below market 3200).</p>
+                    
+                    
+                        <div class="code-block">
+                            <div class="code-label">Request Body (JSON)</div>
+                            <pre><code class="language-json">{
+  "symbol": "ETHUSDT",
+  "side": "BUY",
+  "type": "LIMIT",
+  "quantity": "0.01",
+  "price": "3000",
+  "exchange": "{{exchangeId}}"
+}</code></pre>
+                        </div>
+                    
+                </div>
+            
+                <div id="2.-market-order-1" class="request-card">
+                    <div class="request-header">
+                        <span class="method-badge method-post">POST</span>
+                        <span class="request-url">{{baseUrl}}/order</span>
+                    </div>
+                    <h3 class="request-title">2. MARKET Order</h3>
+                    <p class="request-desc">Executes immediately at best available price</p>
+                    
+                    
+                        <div class="code-block">
+                            <div class="code-label">Request Body (JSON)</div>
+                            <pre><code class="language-json">{
+  "symbol": "ETHUSDT",
+  "side": "BUY",
+  "type": "MARKET",
+  "quantity": "0.005",
+  "exchange": "{{exchangeId}}"
+}</code></pre>
+                        </div>
+                    
+                </div>
+            
+                <div id="3.-ioc-(immediate-or-cancel)-2" class="request-card">
+                    <div class="request-header">
+                        <span class="method-badge method-post">POST</span>
+                        <span class="request-url">{{baseUrl}}/order</span>
+                    </div>
+                    <h3 class="request-title">3. IOC (Immediate Or-Cancel)</h3>
+                    <p class="request-desc">Limit order that must fill immediately or be cancelled.</p>
+                    
+                    
+                        <div class="code-block">
+                            <div class="code-label">Request Body (JSON)</div>
+                            <pre><code class="language-json">{
+  "symbol": "ETHUSDT",
+  "side": "BUY",
+  "type": "LIMIT",
+  "quantity": "0.01",
+  "price": "3200",
+  "timeInForce": "IOC",
+  "exchange": "{{exchangeId}}"
+}</code></pre>
+                        </div>
+                    
+                </div>
+            
+                <div id="4.-post_only-3" class="request-card">
+                    <div class="request-header">
+                        <span class="method-badge method-post">POST</span>
+                        <span class="request-url">{{baseUrl}}/order</span>
+                    </div>
+                    <h3 class="request-title">4. POST_ONLY</h3>
+                    <p class="request-desc">Limit order that acts as Maker only. Rejected if it crosses spread.</p>
+                    
+                    
+                        <div class="code-block">
+                            <div class="code-label">Request Body (JSON)</div>
+                            <pre><code class="language-json">{
+  "symbol": "ETHUSDT",
+  "side": "BUY",
+  "type": "LIMIT",
+  "quantity": "0.01",
+  "price": "3000",
+  "postOnly": true,
+  "exchange": "{{exchangeId}}"
+}</code></pre>
+                        </div>
+                    
+                </div>
+            
+                <div id="5.-stop_market-4" class="request-card">
+                    <div class="request-header">
+                        <span class="method-badge method-post">POST</span>
+                        <span class="request-url">{{baseUrl}}/order</span>
+                    </div>
+                    <h3 class="request-title">5. STOP_MARKET</h3>
+                    <p class="request-desc">Triggers a Market sell when price falls to triggerPrice. Should be below market (3200).</p>
+                    
+                    
+                        <div class="code-block">
+                            <div class="code-label">Request Body (JSON)</div>
+                            <pre><code class="language-json">{
+  "symbol": "ETHUSDT",
+  "side": "SELL",
+  "type": "STOP_MARKET",
+  "quantity": "0.01",
+  "triggerPrice": "2900",
+  "exchange": "{{exchangeId}}"
+}</code></pre>
+                        </div>
+                    
+                </div>
+            
+                <div id="6.-stop_limit-5" class="request-card">
+                    <div class="request-header">
+                        <span class="method-badge method-post">POST</span>
+                        <span class="request-url">{{baseUrl}}/order</span>
+                    </div>
+                    <h3 class="request-title">6. STOP_LIMIT</h3>
+                    <p class="request-desc">Triggers a Limit sell at 'price' when price falls to 'triggerPrice'.</p>
+                    
+                    
+                        <div class="code-block">
+                            <div class="code-label">Request Body (JSON)</div>
+                            <pre><code class="language-json">{
+  "symbol": "ETHUSDT",
+  "side": "SELL",
+  "type": "STOP_LIMIT",
+  "quantity": "0.01",
+  "triggerPrice": "2900",
+  "price": "2850",
+  "exchange": "{{exchangeId}}"
+}</code></pre>
+                        </div>
+                    
+                </div>
+            
+                <div id="7.-take_profit_market-6" class="request-card">
+                    <div class="request-header">
+                        <span class="method-badge method-post">POST</span>
+                        <span class="request-url">{{baseUrl}}/order</span>
+                    </div>
+                    <h3 class="request-title">7. TAKE_PROFIT_MARKET</h3>
+                    <p class="request-desc">Triggers a Market sell when price rises to triggerPrice.</p>
+                    
+                    
+                        <div class="code-block">
+                            <div class="code-label">Request Body (JSON)</div>
+                            <pre><code class="language-json">{
+  "symbol": "ETHUSDT",
+  "side": "SELL",
+  "type": "TAKE_PROFIT_MARKET",
+  "quantity": "0.01",
+  "triggerPrice": "3500",
+  "exchange": "{{exchangeId}}"
+}</code></pre>
+                        </div>
+                    
+                </div>
+            
+                <div id="8.-trailing_stop-(aster-only)-7" class="request-card">
+                    <div class="request-header">
+                        <span class="method-badge method-post">POST</span>
+                        <span class="request-url">{{baseUrl}}/order</span>
+                    </div>
+                    <h3 class="request-title">8. TRAILING_STOP (Aster Only)</h3>
+                    <p class="request-desc">Trailing stop with callback rate %</p>
+                    
+                    
+                        <div class="code-block">
+                            <div class="code-label">Request Body (JSON)</div>
+                            <pre><code class="language-json">{
+  "symbol": "ETHUSDT",
+  "side": "SELL",
+  "type": "TRAILING_STOP_MARKET",
+  "quantity": "0.01",
+  "callbackRate": "2",
+  "exchange": "aster"
+}</code></pre>
+                        </div>
+                    
+                </div>
+            
+                </section>
+                <hr class="folder-divider">
+            
+                <section class="folder-section">
+                    <h2 class="folder-title depth-0">Order Management</h2>
+                    
+                <div id="get-open-orders-0" class="request-card">
+                    <div class="request-header">
+                        <span class="method-badge method-get">GET</span>
+                        <span class="request-url">{{baseUrl}}/orders?symbol=ETHUSDT&exchange={{exchangeId}}</span>
+                    </div>
+                    <h3 class="request-title">Get Open Orders</h3>
+                    
+                    
+                    
+                </div>
+            
+                <div id="cancel-order-1" class="request-card">
+                    <div class="request-header">
+                        <span class="method-badge method-delete">DELETE</span>
+                        <span class="request-url">{{baseUrl}}/order/ORDER_ID?symbol=ETHUSDT&exchange={{exchangeId}}</span>
+                    </div>
+                    <h3 class="request-title">Cancel Order</h3>
+                    <p class="request-desc">Replace ORDER_ID with actual ID</p>
+                    
+                    
+                </div>
+            
+                <div id="cancel-all-orders-2" class="request-card">
+                    <div class="request-header">
+                        <span class="method-badge method-delete">DELETE</span>
+                        <span class="request-url">{{baseUrl}}/orders?symbol=ETHUSDT&exchange={{exchangeId}}</span>
+                    </div>
+                    <h3 class="request-title">Cancel ALL Orders</h3>
+                    
+                    
+                    
+                </div>
+            
+                </section>
+                <hr class="folder-divider">
+            
+        </div>
+    </main>
+</body>
+</html>
+    

@@ -7,6 +7,8 @@ import { Elysia } from 'elysia';
 import { AdapterFactory } from '../adapters/factory';
 import { SessionStore } from '../middleware/session';
 import { requireAuth } from '../middleware/auth';
+import { getOrCreateUser, storeApiCredentials, getLinkedExchanges } from '../db/users';
+import { encrypt } from '../utils/encryption';
 import type { PlaceOrderParams } from '../adapters/base.adapter';
 
 export function createApiServer(port: number = 3000) {
@@ -20,6 +22,72 @@ export function createApiServer(port: number = 3000) {
 
     // Health check
     .get('/health', () => ({ status: 'ok', timestamp: Date.now() }))
+
+    // ============ USER & CREDENTIALS ============
+
+    .post('/user', async ({ body }: any) => {
+      try {
+        const { telegramId, username } = body;
+        if (!telegramId) return { success: false, error: 'telegramId is required' };
+        
+        const user = await getOrCreateUser(telegramId, username);
+        return { success: true, data: user };
+      } catch (error: any) {
+        return { success: false, error: error.message };
+      }
+    })
+
+    .post('/user/credentials', async ({ body }: any) => {
+      try {
+         const { userId, exchange } = body;
+         if (!userId || !exchange) {
+             return { success: false, error: 'userId and exchange are required' };
+         }
+         
+         let finalKey, finalSecret;
+
+         if (exchange === 'hyperliquid') {
+            const { address, privateKey } = body;
+            if (!address || !privateKey) {
+                return { success: false, error: 'Hyperliquid requires "address" and "privateKey"' };
+            }
+            // DB mapping for Hyperliquid:
+            // api_key_encrypted col = Private Key
+            // api_secret_encrypted col = Wallet Address
+            finalKey = privateKey;
+            finalSecret = address;
+         } else {
+            // Default (Aster and others)
+            const { apiKey, apiSecret } = body;
+            if (!apiKey || !apiSecret) {
+                return { success: false, error: `${exchange} requires "apiKey" and "apiSecret"` };
+            }
+            finalKey = apiKey;
+            finalSecret = apiSecret;
+         }
+
+         const encKey = encrypt(finalKey);
+         const encSecret = encrypt(finalSecret);
+
+         await storeApiCredentials(userId, exchange, encKey, encSecret);
+         return { success: true, message: 'Credentials stored' };
+
+      } catch (error: any) {
+         return { success: false, error: error.message };
+      }
+    })
+
+    .get('/user/exchanges', async ({ query }: any) => {
+        try {
+            const userId = query.userId;
+            if (!userId) return { success: false, error: 'userId required' };
+            
+            const exchanges = await getLinkedExchanges(parseInt(userId));
+            return { success: true, data: exchanges };
+        } catch (error: any) {
+            return { success: false, error: error.message };
+        }
+    })
 
     // ============ AUTH ============
     
