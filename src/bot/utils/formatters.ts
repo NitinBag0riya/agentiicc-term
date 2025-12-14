@@ -6,15 +6,19 @@
  * Format account balance for display
  */
 export function formatAccountBalance(account: any): string {
-  const totalBalance = parseFloat(account.totalBalance || '0');
-  const availableBalance = parseFloat(account.availableBalance || '0');
+  if (!account || typeof account !== 'object') {
+    return '❌ **Unable to load account data**\n\nPlease try again or contact support.';
+  }
+
+  const totalBalance = parseFloat(account.totalBalance || account.balance || '0');
+  const availableBalance = parseFloat(account.availableBalance || account.available || '0');
   const usedMargin = totalBalance - availableBalance;
 
   return (
     `💰 **Account Balance**\n\n` +
     `**Total Balance:** $${totalBalance.toFixed(2)}\n` +
     `**Available:** $${availableBalance.toFixed(2)}\n` +
-    `**Used Margin:** $${usedMargin.toFixed(2)}\n`
+    `**Used Margin:** $${usedMargin.toFixed(2)}`
   );
 }
 
@@ -43,7 +47,11 @@ export function formatPosition(position: any): string {
 /**
  * Format multiple positions
  */
-export function formatPositions(positions: any[]): string {
+export function formatPositions(positions: any): string {
+  if (!positions || !Array.isArray(positions)) {
+    return '❌ **Unable to load positions**\n\nPlease try again or contact support.';
+  }
+
   if (positions.length === 0) {
     return '📊 **Positions**\n\nNo open positions';
   }

@@ -3,10 +3,13 @@ import { Telegraf, Scenes, session, Markup } from 'telegraf';
 import type { BotContext } from './bot/types/context';
 import { linkScene } from './bot/scenes/link.scene';
 import { unlinkScene } from './bot/scenes/unlink.scene';
+import { switchExchangeScene } from './bot/scenes/switch-exchange.scene';
+import { tradeScene } from './bot/scenes/trade.scene';
 import { getOrCreateUser, getApiCredentials } from './db/users';
 import { connectPostgres, initSchema } from './db/postgres';
 import { createApiServer } from './api/server';
 import { AdapterFactory } from './adapters/factory';
+import { mainMenuComposer } from './bot/composers/main-menu.composer';
 
 /**
  * Show account details for the user's linked exchange
@@ -96,11 +99,12 @@ async function startBot() {
 
   // 3. Setup Bot
   const bot = new Telegraf<BotContext>(token);
-  const stage = new Scenes.Stage<BotContext>([linkScene, unlinkScene]);
+  const stage = new Scenes.Stage<BotContext>([linkScene, unlinkScene, switchExchangeScene, tradeScene]);
 
   // Middleware
   bot.use(session());
   bot.use(stage.middleware());
+  bot.use(mainMenuComposer); // Add all CTA handlers from composer
 
   // Command: /start
   bot.start(async (ctx) => {

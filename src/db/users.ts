@@ -60,3 +60,11 @@ export async function deleteApiCredentials(userId: number, exchangeId: string) {
     [userId, exchangeId]
   );
 }
+
+export async function getAllUserExchanges(userId: number): Promise<string[]> {
+  const res = await query(
+    'SELECT exchange_id FROM api_credentials WHERE user_id = $1',
+    [userId]
+  );
+  return res.rows.map(row => row.exchange_id);
+}

@@ -57,12 +57,6 @@ export const linkScene = new Scenes.WizardScene<BotContext>(
   async (ctx) => {
     console.log('[LinkScene] Step 0: Asking for exchange selection');
 
-    // Check if already linked
-    if (ctx.session.isLinked && ctx.session.activeExchange) {
-      await ctx.reply('✅ You already have an exchange linked.\\n\\nUse /unlink to disconnect first.');
-      return ctx.scene.leave();
-    }
-
     // Initialize state
     const state = ctx.wizard.state as LinkState;
     state.retryCount = 0;
@@ -287,14 +281,26 @@ export const linkScene = new Scenes.WizardScene<BotContext>(
       const apiClient = new UniversalApiClient();
       const token = await apiClient.createSession(user.id, exchangeId);
 
-      // Update session
+      // Update session - support multiple exchanges
       ctx.session.userId = user.id;
       ctx.session.telegramId = ctx.from!.id;
       ctx.session.username = ctx.from!.username;
       ctx.session.isLinked = true;
       ctx.session.activeExchange = exchangeId;
-      ctx.session.linkedExchanges = [exchangeId];
-      ctx.session.apiTokens = { [exchangeId]: token };
+      
+      // Add to linked exchanges array (don't replace)
+      if (!ctx.session.linkedExchanges) {
+        ctx.session.linkedExchanges = [];
+      }
+      if (!ctx.session.linkedExchanges.includes(exchangeId)) {
+        ctx.session.linkedExchanges.push(exchangeId);
+      }
+      
+      // Store token for this exchange
+      if (!ctx.session.apiTokens) {
+        ctx.session.apiTokens = {};
+      }
+      ctx.session.apiTokens[exchangeId] = token;
 
       console.log(`[LinkScene] ✅ Session updated. Showing success message...`);
 
