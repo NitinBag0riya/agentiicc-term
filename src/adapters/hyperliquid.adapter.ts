@@ -11,7 +11,7 @@ export class HyperliquidAdapter implements ExchangeAdapter {
 
   constructor(accountAddress: string, privateKey?: string) {
     this.accountAddress = accountAddress;
-    
+
     // Initialize SDK with proper options object for exchange module
     if (privateKey) {
       const cleanKey = privateKey.startsWith('0x') ? privateKey : `0x${privateKey}`;
@@ -33,20 +33,20 @@ export class HyperliquidAdapter implements ExchangeAdapter {
 
   // Helper to normalize symbols (Exchange -> App)
   private fromExchangeSymbol(sym: string): string {
-      return sym.replace(/-PERP$/, '');
+    return sym.replace(/-PERP$/, '');
   }
 
   // Helper to denormalize symbols (App -> Exchange)
   private toExchangeSymbol(sym: string): string {
-      if (sym.includes('-PERP')) return sym;
-      
-      // Handle "ETHUSDT" -> "ETH" for universal compatibility
-      let clean = sym;
-      if (clean.endsWith('USDT')) {
-          clean = clean.replace('USDT', '');
-      }
-      
-      return `${clean}-PERP`;
+    if (sym.includes('-PERP')) return sym;
+
+    // Handle "ETHUSDT" -> "ETH" for universal compatibility
+    let clean = sym;
+    if (clean.endsWith('USDT')) {
+      clean = clean.replace('USDT', '');
+    }
+
+    return `${clean}-PERP`;
   }
 
   async getAccount(): Promise<AccountInfo> {
@@ -62,7 +62,7 @@ export class HyperliquidAdapter implements ExchangeAdapter {
           symbol: this.fromExchangeSymbol(p.position.coin),
           size: p.position.szi,
           entryPrice: p.position.entryPx,
-          markPrice: p.position.positionValue, 
+          markPrice: p.position.positionValue,
           unrealizedPnl: p.position.unrealizedPnl,
           side: parseFloat(p.position.szi) > 0 ? 'LONG' : 'SHORT',
           leverage: p.position.leverage.value.toString(),
@@ -80,113 +80,113 @@ export class HyperliquidAdapter implements ExchangeAdapter {
       // Ensure connected (initializes exchange/ws if needed)
       // @ts-ignore
       if (!this.sdk.isWebSocketConnected || !this.sdk.isWebSocketConnected()) {
-           // @ts-ignore
-           await this.sdk.connect();
+        // @ts-ignore
+        await this.sdk.connect();
       }
 
       const isBuy = params.side === 'BUY';
       const symbol = this.toExchangeSymbol(params.symbol);
-      
+
       // Default order type: Limit with GTC
       let orderType: any = { limit: { tif: 'Gtc' } };
       let limitPrice = parseFloat(params.price || '0');
-      
+
       // Handle different order types
       // Helper to match Hyperliquid's strict precision (5 significant figures)
       const formatPrice = (price: number): number => {
-          return parseFloat(price.toPrecision(5));
+        return parseFloat(price.toPrecision(5));
       };
 
       if (params.type === 'MARKET') {
-          // Hyperliquid doesn't have true market orders
-          // Use aggressive limit order (IOC at far price)
-          // @ts-ignore
-          const mids = await this.sdk.info.getAllMids();
-          const currentPrice = parseFloat(mids[symbol] || '0');
-          
-          if (!currentPrice) {
-              throw new Error(`Cannot determine market price for ${symbol}`);
-          }
-          
-          // Set aggressive price: +5% for buy, -5% for sell
-          // MUST round to 5 significant figures (Hyperliquid standard)
-          const aggressive = isBuy ? currentPrice * 1.05 : currentPrice * 0.95;
-          
-          limitPrice = formatPrice(aggressive);
-          orderType = { limit: { tif: 'Ioc' } }; // IOC to ensure immediate execution
-          
+        // Hyperliquid doesn't have true market orders
+        // Use aggressive limit order (IOC at far price)
+        // @ts-ignore
+        const mids = await this.sdk.info.getAllMids();
+        const currentPrice = parseFloat(mids[symbol] || '0');
+
+        if (!currentPrice) {
+          throw new Error(`Cannot determine market price for ${symbol}`);
+        }
+
+        // Set aggressive price: +5% for buy, -5% for sell
+        // MUST round to 5 significant figures (Hyperliquid standard)
+        const aggressive = isBuy ? currentPrice * 1.05 : currentPrice * 0.95;
+
+        limitPrice = formatPrice(aggressive);
+        orderType = { limit: { tif: 'Ioc' } }; // IOC to ensure immediate execution
+
       } else if (params.type === 'STOP_MARKET' || params.type === 'TAKE_PROFIT_MARKET') {
-          // Trigger orders with market execution
-          if (!params.triggerPrice) {
-              throw new Error(`${params.type} requires triggerPrice`);
+        // Trigger orders with market execution
+        if (!params.triggerPrice) {
+          throw new Error(`${params.type} requires triggerPrice`);
+        }
+
+        const triggerPrice = parseFloat(params.triggerPrice);
+        const isStop = params.type === 'STOP_MARKET';
+
+        orderType = {
+          trigger: {
+            triggerPx: formatPrice(triggerPrice).toString(),
+            isMarket: true,
+            tpsl: isStop ? 'sl' : 'tp'
           }
-          
-          const triggerPrice = parseFloat(params.triggerPrice);
-          const isStop = params.type === 'STOP_MARKET';
-          
-          orderType = {
-              trigger: {
-                  triggerPx: formatPrice(triggerPrice).toString(),
-                  isMarket: true,
-                  tpsl: isStop ? 'sl' : 'tp'
-              }
-          };
-          
-          // For trigger orders, we still need a limit price (use trigger price)
-          limitPrice = formatPrice(triggerPrice);
-          
+        };
+
+        // For trigger orders, we still need a limit price (use trigger price)
+        limitPrice = formatPrice(triggerPrice);
+
       } else if (params.type === 'STOP_LIMIT' || params.type === 'TAKE_PROFIT_LIMIT') {
-          // Trigger orders with limit execution
-          if (!params.triggerPrice || (!params.price && !params.stopLimitPrice)) {
-              throw new Error(`${params.type} requires both triggerPrice and price (or stopLimitPrice)`);
+        // Trigger orders with limit execution
+        if (!params.triggerPrice || (!params.price && !params.stopLimitPrice)) {
+          throw new Error(`${params.type} requires both triggerPrice and price (or stopLimitPrice)`);
+        }
+
+        const triggerPrice = parseFloat(params.triggerPrice);
+        const isStop = params.type === 'STOP_LIMIT';
+
+        orderType = {
+          trigger: {
+            triggerPx: formatPrice(triggerPrice).toString(),
+            isMarket: false,
+            tpsl: isStop ? 'sl' : 'tp'
           }
-          
-          const triggerPrice = parseFloat(params.triggerPrice);
-          const isStop = params.type === 'STOP_LIMIT';
-          
-          orderType = {
-              trigger: {
-                  triggerPx: formatPrice(triggerPrice).toString(),
-                  isMarket: false,
-                  tpsl: isStop ? 'sl' : 'tp'
-              }
-          };
-          
-          const rawLimit = parseFloat((params.stopLimitPrice || params.price) as string);
-          limitPrice = formatPrice(rawLimit);
-          
+        };
+
+        const rawLimit = parseFloat((params.stopLimitPrice || params.price) as string);
+        limitPrice = formatPrice(rawLimit);
+
       } else if (params.type === 'TRAILING_STOP_MARKET') {
-          // Trailing stop orders
-          // Hyperliquid does not natively support server-side trailing stops in the standard order API.
-          // They must be implemented via the Algo/TWAP system or client-side.
-          // To avoid misleading behavior (placing a static stop), we throw an error.
-          throw new Error('TRAILING_STOP_MARKET is not natively supported by Hyperliquid standard API.');
-          
+        // Trailing stop orders
+        // Hyperliquid does not natively support server-side trailing stops in the standard order API.
+        // They must be implemented via the Algo/TWAP system or client-side.
+        // To avoid misleading behavior (placing a static stop), we throw an error.
+        throw new Error('TRAILING_STOP_MARKET is not natively supported by Hyperliquid standard API.');
+
       } else if (params.type === 'OCO') {
-          throw new Error('OCO orders are not supported by Hyperliquid adapter yet.');
+        throw new Error('OCO orders are not supported by Hyperliquid adapter yet.');
 
       } else if (params.type === 'LIMIT') {
-          // Standard limit order
-          if (!params.price) {
-              throw new Error('LIMIT order requires price');
-          }
-          
-          limitPrice = formatPrice(parseFloat(params.price));
-          
-          // Handle special time-in-force options
-          if (params.postOnly) {
-              orderType = { limit: { tif: 'Alo' } }; // Add Liquidity Only
-          } else if (params.timeInForce === 'IOC') {
-              orderType = { limit: { tif: 'Ioc' } }; // Immediate or Cancel
-          } else if (params.timeInForce === 'FOK') {
-              // Hyperliquid doesn't support FOK, use IOC as closest alternative
-              orderType = { limit: { tif: 'Ioc' } };
-              console.warn('FOK not supported on Hyperliquid, using IOC instead');
-          } else {
-              orderType = { limit: { tif: 'Gtc' } }; // Good Till Cancel (default)
-          }
+        // Standard limit order
+        if (!params.price) {
+          throw new Error('LIMIT order requires price');
+        }
+
+        limitPrice = formatPrice(parseFloat(params.price));
+
+        // Handle special time-in-force options
+        if (params.postOnly) {
+          orderType = { limit: { tif: 'Alo' } }; // Add Liquidity Only
+        } else if (params.timeInForce === 'IOC') {
+          orderType = { limit: { tif: 'Ioc' } }; // Immediate or Cancel
+        } else if (params.timeInForce === 'FOK') {
+          // Hyperliquid doesn't support FOK, use IOC as closest alternative
+          orderType = { limit: { tif: 'Ioc' } };
+          console.warn('FOK not supported on Hyperliquid, using IOC instead');
+        } else {
+          orderType = { limit: { tif: 'Gtc' } }; // Good Till Cancel (default)
+        }
       } else {
-          throw new Error(`Unsupported order type: ${params.type}`);
+        throw new Error(`Unsupported order type: ${params.type}`);
       }
 
       // Place the order
@@ -201,47 +201,47 @@ export class HyperliquidAdapter implements ExchangeAdapter {
       });
 
       if (result.status === 'err') {
-          throw new Error(`Order failed: ${result.response}`);
+        throw new Error(`Order failed: ${result.response}`);
       }
 
       // Check specific order statuses for errors
       const statuses = result.response?.data?.statuses || [];
       const firstError = statuses.find((s: any) => s.error);
       if (firstError) {
-          throw new Error(`Order rejected: ${firstError.error}`);
+        throw new Error(`Order rejected: ${firstError.error}`);
       }
 
       // Extract order ID
       const firstStatus = statuses[0];
       let oid: number | undefined;
-      
+
       if (firstStatus?.resting?.oid) {
-          oid = firstStatus.resting.oid;
+        oid = firstStatus.resting.oid;
       } else if (firstStatus?.filled) {
-          // Order was immediately filled
-          oid = firstStatus.filled.oid || Date.now();
+        // Order was immediately filled
+        oid = firstStatus.filled.oid || Date.now();
       }
 
       const status = firstStatus?.filled ? 'FILLED' : 'NEW';
 
       // Handle TP/SL attachment for main orders
       if (oid && (params.takeProfit || params.stopLoss)) {
-          const childSide = params.side === 'BUY' ? 'SELL' : 'BUY';
-          const qty = params.quantity;
+        const childSide = params.side === 'BUY' ? 'SELL' : 'BUY';
+        const qty = params.quantity;
 
-          // Attach Take Profit
-          if (params.takeProfit) {
-              this.placeConditionalOrder(symbol, childSide, 'TAKE_PROFIT_MARKET', params.takeProfit, qty)
-                  .then(() => console.log('   ✅ Attached TP placed'))
-                  .catch(e => console.warn(`   ⚠️ Failed to attach TP: ${e.message}`));
-          }
+        // Attach Take Profit
+        if (params.takeProfit) {
+          this.placeConditionalOrder(symbol, childSide, 'TAKE_PROFIT_MARKET', params.takeProfit, qty)
+            .then(() => console.log('   ✅ Attached TP placed'))
+            .catch(e => console.warn(`   ⚠️ Failed to attach TP: ${e.message}`));
+        }
 
-          // Attach Stop Loss
-          if (params.stopLoss) {
-              this.placeConditionalOrder(symbol, childSide, 'STOP_MARKET', params.stopLoss, qty)
-                  .then(() => console.log('   ✅ Attached SL placed'))
-                  .catch(e => console.warn(`   ⚠️ Failed to attach SL: ${e.message}`));
-          }
+        // Attach Stop Loss
+        if (params.stopLoss) {
+          this.placeConditionalOrder(symbol, childSide, 'STOP_MARKET', params.stopLoss, qty)
+            .then(() => console.log('   ✅ Attached SL placed'))
+            .catch(e => console.warn(`   ⚠️ Failed to attach SL: ${e.message}`));
+        }
       }
 
       return {
@@ -260,59 +260,59 @@ export class HyperliquidAdapter implements ExchangeAdapter {
   }
 
   // Helper for placing conditional orders (TP/SL)
-  private async placeConditionalOrder(symbol: string, side: 'BUY'|'SELL', type: string, triggerPrice: string, quantity: string) {
-      const isBuy = side === 'BUY';
-      const isStop = type.includes('STOP');
-      
-      // Helper to match Hyperliquid's strict precision (5 significant figures)
-      const formatPrice = (price: number): number => {
-          return parseFloat(price.toPrecision(5));
-      };
-      
-      const priceVal = parseFloat(triggerPrice);
-      const formattedPrice = formatPrice(priceVal);
+  private async placeConditionalOrder(symbol: string, side: 'BUY' | 'SELL', type: string, triggerPrice: string, quantity: string) {
+    const isBuy = side === 'BUY';
+    const isStop = type.includes('STOP');
 
-      const orderType = {
-          trigger: {
-              triggerPx: formattedPrice.toString(),
-              isMarket: true,
-              tpsl: (isStop ? 'sl' : 'tp') as 'sl' | 'tp'
-          }
-      };
+    // Helper to match Hyperliquid's strict precision (5 significant figures)
+    const formatPrice = (price: number): number => {
+      return parseFloat(price.toPrecision(5));
+    };
 
-      // @ts-ignore
-      return this.sdk.exchange.placeOrder({
-          coin: symbol,
-          is_buy: isBuy,
-          sz: parseFloat(quantity),
-          limit_px: formattedPrice,
-          order_type: orderType,
-          reduce_only: true
-      });
+    const priceVal = parseFloat(triggerPrice);
+    const formattedPrice = formatPrice(priceVal);
+
+    const orderType = {
+      trigger: {
+        triggerPx: formattedPrice.toString(),
+        isMarket: true,
+        tpsl: (isStop ? 'sl' : 'tp') as 'sl' | 'tp'
+      }
+    };
+
+    // @ts-ignore
+    return this.sdk.exchange.placeOrder({
+      coin: symbol,
+      is_buy: isBuy,
+      sz: parseFloat(quantity),
+      limit_px: formattedPrice,
+      order_type: orderType,
+      reduce_only: true
+    });
   }
 
   async cancelOrder(orderId: string, symbol?: string): Promise<CancelResult> {
     if (!symbol) throw new Error("Symbol required for Hyperliquid cancel");
-    
-    try {
-       // @ts-ignore
-       await this.sdk.exchange.cancelOrder({
-           coin: this.toExchangeSymbol(symbol),
-           o: parseInt(orderId)
-       });
 
-       return {
-           orderId,
-           symbol,
-           status: 'CANCELED',
-           message: 'Order canceled'
-       };
+    try {
+      // @ts-ignore
+      await this.sdk.exchange.cancelOrder({
+        coin: this.toExchangeSymbol(symbol),
+        o: parseInt(orderId)
+      });
+
+      return {
+        orderId,
+        symbol,
+        status: 'CANCELED',
+        message: 'Order canceled'
+      };
     } catch (error) {
       return {
-          orderId,
-          symbol,
-          status: 'FAILED',
-          message: `Failed: ${error}`
+        orderId,
+        symbol,
+        status: 'FAILED',
+        message: `Failed: ${error}`
       };
     }
   }
@@ -321,40 +321,40 @@ export class HyperliquidAdapter implements ExchangeAdapter {
    * Cancel all open orders for a symbol or all symbols
    */
   async cancelAllOrders(symbol?: string): Promise<{ success: boolean; canceledCount: number; message: string }> {
-      try {
-          // Get all open orders
-          const openOrders = await this.getOpenOrders(symbol);
-          
-          if (openOrders.length === 0) {
-              return {
-                  success: true,
-                  canceledCount: 0,
-                  message: 'No open orders to cancel'
-              };
-          }
+    try {
+      // Get all open orders
+      const openOrders = await this.getOpenOrders(symbol);
 
-          // Cancel each order
-          const cancelPromises = openOrders.map(order => 
-              this.cancelOrder(order.orderId, order.symbol)
-          );
-
-          const results = await Promise.allSettled(cancelPromises);
-          
-          const successCount = results.filter(r => r.status === 'fulfilled').length;
-          const failedCount = results.length - successCount;
-
-          return {
-              success: failedCount === 0,
-              canceledCount: successCount,
-              message: `Canceled ${successCount} orders${failedCount > 0 ? `, ${failedCount} failed` : ''}`
-          };
-      } catch (error) {
-          return {
-              success: false,
-              canceledCount: 0,
-              message: `Failed to cancel orders: ${error}`
-          };
+      if (openOrders.length === 0) {
+        return {
+          success: true,
+          canceledCount: 0,
+          message: 'No open orders to cancel'
+        };
       }
+
+      // Cancel each order
+      const cancelPromises = openOrders.map(order =>
+        this.cancelOrder(order.orderId, order.symbol)
+      );
+
+      const results = await Promise.allSettled(cancelPromises);
+
+      const successCount = results.filter(r => r.status === 'fulfilled').length;
+      const failedCount = results.length - successCount;
+
+      return {
+        success: failedCount === 0,
+        canceledCount: successCount,
+        message: `Canceled ${successCount} orders${failedCount > 0 ? `, ${failedCount} failed` : ''}`
+      };
+    } catch (error) {
+      return {
+        success: false,
+        canceledCount: 0,
+        message: `Failed to cancel orders: ${error}`
+      };
+    }
   }
 
   /**
@@ -363,13 +363,31 @@ export class HyperliquidAdapter implements ExchangeAdapter {
    */
   async setLeverage(symbol: string, leverage: number): Promise<{ success: boolean; message?: string }> {
     try {
-      // Hyperliquid doesn't have a separate setLeverage API
-      // Leverage is set when placing orders via the leverage parameter
-      // We'll return success to indicate the leverage will be used in subsequent orders
-      
+      // @ts-ignore
+      const meta = await this.sdk.info.perpetuals.getMeta();
+      const cleanSymbol = this.fromExchangeSymbol(this.toExchangeSymbol(symbol)); // "ETH"
+
+      // Find matching asset in universe
+      // @ts-ignore
+      const assetInfo = meta.universe.find((u: any) =>
+        u.name === cleanSymbol ||
+        u.name === `${cleanSymbol}-PERP` ||
+        u.name === symbol
+      );
+
+      if (!assetInfo) {
+        throw new Error(`Asset not found: ${cleanSymbol}`);
+      }
+
+      console.log(`Setting leverage for ${assetInfo.name} (Index: ${meta.universe.indexOf(assetInfo)})`);
+
+      // Correct SDK Signature found in node_modules: updateLeverage(symbol: string, leverageMode: string, leverage: number)
+      // @ts-ignore
+      await this.sdk.exchange.updateLeverage(assetInfo.name, "cross", leverage);
+
       return {
         success: true,
-        message: `Leverage ${leverage}x will be applied to orders for ${symbol}. Note: Hyperliquid sets leverage per-order.`
+        message: `Leverage set to ${leverage}x for ${symbol} (${assetInfo.name})`
       };
     } catch (error: any) {
       return {
@@ -385,21 +403,31 @@ export class HyperliquidAdapter implements ExchangeAdapter {
    */
   async setMarginMode(symbol: string, mode: 'CROSS' | 'ISOLATED'): Promise<{ success: boolean; message?: string }> {
     try {
-      const coin = this.toExchangeSymbol(symbol);
-      
-      // Hyperliquid uses cross margin by default
-      // Isolated margin can be simulated by setting leverage per position
-      if (mode === 'CROSS') {
-        return {
-          success: true,
-          message: `Hyperliquid uses cross margin by default for ${symbol}`
-        };
-      } else {
-        return {
-          success: true,
-          message: `Isolated margin mode simulated via position-specific leverage for ${symbol}`
-        };
-      }
+      // @ts-ignore
+      const meta = await this.sdk.info.perpetuals.getMeta();
+      const cleanSymbol = this.fromExchangeSymbol(this.toExchangeSymbol(symbol));
+
+      // Find matching asset in universe
+      // @ts-ignore
+      const assetInfo = meta.universe.find((u: any) =>
+        u.name === cleanSymbol ||
+        u.name === `${cleanSymbol}-PERP` ||
+        u.name === symbol
+      );
+
+      if (!assetInfo) throw new Error(`Asset not found: ${cleanSymbol}`);
+
+      const leverageMode = mode === 'CROSS' ? 'cross' : 'isolated';
+      // Default to 10x leverage when switching margin mode if not specified
+      const defaultLeverage = 10;
+
+      // @ts-ignore
+      await this.sdk.exchange.updateLeverage(assetInfo.name, leverageMode, defaultLeverage);
+
+      return {
+        success: true,
+        message: `Set ${mode} margin for ${symbol} (${assetInfo.name}) at ${defaultLeverage}x`
+      };
     } catch (error: any) {
       return {
         success: false,
@@ -421,25 +449,25 @@ export class HyperliquidAdapter implements ExchangeAdapter {
     try {
       // @ts-ignore
       const orders = await this.sdk.info.getUserOpenOrders(this.accountAddress);
-      
+
       // Filter first to avoid unnecessary mapping if symbol provided
       let filtered = orders;
       if (symbol) {
-          const exSymbol = this.toExchangeSymbol(symbol);
-          filtered = orders.filter((o: any) => o.coin === exSymbol);
+        const exSymbol = this.toExchangeSymbol(symbol);
+        filtered = orders.filter((o: any) => o.coin === exSymbol);
       }
 
       return filtered.map((o: any) => ({
-           orderId: String(o.oid),
-           symbol: this.fromExchangeSymbol(o.coin),
-           side: (o.side === 'B' || o.side === 'b') ? 'BUY' : 'SELL',
-           type: 'LIMIT' as any, 
-           quantity: o.sz,
-           price: o.limitPx,
-           filled: '0',
-           status: 'NEW',
-           timestamp: o.timestamp
-        }));
+        orderId: String(o.oid),
+        symbol: this.fromExchangeSymbol(o.coin),
+        side: (o.side === 'B' || o.side === 'b') ? 'BUY' : 'SELL',
+        type: 'LIMIT' as any,
+        quantity: o.sz,
+        price: o.limitPx,
+        filled: '0',
+        status: 'NEW',
+        timestamp: o.timestamp
+      }));
     } catch (error) {
       throw new Error(`Failed to fetch open orders: ${error}`);
     }
@@ -447,79 +475,79 @@ export class HyperliquidAdapter implements ExchangeAdapter {
 
   async getOrderHistory(symbol?: string, limit: number = 50): Promise<Order[]> {
     try {
-        // @ts-ignore
-        const fills = await this.sdk.info.getUserFills(this.accountAddress);
-        
-        let filtered = fills;
-        if (symbol) {
-            const exSymbol = this.toExchangeSymbol(symbol);
-            filtered = fills.filter((f: any) => f.coin === exSymbol);
-        }
+      // @ts-ignore
+      const fills = await this.sdk.info.getUserFills(this.accountAddress);
 
-        return filtered
-            .slice(0, limit)
-            .map((f: any) => ({
-                orderId: String(f.oid),
-                symbol: this.fromExchangeSymbol(f.coin),
-                side: (f.side === 'B' || f.side === 'b') ? 'BUY' : 'SELL',
-                type: 'LIMIT' as any,
-                quantity: f.sz,
-                price: f.px,
-                filled: f.sz,
-                status: 'FILLED',
-                timestamp: f.time
-            }));
+      let filtered = fills;
+      if (symbol) {
+        const exSymbol = this.toExchangeSymbol(symbol);
+        filtered = fills.filter((f: any) => f.coin === exSymbol);
+      }
+
+      return filtered
+        .slice(0, limit)
+        .map((f: any) => ({
+          orderId: String(f.oid),
+          symbol: this.fromExchangeSymbol(f.coin),
+          side: (f.side === 'B' || f.side === 'b') ? 'BUY' : 'SELL',
+          type: 'LIMIT' as any,
+          quantity: f.sz,
+          price: f.px,
+          filled: f.sz,
+          status: 'FILLED',
+          timestamp: f.time
+        }));
     } catch (error) {
-        throw new Error(`Failed to fetch history: ${error}`);
+      throw new Error(`Failed to fetch history: ${error}`);
     }
   }
 
   async getPositions(symbol?: string): Promise<Position[]> {
-      const account = await this.getAccount();
-      if (!symbol) return account.positions || [];
-      return (account.positions || []).filter(p => p.symbol === symbol);
+    const account = await this.getAccount();
+    if (!symbol) return account.positions || [];
+    return (account.positions || []).filter(p => p.symbol === symbol);
   }
 
   async getOrderbook(symbol: string, depth: number = 20): Promise<Orderbook> {
+    // @ts-ignore
+    const book = await this.sdk.info.getL2Book(this.toExchangeSymbol(symbol));
+    return {
+      symbol,
+      bids: book.levels[0].slice(0, depth).map((b: any) => [b.px, b.sz]),
+      asks: book.levels[1].slice(0, depth).map((a: any) => [a.px, a.sz]),
       // @ts-ignore
-      const book = await this.sdk.info.getL2Book(this.toExchangeSymbol(symbol));
-      return {
-          symbol,
-          bids: book.levels[0].slice(0, depth).map((b: any) => [b.px, b.sz]),
-          asks: book.levels[1].slice(0, depth).map((a: any) => [a.px, a.sz]),
-          // @ts-ignore
-          timestamp: book.time || Date.now()
-      };
+      timestamp: book.time || Date.now()
+    };
   }
 
   async getTicker(symbol: string): Promise<Ticker> {
-      // @ts-ignore
-      const mids = await this.sdk.info.getAllMids(); 
-      // mids is object { "BTC-PERP": "10000", ... }
-      
-      const exSymbol = this.toExchangeSymbol(symbol);
-      return {
-          symbol,
-          price: mids[exSymbol] || '0',
-          change24h: '0',
-          volume24h: '0',
-          high24h: '0',
-          low24h: '0',
-          timestamp: Date.now()
-      };
+    // @ts-ignore
+    const mids = await this.sdk.info.getAllMids();
+    // mids is object { "BTC-PERP": "10000", ... }
+
+    const exSymbol = this.toExchangeSymbol(symbol);
+    return {
+      symbol,
+      price: mids[exSymbol] || '0',
+      change24h: '0',
+      volume24h: '0',
+      high24h: '0',
+      low24h: '0',
+      timestamp: Date.now()
+    };
   }
 
   async getAssets(): Promise<Asset[]> {
-      // @ts-ignore
-      const meta = await this.sdk.info.perpetuals.getMeta();
-      return meta.universe.map((a: any) => ({
-          symbol: this.fromExchangeSymbol(a.name),
-          name: this.fromExchangeSymbol(a.name),
-          baseAsset: this.fromExchangeSymbol(a.name),
-          quoteAsset: 'USD',
-          minQuantity: '0.001', 
-          tickSize: String(Math.pow(10, -a.szDecimals))
-      }));
+    // @ts-ignore
+    const meta = await this.sdk.info.perpetuals.getMeta();
+    return meta.universe.map((a: any) => ({
+      symbol: this.fromExchangeSymbol(a.name),
+      name: this.fromExchangeSymbol(a.name),
+      baseAsset: this.fromExchangeSymbol(a.name),
+      quoteAsset: 'USD',
+      minQuantity: '0.001',
+      tickSize: String(Math.pow(10, -a.szDecimals))
+    }));
   }
 }
 
