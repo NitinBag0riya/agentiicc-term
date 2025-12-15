@@ -17,7 +17,7 @@ export class HyperliquidAdapter implements ExchangeAdapter {
       const cleanKey = privateKey.startsWith('0x') ? privateKey : `0x${privateKey}`;
       // @ts-ignore - SDK type definitions may not match actual implementation
       this.sdk = new Hyperliquid({
-        enableWs: true,
+        enableWs: false,
         privateKey: cleanKey,
         walletAddress: accountAddress,
         testnet: false
@@ -25,7 +25,7 @@ export class HyperliquidAdapter implements ExchangeAdapter {
     } else {
       // @ts-ignore
       this.sdk = new Hyperliquid({
-        enableWs: true,
+        enableWs: false,
         testnet: false
       });
     }
@@ -548,6 +548,209 @@ export class HyperliquidAdapter implements ExchangeAdapter {
       minQuantity: '0.001',
       tickSize: String(Math.pow(10, -a.szDecimals))
     }));
+  }
+
+  async getFills(symbol?: string, limit: number = 50): Promise<any[]> {
+    try {
+      const response = await fetch('https://api.hyperliquid.xyz/info', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+           type: "userFills",
+           user: this.accountAddress
+        })
+      });
+
+      const fills: any = await response.json();
+      
+      if (!Array.isArray(fills)) {
+         return [];
+      }
+
+      let filtered = fills;
+      if (symbol) {
+        const exSymbol = this.toExchangeSymbol(symbol);
+        filtered = fills.filter((f: any) => f.coin === exSymbol);
+      }
+
+      return filtered
+        .slice(0, limit)
+        .map((f: any) => ({
+          orderId: String(f.oid),
+          symbol: this.fromExchangeSymbol(f.coin),
+          side: (f.side === 'B' || f.side === 'b') ? 'BUY' : 'SELL',
+          price: f.px,
+          quantity: f.sz,
+          fee: f.fee,
+          feeCurrency: 'USDC', // Hyperliquid mostly settles in USDC
+          timestamp: f.time
+        }));
+    } catch (error) {
+      throw new Error(`Failed to fetch fills: ${error}`);
+    }
+  }
+
+  async closePosition(symbol: string): Promise<OrderResult> {
+    try {
+       // 1. Get current position
+       const positions = await this.getPositions(symbol);
+       const position = positions.find(p => p.symbol === symbol);
+
+       if (!position || parseFloat(position.size) === 0) {
+         throw new Error(`No open position found for ${symbol}`);
+       }
+
+       // 2. Prepare Reduce-Only Market Order
+       // Hyperliquid doesn't have true market orders, so we simulate with aggressive limit
+       const size = parseFloat(position.size);
+       const side = size > 0 ? 'SELL' : 'BUY';
+       const quantity = Math.abs(size).toString();
+
+       // We can reuse placeOrder with 'reduceOnly' = true
+       return await this.placeOrder({
+         symbol,
+         side,
+         type: 'MARKET',
+         quantity,
+         models: undefined, // Type compat
+         reduceOnly: true
+       } as any);
+
+    } catch (error) {
+        throw new Error(`Failed to close position: ${error}`);
+    }
+  }
+
+  async setPositionTPSL(symbol: string, tpPrice?: string, slPrice?: string): Promise<{ success: boolean; message: string }> {
+    try {
+      // Similar to Aster, we identify position and place triggers
+      // Note: Hyperliquid supports setting TP/SL directly on a position via specific API, BUT SDK primarily supports placing trigger orders.
+      // We will place trigger orders with reduceOnly=true.
+
+      const positions = await this.getPositions(symbol);
+      const position = positions.find(p => p.symbol === symbol);
+      if (!position || parseFloat(position.size) === 0) throw new Error('No open position');
+
+      const isLong = position.side === 'LONG';
+      const side = isLong ? 'SELL' : 'BUY';
+      const quantity = Math.abs(parseFloat(position.size)).toString();
+
+      const results = [];
+
+      // Place Take Profit
+      if (tpPrice) {
+        await this.placeConditionalOrder(symbol, side, 'TAKE_PROFIT_MARKET', tpPrice, quantity);
+        results.push('TP Placed');
+      }
+
+      // Place Stop Loss
+      if (slPrice) {
+        await this.placeConditionalOrder(symbol, side, 'STOP_MARKET', slPrice, quantity);
+        results.push('SL Placed');
+      }
+
+      return {
+        success: true,
+        message: `Set TP/SL for ${symbol}: ${results.join(', ')}`
+      };
+    } catch (error: any) {
+        return { success: false, message: `Failed to set TP/SL: ${error.message}` };
+    }
+  }
+
+  async updatePositionMargin(symbol: string, amount: string, type: 'ADD' | 'REMOVE'): Promise<{ success: boolean; message: string }> {
+    try {
+      // Get current position to determine direction
+      const positions = await this.getPositions(symbol);
+      const position = positions.find(p => p.symbol === symbol);
+      
+      if (!position || parseFloat(position.size) === 0) {
+        throw new Error('No open position found for margin adjustment');
+      }
+
+      const exSymbol = this.toExchangeSymbol(symbol);
+      // @ts-ignore
+      const meta = await this.sdk.info.perpetuals.getMeta();
+      const assetId = meta.universe.findIndex((u: any) => u.name === exSymbol);
+      
+      if (assetId === -1) throw new Error('Asset not found');
+
+      // Determine if position is long (buy) or short (sell)
+      const isBuy = position.side === 'LONG';
+      
+      // Calculate the new target leverage implied by margin change
+      // For Hyperliquid, we need to pass the new total isolated margin (ntli)
+      // If ADD: increase margin, if REMOVE: decrease margin
+      const currentMargin = parseFloat(position.size) * parseFloat(position.entryPrice) / (parseFloat(position.leverage || '1'));
+      const marginChange = parseFloat(amount);
+      const newMargin = type === 'ADD' ? currentMargin + marginChange : currentMargin - marginChange;
+
+      if (newMargin <= 0) {
+        throw new Error('Cannot remove more margin than available');
+      }
+
+      // @ts-ignore - SDK method: updateIsolatedMargin(asset: number, isBuy: boolean, ntli: number)
+      await this.sdk.exchange.updateIsolatedMargin(assetId, isBuy, newMargin);
+
+      return {
+        success: true,
+        message: `Successfully ${type === 'ADD' ? 'added' : 'removed'} ${amount} margin for ${symbol}`
+      };
+    } catch (error: any) {
+       return { success: false, message: `Failed to update margin: ${error.message}` };
+    }
+  }
+
+  async getOHLCV(symbol: string, timeframe: string, limit: number = 200): Promise<any[]> {
+    try {
+      const exSymbol = this.toExchangeSymbol(symbol).replace('-PERP', ''); // API expects "ETH" for PERP
+
+      const endTime = Date.now();
+      // Estimate start time based on limit & timeframe
+      // Rough calc: limit * minutes * 60000
+      let minutes = 15;
+      if (timeframe === '1m') minutes = 1;
+      else if (timeframe === '5m') minutes = 5;
+      else if (timeframe === '15m') minutes = 15;
+      else if (timeframe === '1h') minutes = 60;
+      else if (timeframe === '4h') minutes = 240;
+      else if (timeframe === '1d') minutes = 1440;
+
+      const startTime = endTime - (limit * minutes * 60 * 1000);
+
+      const response = await fetch('https://api.hyperliquid.xyz/info', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+           type: "candleSnapshot",
+           req: {
+             coin: exSymbol,
+             interval: timeframe,
+             startTime: startTime,
+             endTime: endTime
+           }
+        })
+      });
+
+      const data: any = await response.json();
+      
+      if (!Array.isArray(data)) {
+         return [];
+      }
+
+      return data.map((c: any) => ({
+        timestamp: c.t,
+        open: c.o,
+        high: c.h,
+        low: c.l,
+        close: c.c,
+        volume: c.v
+      }));
+
+    } catch (error) {
+       console.warn(`OHLCV Fetch Error: ${error}`);
+       return [];
+    }
   }
 }
 

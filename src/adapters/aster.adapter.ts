@@ -440,4 +440,141 @@ export class AsterAdapter implements ExchangeAdapter {
       throw new Error(`Failed to fetch assets: ${error}`);
     }
   }
+
+  async getFills(symbol?: string, limit: number = 50): Promise<any[]> {
+    try {
+      const params: any = { limit };
+      if (symbol) params.symbol = symbol;
+
+      const data: any = await this.request('/fapi/v1/userTrades', params);
+      const trades = Array.isArray(data) ? data : [];
+
+      return trades.map((t: any) => ({
+        orderId: String(t.orderId),
+        symbol: t.symbol,
+        side: t.side,
+        price: t.price,
+        quantity: t.qty,
+        fee: t.commission,
+        feeCurrency: t.commissionAsset,
+        timestamp: t.time
+      }));
+    } catch (error) {
+      throw new Error(`Failed to fetch fills: ${error}`);
+    }
+  }
+
+  async closePosition(symbol: string): Promise<OrderResult> {
+    try {
+      // 1. Get current position details
+      const positions = await this.getPositions(symbol);
+      const position = positions.find(p => p.symbol === symbol);
+
+      if (!position || parseFloat(position.size) === 0) {
+        throw new Error(`No open position found for ${symbol}`);
+      }
+
+      // 2. Determine side and quantity to close
+      const size = parseFloat(position.size);
+      const side = size > 0 ? 'SELL' : 'BUY';
+      const quantity = Math.abs(size).toString();
+
+      // 3. Place Market Order to Close
+      return await this.placeOrder({
+        symbol,
+        side,
+        type: 'MARKET',
+        quantity,
+        models: undefined, // Fix for strict typing
+        reduceOnly: true
+      } as any);
+
+    } catch (error) {
+      throw new Error(`Failed to close position: ${error}`);
+    }
+  }
+
+  async setPositionTPSL(symbol: string, tpPrice?: string, slPrice?: string): Promise<{ success: boolean; message: string }> {
+    try {
+      // 1. Cancel existing open orders (strategy: cancel all or specific triggers? For simplicity, we might assume user wants to reset TP/SL)
+      // Better: Cancel only existing TP/SL triggers if possible, but identifying them is hard without client-side tracking.
+      // We will blindly place new ones as per interface. User should cancel manually if they want to replace.
+      // Optionally, we could search for existing TP/SL and cancel them.
+
+      const positions = await this.getPositions(symbol);
+      const position = positions.find(p => p.symbol === symbol);
+      if (!position || parseFloat(position.size) === 0) throw new Error('No open position');
+
+      const isLong = position.side === 'LONG';
+      const side = isLong ? 'SELL' : 'BUY';
+      const quantity = Math.abs(parseFloat(position.size)).toString();
+
+      const results = [];
+
+      // Place Take Profit
+      if (tpPrice) {
+        const tpRes = await this.placeConditionalOrder(symbol, side, 'TAKE_PROFIT_MARKET', tpPrice, quantity);
+        results.push('TP Placed');
+      }
+
+      // Place Stop Loss
+      if (slPrice) {
+        const slRes = await this.placeConditionalOrder(symbol, side, 'STOP_MARKET', slPrice, quantity);
+        results.push('SL Placed');
+      }
+
+      return {
+        success: true,
+        message: `Set TP/SL for ${symbol}: ${results.join(', ')}`
+      };
+    } catch (error: any) {
+      return {
+        success: false,
+        message: `Failed to set TP/SL: ${error.message}`
+      };
+    }
+  }
+
+  async updatePositionMargin(symbol: string, amount: string, type: 'ADD' | 'REMOVE'): Promise<{ success: boolean; message: string }> {
+    try {
+      const typeInt = type === 'ADD' ? 1 : 2;
+      
+      await this.request('/fapi/v1/positionMargin', {
+        symbol,
+        amount,
+        type: typeInt
+      }, 'POST');
+
+      return {
+        success: true,
+        message: `Successfully ${type === 'ADD' ? 'added' : 'removed'} ${amount} margin for ${symbol}`
+      };
+    } catch (error: any) {
+      return {
+        success: false,
+        message: `Failed to update margin: ${error.message}`
+      };
+    }
+  }
+
+  async getOHLCV(symbol: string, timeframe: string, limit: number = 200): Promise<any[]> {
+    try {
+       // Valid intervals: 1m, 3m, 5m, 15m, 30m, 1h, 2h, 4h, 6h, 8h, 12h, 1d, 3d, 1w, 1M
+       const url = `${this.baseUrl}/fapi/v1/klines?symbol=${symbol}&interval=${timeframe}&limit=${limit}`;
+       const response = await fetch(url);
+       const data: any = await response.json();
+
+       // [time, open, high, low, close, volume, closeTime, quoteAssetVolume, trades, takerBuyBase, takerBuyQuote, ignore]
+       return data.map((k: any[]) => ({
+         timestamp: k[0],
+         open: k[1],
+         high: k[2],
+         low: k[3],
+         close: k[4],
+         volume: k[5]
+       }));
+    } catch (error) {
+      throw new Error(`Failed to fetch OHLCV: ${error}`);
+    }
+  }
 }

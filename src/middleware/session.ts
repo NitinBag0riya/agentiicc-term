@@ -5,7 +5,8 @@
 
 interface Session {
   userId: number;
-  exchangeId: string;
+  linkedExchanges: string[];  // All exchanges user has linked
+  activeExchange: string;      // Currently active exchange
   createdAt: number;
   expiresAt: number;
 }
@@ -14,14 +15,18 @@ export class SessionStore {
   private static sessions: Map<string, Session> = new Map();
   private static SESSION_DURATION = 24 * 60 * 60 * 1000; // 24 hours
 
-  static create(userId: number, exchangeId: string): string {
+  static create(userId: number, linkedExchanges: string[], activeExchange?: string): string {
     // Generate simple session token
     const token = this.generateToken();
     const now = Date.now();
 
+    // Use provided activeExchange or default to first linked exchange
+    const active = activeExchange || linkedExchanges[0];
+
     this.sessions.set(token, {
       userId,
-      exchangeId,
+      linkedExchanges,
+      activeExchange: active,
       createdAt: now,
       expiresAt: now + this.SESSION_DURATION
     });
@@ -43,6 +48,25 @@ export class SessionStore {
     }
 
     return session;
+  }
+
+  static switchExchange(token: string, exchangeId: string): boolean {
+    const session = this.sessions.get(token);
+    
+    if (!session) {
+      return false;
+    }
+
+    // Validate that the exchange is linked
+    if (!session.linkedExchanges.includes(exchangeId)) {
+      throw new Error(`Exchange '${exchangeId}' is not linked to this account`);
+    }
+
+    // Update active exchange
+    session.activeExchange = exchangeId;
+    this.sessions.set(token, session);
+    
+    return true;
   }
 
   static delete(token: string): void {

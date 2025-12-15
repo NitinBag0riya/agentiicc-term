@@ -92,20 +92,87 @@ export function createApiServer(port: number = 3000) {
     // ============ AUTH ============
     
     .post('/auth/session', async ({ body }: any) => {
-      const { userId, exchangeId } = body;
+      try {
+        const { userId, exchangeId } = body;
 
-      if (!userId || !exchangeId) {
-        return { error: 'userId and exchangeId are required' };
+        if (!userId) {
+          return { success: false, error: 'userId is required' };
+        }
+
+        // Get all linked exchanges for this user
+        const linkedExchanges = await getLinkedExchanges(parseInt(userId));
+
+        if (linkedExchanges.length === 0) {
+          return { 
+            success: false, 
+            error: 'No exchanges linked. Please link at least one exchange first.' 
+          };
+        }
+
+        // Create unified session with all linked exchanges
+        // Use exchangeId if provided (backward compatibility), otherwise use first linked exchange
+        const defaultExchange = exchangeId || linkedExchanges[0];
+        
+        // Validate that the default exchange is actually linked
+        if (!linkedExchanges.includes(defaultExchange)) {
+          return {
+            success: false,
+            error: `Exchange '${defaultExchange}' is not linked to this account`
+          };
+        }
+
+        const token = SessionStore.create(parseInt(userId), linkedExchanges, defaultExchange);
+        
+        return {
+          success: true,
+          token,
+          expiresIn: '24h',
+          activeExchange: defaultExchange,
+          linkedExchanges
+        };
+      } catch (error: any) {
+        return { success: false, error: error.message };
       }
+    })
 
-      const token = SessionStore.create(userId, exchangeId);
-      
+
+    .get('/auth/session/info', requireAuth(({ session }: any) => {
       return {
         success: true,
-        token,
-        expiresIn: '24h'
+        data: {
+          userId: session.userId,
+          activeExchange: session.activeExchange,
+          linkedExchanges: session.linkedExchanges,
+          createdAt: session.createdAt,
+          expiresAt: session.expiresAt
+        }
       };
-    })
+    }))
+
+    .post('/auth/session/switch', requireAuth(({ session, body, headers }: any) => {
+      try {
+        const { exchange } = body;
+
+        if (!exchange) {
+          return { success: false, error: 'exchange parameter is required' };
+        }
+
+        const token = headers.authorization?.replace('Bearer ', '');
+        if (!token) {
+          return { success: false, error: 'No session token found' };
+        }
+
+        SessionStore.switchExchange(token, exchange);
+
+        return {
+          success: true,
+          message: `Switched to ${exchange}`,
+          activeExchange: exchange
+        };
+      } catch (error: any) {
+        return { success: false, error: error.message };
+      }
+    }))
 
     .delete('/auth/session', requireAuth(({ session, headers }: any) => {
       const token = headers.authorization?.replace('Bearer ', '');
@@ -123,7 +190,7 @@ export function createApiServer(port: number = 3000) {
     
     .get('/account', requireAuth(async ({ session, query }: any) => {
       try {
-        const exchangeId = (query && query.exchange) || session.exchangeId;
+        const exchangeId = (query && query.exchange) || session.activeExchange;
         const adapter = await AdapterFactory.createAdapter(
           session.userId,
           exchangeId
@@ -147,7 +214,7 @@ export function createApiServer(port: number = 3000) {
     
     .post('/order', requireAuth(async ({ session, body }: any) => {
       try {
-        const exchangeId = body.exchange || session.exchangeId;
+        const exchangeId = body.exchange || session.activeExchange;
         const adapter = await AdapterFactory.createAdapter(
           session.userId,
           exchangeId
@@ -183,7 +250,7 @@ export function createApiServer(port: number = 3000) {
 
     .get('/orders', requireAuth(async ({ session, query }: any) => {
       try {
-        const exchangeId = (query && query.exchange) || session.exchangeId;
+        const exchangeId = (query && query.exchange) || session.activeExchange;
         const adapter = await AdapterFactory.createAdapter(
           session.userId,
           exchangeId
@@ -206,7 +273,7 @@ export function createApiServer(port: number = 3000) {
 
     .delete('/orders', requireAuth(async ({ session, query }: any) => {
       try {
-        const exchangeId = (query && query.exchange) || session.exchangeId;
+        const exchangeId = (query && query.exchange) || session.activeExchange;
         const adapter = await AdapterFactory.createAdapter(
           session.userId,
           exchangeId
@@ -227,7 +294,7 @@ export function createApiServer(port: number = 3000) {
 
     .post('/account/leverage', requireAuth(async ({ session, body }: any) => {
       try {
-        const exchangeId = body.exchange || session.exchangeId;
+        const exchangeId = body.exchange || session.activeExchange;
         const adapter = await AdapterFactory.createAdapter(
           session.userId,
           exchangeId
@@ -246,7 +313,7 @@ export function createApiServer(port: number = 3000) {
 
     .post('/account/margin-mode', requireAuth(async ({ session, body }: any) => {
       try {
-        const exchangeId = body.exchange || session.exchangeId;
+        const exchangeId = body.exchange || session.activeExchange;
         const adapter = await AdapterFactory.createAdapter(
           session.userId,
           exchangeId
@@ -265,7 +332,7 @@ export function createApiServer(port: number = 3000) {
 
     .get('/orders/history', requireAuth(async ({ session, query }: any) => {
       try {
-        const exchangeId = (query && query.exchange) || session.exchangeId;
+        const exchangeId = (query && query.exchange) || session.activeExchange;
         const adapter = await AdapterFactory.createAdapter(
           session.userId,
           exchangeId
@@ -288,7 +355,7 @@ export function createApiServer(port: number = 3000) {
 
     .delete('/order/:orderId', requireAuth(async ({ session, params, query }: any) => {
       try {
-        const exchangeId = (query && query.exchange) || session.exchangeId;
+        const exchangeId = (query && query.exchange) || session.activeExchange;
         const adapter = await AdapterFactory.createAdapter(
           session.userId,
           exchangeId
@@ -329,7 +396,7 @@ export function createApiServer(port: number = 3000) {
         // Otherwise use session exchange (default)
         const adapter = await AdapterFactory.createAdapter(
           session.userId,
-          session.exchangeId
+          session.activeExchange
         );
         const positions = await adapter.getPositions();
         
@@ -447,6 +514,105 @@ export function createApiServer(port: number = 3000) {
         };
       }
     })
+
+
+
+    // ============ NEW ENDPOINTS ============
+
+    .get('/fills', requireAuth(async ({ session, query }: any) => {
+      try {
+        const exchangeId = (query && query.exchange) || session.activeExchange;
+        const adapter = await AdapterFactory.createAdapter(session.userId, exchangeId);
+        const limit = query.limit ? parseInt(query.limit) : 50;
+        
+        const fills = await adapter.getFills(query.symbol, limit);
+        return { success: true, data: fills };
+      } catch (error: any) {
+        return { success: false, error: error.message };
+      }
+    }))
+
+    .get('/ohlcv/:symbol', async ({ params, query }: any) => {
+      try {
+        const exchange = query.exchange || 'aster';
+        // OHLCV is often public, so we can use public adapter if we want, 
+        // OR we can use user adapter if specific data needed.
+        // Usually OHLCV is public.
+        const adapter = AdapterFactory.createPublicAdapter(exchange);
+        
+        const tf = query.tf || '15m';
+        const limit = query.limit ? parseInt(query.limit) : 200;
+        
+        const candles = await adapter.getOHLCV(params.symbol, tf, limit);
+        return { success: true, exchange, data: candles };
+      } catch (error: any) {
+        return { success: false, error: error.message };
+      }
+    })
+
+    .post('/position/close', requireAuth(async ({ session, body }: any) => {
+      try {
+        const exchangeId = body.exchange || session.activeExchange;
+        const adapter = await AdapterFactory.createAdapter(session.userId, exchangeId);
+        
+        const result = await adapter.closePosition(body.symbol);
+        return { success: true, data: result };
+      } catch (error: any) {
+        return { success: false, error: error.message };
+      }
+    }))
+
+    .post('/position/tp-sl', requireAuth(async ({ session, body }: any) => {
+      try {
+        const exchangeId = body.exchange || session.activeExchange;
+        const adapter = await AdapterFactory.createAdapter(session.userId, exchangeId);
+        
+        // body: { symbol: 'BTC', tp: '100000', sl: '90000' }
+        const result = await adapter.setPositionTPSL(body.symbol, body.tp, body.sl);
+        return result;
+      } catch (error: any) {
+        return { success: false, error: error.message };
+      }
+    }))
+
+    .post('/position/take-profit', requireAuth(async ({ session, body }: any) => {
+      try {
+        const exchangeId = body.exchange || session.activeExchange;
+        const adapter = await AdapterFactory.createAdapter(session.userId, exchangeId);
+        
+        // body: { symbol: 'BTC', price: '100000' }
+        const result = await adapter.setPositionTPSL(body.symbol, body.price, undefined);
+        return result;
+      } catch (error: any) {
+        return { success: false, error: error.message };
+      }
+    }))
+
+    .post('/position/stop-loss', requireAuth(async ({ session, body }: any) => {
+      try {
+        const exchangeId = body.exchange || session.activeExchange;
+        const adapter = await AdapterFactory.createAdapter(session.userId, exchangeId);
+        
+        // body: { symbol: 'BTC', price: '90000' }
+        const result = await adapter.setPositionTPSL(body.symbol, undefined, body.price);
+        return result;
+      } catch (error: any) {
+        return { success: false, error: error.message };
+      }
+    }))
+
+    .post('/position/margin', requireAuth(async ({ session, body }: any) => {
+      try {
+        const exchangeId = body.exchange || session.activeExchange;
+        const adapter = await AdapterFactory.createAdapter(session.userId, exchangeId);
+        
+        // body: { symbol, amount, type: 'ADD'|'REMOVE' }
+        const result = await adapter.updatePositionMargin(body.symbol, body.amount, body.type);
+        return result;
+      } catch (error: any) {
+        return { success: false, error: error.message };
+      }
+    }))
 
     .listen(port);
 

@@ -1,0 +1,147 @@
+{
+  "summary": {
+    "totalTests": 19,
+    "passed": 17,
+    "failed": 2,
+    "percentage": "89.5"
+  },
+  "aster": [
+    {
+      "exchange": "aster",
+      "category": "Account",
+      "name": "GET /account",
+      "passed": true,
+      "duration": 597
+    },
+    {
+      "exchange": "aster",
+      "category": "Account",
+      "name": "GET /positions",
+      "passed": true,
+      "duration": 604
+    },
+    {
+      "exchange": "aster",
+      "category": "Orders",
+      "name": "POST /order - LIMIT",
+      "passed": true,
+      "duration": 625
+    },
+    {
+      "exchange": "aster",
+      "category": "Orders",
+      "name": "POST /order - MARKET",
+      "passed": true,
+      "duration": 1058
+    },
+    {
+      "exchange": "aster",
+      "category": "Orders",
+      "name": "POST /order - STOP_MARKET",
+      "passed": true,
+      "duration": 853
+    },
+    {
+      "exchange": "aster",
+      "category": "Orders",
+      "name": "GET /orders",
+      "passed": true,
+      "duration": 843
+    },
+    {
+      "exchange": "aster",
+      "category": "Orders",
+      "name": "GET /orders/history",
+      "passed": true,
+      "duration": 655
+    },
+    {
+      "exchange": "aster",
+      "category": "Orders",
+      "name": "DELETE /order/:id",
+      "passed": true,
+      "duration": 582
+    },
+    {
+      "exchange": "aster",
+      "category": "Leverage",
+      "name": "POST /account/leverage",
+      "passed": true,
+      "duration": 575
+    },
+    {
+      "exchange": "aster",
+      "category": "Leverage",
+      "name": "POST /account/margin-mode",
+      "passed": true,
+      "duration": 299
+    }
+  ],
+  "hyperliquid": [
+    {
+      "exchange": "hyperliquid",
+      "category": "Account",
+      "name": "GET /account",
+      "passed": true,
+      "duration": 1528
+    },
+    {
+      "exchange": "hyperliquid",
+      "category": "Account",
+      "name": "GET /positions",
+      "passed": true,
+      "duration": 1416
+    },
+    {
+      "exchange": "hyperliquid",
+      "category": "Orders",
+      "name": "POST /order - LIMIT",
+      "passed": false,
+      "duration": 2193,
+      "error": "Failed to place Hyperliquid order: Error: Order rejected: Order must have minimum value of $10. asset=1"
+    },
+    {
+      "exchange": "hyperliquid",
+      "category": "Orders",
+      "name": "POST /order - MARKET",
+      "passed": false,
+      "duration": 2180,
+      "error": "Failed to place Hyperliquid order: Error: Order rejected: Order must have minimum value of $10. asset=1"
+    },
+    {
+      "exchange": "hyperliquid",
+      "category": "Orders",
+      "name": "POST /order - STOP_MARKET",
+      "passed": true,
+      "duration": 2519
+    },
+    {
+      "exchange": "hyperliquid",
+      "category": "Orders",
+      "name": "GET /orders",
+      "passed": true,
+      "duration": 1013
+    },
+    {
+      "exchange": "hyperliquid",
+      "category": "Orders",
+      "name": "GET /orders/history",
+      "passed": true,
+      "duration": 1296
+    },
+    {
+      "exchange": "hyperliquid",
+      "category": "Leverage",
+      "name": "POST /account/leverage",
+      "passed": true,
+      "duration": 2325
+    },
+    {
+      "exchange": "hyperliquid",
+      "category": "Leverage",
+      "name": "POST /account/margin-mode",
+      "passed": true,
+      "duration": 1930
+    }
+  ]
+}

@@ -13,9 +13,13 @@ export interface ExchangeAdapter {
   cancelAllOrders?(symbol?: string): Promise<{ success: boolean; canceledCount: number; message: string }>;
   getOpenOrders(symbol?: string): Promise<Order[]>;
   getOrderHistory(symbol?: string, limit?: number): Promise<Order[]>;
+  getFills(symbol?: string, limit?: number): Promise<Fill[]>;
   
   // Position operations
   getPositions(symbol?: string): Promise<Position[]>;
+  closePosition(symbol: string): Promise<OrderResult>;
+  setPositionTPSL(symbol: string, tpPrice?: string, slPrice?: string): Promise<{ success: boolean; message: string }>;
+  updatePositionMargin(symbol: string, amount: string, type: 'ADD' | 'REMOVE'): Promise<{ success: boolean; message: string }>;
   
   // Margin & Leverage operations
   setLeverage?(symbol: string, leverage: number): Promise<{ success: boolean; message?: string }>;
@@ -26,6 +30,7 @@ export interface ExchangeAdapter {
   getOrderbook(symbol: string, depth?: number): Promise<Orderbook>;
   getTicker(symbol: string): Promise<Ticker>;
   getAssets(): Promise<Asset[]>;
+  getOHLCV(symbol: string, timeframe: string, limit?: number): Promise<OHLCV[]>;
 }
 
 // Account types
@@ -127,3 +132,25 @@ export interface Asset {
   maxQuantity?: string;
   tickSize?: string;
 }
+
+export interface Fill {
+  orderId: string;
+  symbol: string;
+  side: 'BUY' | 'SELL';
+  price: string;
+  quantity: string;
+  fee: string;
+  feeCurrency: string;
+  timestamp: number;
+}
+
+export interface OHLCV {
+  timestamp: number;
+  open: string;
+  high: string;
+  low: string;
+  close: string;
+  volume: string;
+}
+
+

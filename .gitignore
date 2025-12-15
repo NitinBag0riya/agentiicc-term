@@ -34,6 +34,12 @@ build/
 # Test
 coverage/
 .nyc_output/
+test-*.ts
+test-*.js
+test-*.sh
+test-results.json
+debug-*.ts
+debug-*.js
 
 # Temporary
 tmp/
