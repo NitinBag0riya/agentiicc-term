@@ -1161,6 +1161,64 @@
         }
       ],
       "description": "Advanced position management and risk control"
+    },
+    {
+      "name": "🛡️ Advanced Scenarios (Rigorous Testing)",
+      "item": [
+        {
+          "name": "Orderbook (Deep Depth)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/orderbook/ETHUSDT?depth=20&exchange={{exchangeId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["orderbook", "ETHUSDT"],
+              "query": [
+                { "key": "depth", "value": "20" },
+                { "key": "exchange", "value": "{{exchangeId}}" }
+              ]
+            },
+            "description": "Fetch orderbook with maximum depth of 20."
+          }
+        },
+        {
+          "name": "Negative Test: Invalid Symbol",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/ticker/INVALID_SYM?exchange={{exchangeId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["ticker", "INVALID_SYM"],
+              "query": [{ "key": "exchange", "value": "{{exchangeId}}" }]
+            },
+            "description": "**Expected Result**: 404/500 Error with 'Symbol not found' message."
+          }
+        },
+        {
+          "name": "Negative Test: Negative Quantity",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"symbol\": \"ETHUSDT\",\n  \"side\": \"BUY\",\n  \"type\": \"MARKET\",\n  \"quantity\": \"-1.0\",\n  \"exchange\": \"{{exchangeId}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/order",
+              "host": ["{{baseUrl}}"],
+              "path": ["order"]
+            },
+            "description": "**Expected Result**: Error regarding non-positive quantity."
+          }
+        }
+      ]
     }
   ]
 }
