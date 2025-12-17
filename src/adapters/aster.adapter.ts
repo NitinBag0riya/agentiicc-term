@@ -29,9 +29,9 @@ export class AsterAdapter implements ExchangeAdapter {
     const queryParams = { ...params, timestamp };
     const queryString = new URLSearchParams(queryParams as any).toString();
     const signature = this.sign(queryString);
-    
+
     const url = `${this.baseUrl}${endpoint}?${queryString}&signature=${signature}`;
-    
+
     const response = await fetch(url, {
       method,
       headers: {
@@ -56,6 +56,10 @@ export class AsterAdapter implements ExchangeAdapter {
         exchange: 'aster',
         totalBalance: data.totalWalletBalance || '0',
         availableBalance: data.availableBalance || '0',
+        // Aggregate totals for overview display
+        totalPositionInitialMargin: data.totalPositionInitialMargin || '0',
+        totalUnrealizedProfit: data.totalUnrealizedProfit || '0',
+        crossUnRealizedPnl: data.totalCrossUnPnl || data.totalUnrealizedProfit || '0',
         positions: data.positions?.map((p: any) => ({
           symbol: p.symbol,
           size: p.positionAmt,
@@ -64,7 +68,18 @@ export class AsterAdapter implements ExchangeAdapter {
           unrealizedPnl: p.unRealizedProfit,
           side: parseFloat(p.positionAmt) > 0 ? 'LONG' : 'SHORT',
           leverage: p.leverage,
-          liquidationPrice: p.liquidationPrice
+          liquidationPrice: p.liquidationPrice,
+          // Critical trading fields
+          notional: p.notional || String(Math.abs(parseFloat(p.positionAmt || '0') * parseFloat(p.markPrice || '0'))),
+          initialMargin: p.initialMargin || String(Math.abs(parseFloat(p.notional || '0')) / parseFloat(p.leverage || '1')),
+          marginType: p.marginType || 'cross',
+          isolatedMargin: p.isolatedMargin || '0',
+          positionSide: p.positionSide || 'BOTH',
+        })) || [],
+        balances: data.assets?.map((a: any) => ({
+          asset: a.asset,
+          total: a.walletBalance,
+          available: a.availableBalance
         })) || [],
         timestamp: Date.now()
       };
@@ -78,87 +93,87 @@ export class AsterAdapter implements ExchangeAdapter {
       const orderParams: any = {
         symbol: params.symbol,
         side: params.side,
-        type: params.type === 'STOP_LIMIT' ? 'STOP' : 
-              params.type === 'TAKE_PROFIT_LIMIT' ? 'TAKE_PROFIT' : 
-              params.type,
+        type: params.type === 'STOP_LIMIT' ? 'STOP' :
+          params.type === 'TAKE_PROFIT_LIMIT' ? 'TAKE_PROFIT' :
+            params.type,
         quantity: params.quantity
       };
 
       if (params.type === 'STOP_LIMIT' || params.type === 'TAKE_PROFIT_LIMIT') {
-          // For Stop Limit, 'price' is the execution price (limit price)
-          // We prefer stopLimitPrice if available, otherwise fall back to price
-          if (params.stopLimitPrice) {
-              orderParams.price = params.stopLimitPrice;
-          } else if (params.price) {
-              orderParams.price = params.price;
-          }
+        // For Stop Limit, 'price' is the execution price (limit price)
+        // We prefer stopLimitPrice if available, otherwise fall back to price
+        if (params.stopLimitPrice) {
+          orderParams.price = params.stopLimitPrice;
+        } else if (params.price) {
+          orderParams.price = params.price;
+        }
       } else if (params.price) {
         orderParams.price = params.price;
       }
-      
+
       if (params.type === 'OCO') {
-          throw new Error('OCO orders are not supported by Aster adapter yet.');
+        throw new Error('OCO orders are not supported by Aster adapter yet.');
       }
-      
+
       // Map Trigger Price -> stopPrice
       if (params.triggerPrice) {
-          orderParams.stopPrice = params.triggerPrice;
+        orderParams.stopPrice = params.triggerPrice;
       }
 
       // Map Trailing Delta -> callbackRate
       if (params.trailingDelta) {
-          orderParams.callbackRate = params.trailingDelta;
+        orderParams.callbackRate = params.trailingDelta;
       }
 
       // TimeInForce Handling
       if (params.timeInForce) {
-          orderParams.timeInForce = params.timeInForce;
+        orderParams.timeInForce = params.timeInForce;
       } else if (params.type === 'LIMIT' || params.type === 'STOP_LIMIT' || params.type === 'TAKE_PROFIT_LIMIT') {
-           // Default to GTC for limit-like orders if not specified
-          orderParams.timeInForce = 'GTC';
+        // Default to GTC for limit-like orders if not specified
+        orderParams.timeInForce = 'GTC';
       }
 
       // PostOnly -> GTX
       if (params.postOnly) {
-          orderParams.timeInForce = 'GTX';
+        orderParams.timeInForce = 'GTX';
       }
-      
+
       if (params.reduceOnly) orderParams.reduceOnly = 'true';
       if (params.leverage) orderParams.leverage = params.leverage;
 
       // 1. Set Leverage if needed
       if (params.leverage) {
-          try {
-              await this.request('/fapi/v1/leverage', {
-                  symbol: params.symbol,
-                  leverage: params.leverage
-              }, 'POST');
-          } catch (e: any) {
-              console.warn(`Warning: Failed to set leverage: ${e.message}`);
-          }
+        try {
+          await this.request('/fapi/v1/leverage', {
+            symbol: params.symbol,
+            leverage: params.leverage
+          }, 'POST');
+        } catch (e: any) {
+          console.warn(`Warning: Failed to set leverage: ${e.message}`);
+        }
       }
 
       // 2. Place Main Order
       const data: any = await this.request('/fapi/v1/order', orderParams, 'POST');
-      
+
       // 3. Place TP/SL Orders if provided (Strategy Attachment)
       if (data.orderId && (params.takeProfit || params.stopLoss)) {
-          const childSide = params.side === 'BUY' ? 'SELL' : 'BUY';
-          const qty = params.quantity; // We assume full close for simple attachment
+        const childSide = params.side === 'BUY' ? 'SELL' : 'BUY';
+        const qty = params.quantity; // We assume full close for simple attachment
 
-          // Take Profit
-          if (params.takeProfit) {
-              this.placeConditionalOrder(params.symbol, childSide, 'TAKE_PROFIT_MARKET', params.takeProfit, qty)
-                  .then(() => console.log('   ✅ Attached TP placed'))
-                  .catch(e => console.warn(`   ⚠️ Failed to attach TP: ${e.message}`));
-          }
+        // Take Profit
+        if (params.takeProfit) {
+          this.placeConditionalOrder(params.symbol, childSide, 'TAKE_PROFIT_MARKET', params.takeProfit, qty)
+            .then(() => console.log('   ✅ Attached TP placed'))
+            .catch(e => console.warn(`   ⚠️ Failed to attach TP: ${e.message}`));
+        }
 
-          // Stop Loss
-          if (params.stopLoss) {
-              this.placeConditionalOrder(params.symbol, childSide, 'STOP_MARKET', params.stopLoss, qty)
-                  .then(() => console.log('   ✅ Attached SL placed'))
-                  .catch(e => console.warn(`   ⚠️ Failed to attach SL: ${e.message}`));
-          }
+        // Stop Loss
+        if (params.stopLoss) {
+          this.placeConditionalOrder(params.symbol, childSide, 'STOP_MARKET', params.stopLoss, qty)
+            .then(() => console.log('   ✅ Attached SL placed'))
+            .catch(e => console.warn(`   ⚠️ Failed to attach SL: ${e.message}`));
+        }
       }
 
       return {
@@ -177,16 +192,16 @@ export class AsterAdapter implements ExchangeAdapter {
   }
 
   // Helper for placing conditional orders (TP/SL)
-  private async placeConditionalOrder(symbol: string, side: 'BUY'|'SELL', type: string, stopPrice: string, quantity: string) {
-      return this.request('/fapi/v1/order', {
-          symbol,
-          side,
-          type,
-          stopPrice,
-          quantity,
-          timeInForce: 'GTC',
-          reduceOnly: 'true'
-      }, 'POST');
+  private async placeConditionalOrder(symbol: string, side: 'BUY' | 'SELL', type: string, stopPrice: string, quantity: string) {
+    return this.request('/fapi/v1/order', {
+      symbol,
+      side,
+      type,
+      stopPrice,
+      quantity,
+      timeInForce: 'GTC',
+      reduceOnly: 'true'
+    }, 'POST');
   }
 
   async cancelOrder(orderId: string, symbol?: string): Promise<CancelResult> {
@@ -211,26 +226,26 @@ export class AsterAdapter implements ExchangeAdapter {
       };
     }
   }
-  
+
   async cancelAllOrders(symbol?: string): Promise<{ success: boolean; canceledCount: number; message: string }> {
     if (!symbol) {
-        return { success: false, canceledCount: 0, message: 'Symbol is required to cancel all orders' };
+      return { success: false, canceledCount: 0, message: 'Symbol is required to cancel all orders' };
     }
-    
+
     try {
-        const data: any = await this.request('/fapi/v1/allOpenOrders', { symbol }, 'DELETE');
-        // Aster API returns { code: 200, msg: "success" } on success
-        return {
-            success: true,
-            canceledCount: -1, // Unknown count from API
-            message: 'All open orders canceled successfully'
-        };
+      const data: any = await this.request('/fapi/v1/allOpenOrders', { symbol }, 'DELETE');
+      // Aster API returns { code: 200, msg: "success" } on success
+      return {
+        success: true,
+        canceledCount: -1, // Unknown count from API
+        message: 'All open orders canceled successfully'
+      };
     } catch (error: any) {
-        return {
-            success: false,
-            canceledCount: 0,
-            message: `Failed to cancel all orders: ${error.message}`
-        };
+      return {
+        success: false,
+        canceledCount: 0,
+        message: `Failed to cancel all orders: ${error.message}`
+      };
     }
   }
 
@@ -263,7 +278,7 @@ export class AsterAdapter implements ExchangeAdapter {
     try {
       // Binance Futures API expects 'CROSSED' or 'ISOLATED' (uppercase)
       const marginType = mode === 'CROSS' ? 'CROSSED' : 'ISOLATED';
-      
+
       await this.request('/fapi/v1/marginType', {
         symbol,
         marginType: marginType
@@ -288,7 +303,7 @@ export class AsterAdapter implements ExchangeAdapter {
     try {
       const positions: any = await this.request('/fapi/v1/positionRisk');
       const position = positions.find((p: any) => p.symbol === symbol);
-      
+
       return position?.marginType === 'isolated' ? 'ISOLATED' : 'CROSS';
     } catch (error) {
       // Default to CROSS if unable to determine
@@ -372,7 +387,7 @@ export class AsterAdapter implements ExchangeAdapter {
       // Orderbook doesn't need signing
       const url = `${this.baseUrl}/fapi/v1/depth?symbol=${symbol}&limit=${depth}`;
       const response = await fetch(url);
-      
+
       if (!response.ok) {
         throw new Error(`Failed to fetch orderbook: ${response.status}`);
       }
@@ -394,7 +409,7 @@ export class AsterAdapter implements ExchangeAdapter {
     try {
       const url = `${this.baseUrl}/fapi/v1/ticker/24hr?symbol=${symbol}`;
       const response = await fetch(url);
-      
+
       if (!response.ok) {
         throw new Error(`Failed to fetch ticker: ${response.status}`);
       }
@@ -417,15 +432,26 @@ export class AsterAdapter implements ExchangeAdapter {
 
   async getAssets(): Promise<Asset[]> {
     try {
-      const url = `${this.baseUrl}/fapi/v1/exchangeInfo`;
-      const response = await fetch(url);
-      
-      if (!response.ok) {
-        throw new Error(`Failed to fetch assets: ${response.status}`);
+      // 1. Fetch Exchange Info (Symbols)
+      const infoUrl = `${this.baseUrl}/fapi/v1/exchangeInfo`;
+      const infoRes = await fetch(infoUrl);
+      if (!infoRes.ok) throw new Error(`Failed to fetch assets: ${infoRes.status}`);
+      const infoData: any = await infoRes.json();
+      const symbols = infoData.symbols || [];
+
+      // 2. Fetch 24hr Ticker (Volume)
+      // Aster/Binance FAPI supports /fapi/v1/ticker/24hr without symbol param to get ALL tickers
+      const tickerUrl = `${this.baseUrl}/fapi/v1/ticker/24hr`;
+      const tickerRes = await fetch(tickerUrl);
+      let tickers: any[] = [];
+      if (tickerRes.ok) {
+        tickers = await tickerRes.json();
+      } else {
+        console.warn('Failed to fetch 24hr tickers for sorting');
       }
 
-      const data: any = await response.json();
-      const symbols = data.symbols || [];
+      // Map tickers for fast lookup
+      const tickerMap = new Map(tickers.map((t: any) => [t.symbol, t.volume]));
 
       return symbols.map((s: any) => ({
         symbol: s.symbol,
@@ -434,7 +460,9 @@ export class AsterAdapter implements ExchangeAdapter {
         quoteAsset: s.quoteAsset,
         minQuantity: s.filters?.find((f: any) => f.filterType === 'LOT_SIZE')?.minQty,
         maxQuantity: s.filters?.find((f: any) => f.filterType === 'LOT_SIZE')?.maxQty,
-        tickSize: s.filters?.find((f: any) => f.filterType === 'PRICE_FILTER')?.tickSize
+        tickSize: s.filters?.find((f: any) => f.filterType === 'PRICE_FILTER')?.tickSize,
+        volume24h: tickerMap.get(s.symbol) || '0',
+        type: 'perp' // Explicitly mark as perp since we are using FAPI
       }));
     } catch (error) {
       throw new Error(`Failed to fetch assets: ${error}`);
@@ -538,7 +566,7 @@ export class AsterAdapter implements ExchangeAdapter {
   async updatePositionMargin(symbol: string, amount: string, type: 'ADD' | 'REMOVE'): Promise<{ success: boolean; message: string }> {
     try {
       const typeInt = type === 'ADD' ? 1 : 2;
-      
+
       await this.request('/fapi/v1/positionMargin', {
         symbol,
         amount,
@@ -559,20 +587,20 @@ export class AsterAdapter implements ExchangeAdapter {
 
   async getOHLCV(symbol: string, timeframe: string, limit: number = 200): Promise<any[]> {
     try {
-       // Valid intervals: 1m, 3m, 5m, 15m, 30m, 1h, 2h, 4h, 6h, 8h, 12h, 1d, 3d, 1w, 1M
-       const url = `${this.baseUrl}/fapi/v1/klines?symbol=${symbol}&interval=${timeframe}&limit=${limit}`;
-       const response = await fetch(url);
-       const data: any = await response.json();
+      // Valid intervals: 1m, 3m, 5m, 15m, 30m, 1h, 2h, 4h, 6h, 8h, 12h, 1d, 3d, 1w, 1M
+      const url = `${this.baseUrl}/fapi/v1/klines?symbol=${symbol}&interval=${timeframe}&limit=${limit}`;
+      const response = await fetch(url);
+      const data: any = await response.json();
 
-       // [time, open, high, low, close, volume, closeTime, quoteAssetVolume, trades, takerBuyBase, takerBuyQuote, ignore]
-       return data.map((k: any[]) => ({
-         timestamp: k[0],
-         open: k[1],
-         high: k[2],
-         low: k[3],
-         close: k[4],
-         volume: k[5]
-       }));
+      // [time, open, high, low, close, volume, closeTime, quoteAssetVolume, trades, takerBuyBase, takerBuyQuote, ignore]
+      return data.map((k: any[]) => ({
+        timestamp: k[0],
+        open: k[1],
+        high: k[2],
+        low: k[3],
+        close: k[4],
+        volume: k[5]
+      }));
     } catch (error) {
       throw new Error(`Failed to fetch OHLCV: ${error}`);
     }

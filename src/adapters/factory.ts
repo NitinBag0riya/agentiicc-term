@@ -13,7 +13,7 @@ export class AdapterFactory {
   static async createAdapter(userId: number, exchangeId: string): Promise<ExchangeAdapter> {
     // Get encrypted credentials from database
     const credentials = await getApiCredentials(userId, exchangeId);
-    
+
     if (!credentials) {
       throw new Error(`No credentials found for exchange: ${exchangeId}`);
     }
@@ -26,7 +26,12 @@ export class AdapterFactory {
     if (exchangeId === 'aster') {
       return new AsterAdapter(apiKey, apiSecret);
     } else if (exchangeId === 'hyperliquid') {
-      // apiKey is Private Key, apiSecret is Wallet Address
+      // server.ts stored:
+      // api_key_encrypted = Private Key
+      // api_secret_encrypted = Address
+      // So apiKey = PrivateKey, apiSecret = Address
+
+      // HyperliquidAdapter constructor: (accountAddress, privateKey)
       return new HyperliquidAdapter(apiSecret, apiKey);
     } else {
       throw new Error(`Unsupported exchange: ${exchangeId}`);

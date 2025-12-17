@@ -54,20 +54,53 @@ export class HyperliquidAdapter implements ExchangeAdapter {
       const state = await this.sdk.info.perpetuals.getClearinghouseState(this.accountAddress);
       const marginSummary = state.marginSummary;
 
+      // Fetch current prices for accurate mark price display
+      // @ts-ignore
+      const mids = await this.sdk.info.getAllMids();
+
       return {
         exchange: 'hyperliquid',
         totalBalance: String(marginSummary.accountValue || '0'),
         availableBalance: String(state.withdrawable || '0'),
-        positions: state.assetPositions.map((p: any) => ({
-          symbol: this.fromExchangeSymbol(p.position.coin),
-          size: p.position.szi,
-          entryPrice: p.position.entryPx,
-          markPrice: p.position.positionValue,
-          unrealizedPnl: p.position.unrealizedPnl,
-          side: parseFloat(p.position.szi) > 0 ? 'LONG' : 'SHORT',
-          leverage: p.position.leverage.value.toString(),
-          liquidationPrice: p.position.liquidationPx
-        })),
+        positions: state.assetPositions.map((p: any) => {
+          const coin = p.position.coin;
+          const size = parseFloat(p.position.szi || '0');
+          const positionValue = parseFloat(p.position.positionValue || '0');
+
+          // Calculate mark price: use mids (current price) or derive from positionValue/size
+          // mids is { "BTC": "100000", "ETH": "3500", ... } (no -PERP suffix)
+          const exSymbol = `${coin}-PERP`;
+          const midPrice = parseFloat(mids[exSymbol] || mids[coin] || '0');
+
+          // Use market price from mids, fallback to computed from positionValue/size
+          const markPrice = midPrice > 0 ? midPrice :
+            (size !== 0 ? Math.abs(positionValue / size) : 0);
+
+          // Notional = |size| * markPrice
+          const notional = Math.abs(size * markPrice);
+          const leverage = parseFloat(p.position.leverage?.value) || 1;
+          const initialMargin = notional / leverage;
+
+          return {
+            symbol: this.fromExchangeSymbol(coin),
+            size: p.position.szi,
+            entryPrice: p.position.entryPx,
+            markPrice: String(markPrice),
+            unrealizedPnl: p.position.unrealizedPnl,
+            side: size > 0 ? 'LONG' : 'SHORT',
+            leverage: String(leverage),
+            liquidationPrice: p.position.liquidationPx,
+            // Trading calculations
+            notional: String(notional),
+            initialMargin: String(initialMargin),
+            marginType: p.position.leverage?.type === 'isolated' ? 'isolated' : 'cross',
+          };
+        }),
+        balances: [{
+          asset: 'USDC',
+          total: String(marginSummary.accountValue || '0'),
+          available: String(state.withdrawable || '0')
+        }],
         timestamp: Date.now()
       };
     } catch (error) {
@@ -85,7 +118,9 @@ export class HyperliquidAdapter implements ExchangeAdapter {
       }
 
       const isBuy = params.side === 'BUY';
-      const symbol = this.toExchangeSymbol(params.symbol);
+      // Convert to exchange format then get coin name (SDK expects "BTC" not "BTC-PERP")
+      const exSymbol = this.toExchangeSymbol(params.symbol);
+      const coin = exSymbol.replace('-PERP', ''); // SDK expects base coin name
 
       // Default order type: Limit with GTC
       let orderType: any = { limit: { tif: 'Gtc' } };
@@ -102,10 +137,10 @@ export class HyperliquidAdapter implements ExchangeAdapter {
         // Use aggressive limit order (IOC at far price)
         // @ts-ignore
         const mids = await this.sdk.info.getAllMids();
-        const currentPrice = parseFloat(mids[symbol] || '0');
+        const currentPrice = parseFloat(mids[coin] || mids[exSymbol] || '0');
 
         if (!currentPrice) {
-          throw new Error(`Cannot determine market price for ${symbol}`);
+          throw new Error(`Cannot determine market price for ${coin}`);
         }
 
         // Set aggressive price: +5% for buy, -5% for sell
@@ -192,7 +227,7 @@ export class HyperliquidAdapter implements ExchangeAdapter {
       // Place the order
       // @ts-ignore
       const result = await this.sdk.exchange.placeOrder({
-        coin: symbol,
+        coin: coin,
         is_buy: isBuy,
         sz: parseFloat(params.quantity),
         limit_px: limitPrice,
@@ -231,14 +266,14 @@ export class HyperliquidAdapter implements ExchangeAdapter {
 
         // Attach Take Profit
         if (params.takeProfit) {
-          this.placeConditionalOrder(symbol, childSide, 'TAKE_PROFIT_MARKET', params.takeProfit, qty)
+          this.placeConditionalOrder(coin, childSide, 'TAKE_PROFIT_MARKET', params.takeProfit, qty)
             .then(() => console.log('   ✅ Attached TP placed'))
             .catch(e => console.warn(`   ⚠️ Failed to attach TP: ${e.message}`));
         }
 
         // Attach Stop Loss
         if (params.stopLoss) {
-          this.placeConditionalOrder(symbol, childSide, 'STOP_MARKET', params.stopLoss, qty)
+          this.placeConditionalOrder(coin, childSide, 'STOP_MARKET', params.stopLoss, qty)
             .then(() => console.log('   ✅ Attached SL placed'))
             .catch(e => console.warn(`   ⚠️ Failed to attach SL: ${e.message}`));
         }
@@ -538,16 +573,42 @@ export class HyperliquidAdapter implements ExchangeAdapter {
   }
 
   async getAssets(): Promise<Asset[]> {
+    // 1. Fetch Universe (Meta)
     // @ts-ignore
     const meta = await this.sdk.info.perpetuals.getMeta();
-    return meta.universe.map((a: any) => ({
-      symbol: this.fromExchangeSymbol(a.name),
-      name: this.fromExchangeSymbol(a.name),
-      baseAsset: this.fromExchangeSymbol(a.name),
-      quoteAsset: 'USD',
-      minQuantity: '0.001',
-      tickSize: String(Math.pow(10, -a.szDecimals))
-    }));
+
+    // 2. Fetch 24hr Stats for Volume
+    // Hyperliquid 'meta' has universe but maybe not volume.
+    // We can use getAllMids() for price, but for volume we usually need 'getMetaAndAssetCtxs' or similar.
+    // The SDK exposes `getMetaAndAssetCtxs` which returns universe and state (including 24h volume hopefully? Or maybe just price/funding).
+    // Actually, `getMetaAndAssetCtxs` returns `[meta, assetCtxs]`.
+    // assetCtxs has `dayNtlVlm` (Day Notional Volume). This is perfect.
+
+    // @ts-ignore
+    const [metaData, assetCtxs] = await this.sdk.info.perpetuals.getMetaAndAssetCtxs();
+
+    // Map volume by asset index (Hyperliquid uses index often) or coin name?
+    // AssetCtxs is an array corresponding to universe? Or a map?
+    // It's usually an array of contexts.
+    // Let's assume index alignment or check SDK structure.
+    // In HL API, `assetCtxs` is list of { dayNtlVlm, ... }.
+    // It corresponds to `universe` in `meta`.
+
+    return metaData.universe.map((a: any, index: number) => {
+      const ctx = assetCtxs ? assetCtxs[index] : null;
+      const vol = ctx ? ctx.dayNtlVlm : '0';
+
+      return {
+        symbol: this.fromExchangeSymbol(a.name),
+        name: this.fromExchangeSymbol(a.name),
+        baseAsset: this.fromExchangeSymbol(a.name),
+        quoteAsset: 'USD',
+        minQuantity: '0.001', // Placeholder or derive from decimals
+        tickSize: String(Math.pow(10, -a.szDecimals)),
+        volume24h: vol,
+        type: 'perp'
+      };
+    });
   }
 
   async getFills(symbol?: string, limit: number = 50): Promise<any[]> {
@@ -556,15 +617,15 @@ export class HyperliquidAdapter implements ExchangeAdapter {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-           type: "userFills",
-           user: this.accountAddress
+          type: "userFills",
+          user: this.accountAddress
         })
       });
 
       const fills: any = await response.json();
-      
+
       if (!Array.isArray(fills)) {
-         return [];
+        return [];
       }
 
       let filtered = fills;
@@ -592,32 +653,32 @@ export class HyperliquidAdapter implements ExchangeAdapter {
 
   async closePosition(symbol: string): Promise<OrderResult> {
     try {
-       // 1. Get current position
-       const positions = await this.getPositions(symbol);
-       const position = positions.find(p => p.symbol === symbol);
+      // 1. Get current position
+      const positions = await this.getPositions(symbol);
+      const position = positions.find(p => p.symbol === symbol);
 
-       if (!position || parseFloat(position.size) === 0) {
-         throw new Error(`No open position found for ${symbol}`);
-       }
+      if (!position || parseFloat(position.size) === 0) {
+        throw new Error(`No open position found for ${symbol}`);
+      }
 
-       // 2. Prepare Reduce-Only Market Order
-       // Hyperliquid doesn't have true market orders, so we simulate with aggressive limit
-       const size = parseFloat(position.size);
-       const side = size > 0 ? 'SELL' : 'BUY';
-       const quantity = Math.abs(size).toString();
+      // 2. Prepare Reduce-Only Market Order
+      // Hyperliquid doesn't have true market orders, so we simulate with aggressive limit
+      const size = parseFloat(position.size);
+      const side = size > 0 ? 'SELL' : 'BUY';
+      const quantity = Math.abs(size).toString();
 
-       // We can reuse placeOrder with 'reduceOnly' = true
-       return await this.placeOrder({
-         symbol,
-         side,
-         type: 'MARKET',
-         quantity,
-         models: undefined, // Type compat
-         reduceOnly: true
-       } as any);
+      // We can reuse placeOrder with 'reduceOnly' = true
+      return await this.placeOrder({
+        symbol,
+        side,
+        type: 'MARKET',
+        quantity,
+        models: undefined, // Type compat
+        reduceOnly: true
+      } as any);
 
     } catch (error) {
-        throw new Error(`Failed to close position: ${error}`);
+      throw new Error(`Failed to close position: ${error}`);
     }
   }
 
@@ -654,7 +715,7 @@ export class HyperliquidAdapter implements ExchangeAdapter {
         message: `Set TP/SL for ${symbol}: ${results.join(', ')}`
       };
     } catch (error: any) {
-        return { success: false, message: `Failed to set TP/SL: ${error.message}` };
+      return { success: false, message: `Failed to set TP/SL: ${error.message}` };
     }
   }
 
@@ -663,7 +724,7 @@ export class HyperliquidAdapter implements ExchangeAdapter {
       // Get current position to determine direction
       const positions = await this.getPositions(symbol);
       const position = positions.find(p => p.symbol === symbol);
-      
+
       if (!position || parseFloat(position.size) === 0) {
         throw new Error('No open position found for margin adjustment');
       }
@@ -672,12 +733,12 @@ export class HyperliquidAdapter implements ExchangeAdapter {
       // @ts-ignore
       const meta = await this.sdk.info.perpetuals.getMeta();
       const assetId = meta.universe.findIndex((u: any) => u.name === exSymbol);
-      
+
       if (assetId === -1) throw new Error('Asset not found');
 
       // Determine if position is long (buy) or short (sell)
       const isBuy = position.side === 'LONG';
-      
+
       // Calculate the new target leverage implied by margin change
       // For Hyperliquid, we need to pass the new total isolated margin (ntli)
       // If ADD: increase margin, if REMOVE: decrease margin
@@ -697,7 +758,7 @@ export class HyperliquidAdapter implements ExchangeAdapter {
         message: `Successfully ${type === 'ADD' ? 'added' : 'removed'} ${amount} margin for ${symbol}`
       };
     } catch (error: any) {
-       return { success: false, message: `Failed to update margin: ${error.message}` };
+      return { success: false, message: `Failed to update margin: ${error.message}` };
     }
   }
 
@@ -722,20 +783,20 @@ export class HyperliquidAdapter implements ExchangeAdapter {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-           type: "candleSnapshot",
-           req: {
-             coin: exSymbol,
-             interval: timeframe,
-             startTime: startTime,
-             endTime: endTime
-           }
+          type: "candleSnapshot",
+          req: {
+            coin: exSymbol,
+            interval: timeframe,
+            startTime: startTime,
+            endTime: endTime
+          }
         })
       });
 
       const data: any = await response.json();
-      
+
       if (!Array.isArray(data)) {
-         return [];
+        return [];
       }
 
       return data.map((c: any) => ({
@@ -748,8 +809,8 @@ export class HyperliquidAdapter implements ExchangeAdapter {
       }));
 
     } catch (error) {
-       console.warn(`OHLCV Fetch Error: ${error}`);
-       return [];
+      console.warn(`OHLCV Fetch Error: ${error}`);
+      return [];
     }
   }
 }

@@ -6,7 +6,7 @@
 export interface ExchangeAdapter {
   // Account operations
   getAccount(): Promise<AccountInfo>;
-  
+
   // Order operations
   placeOrder(params: PlaceOrderParams): Promise<OrderResult>;
   cancelOrder(orderId: string, symbol?: string): Promise<CancelResult>;
@@ -14,18 +14,18 @@ export interface ExchangeAdapter {
   getOpenOrders(symbol?: string): Promise<Order[]>;
   getOrderHistory(symbol?: string, limit?: number): Promise<Order[]>;
   getFills(symbol?: string, limit?: number): Promise<Fill[]>;
-  
+
   // Position operations
   getPositions(symbol?: string): Promise<Position[]>;
   closePosition(symbol: string): Promise<OrderResult>;
   setPositionTPSL(symbol: string, tpPrice?: string, slPrice?: string): Promise<{ success: boolean; message: string }>;
   updatePositionMargin(symbol: string, amount: string, type: 'ADD' | 'REMOVE'): Promise<{ success: boolean; message: string }>;
-  
+
   // Margin & Leverage operations
   setLeverage?(symbol: string, leverage: number): Promise<{ success: boolean; message?: string }>;
   setMarginMode?(symbol: string, mode: 'CROSS' | 'ISOLATED'): Promise<{ success: boolean; message?: string }>;
   getMarginMode?(symbol: string): Promise<'CROSS' | 'ISOLATED'>;
-  
+
   // Market data
   getOrderbook(symbol: string, depth?: number): Promise<Orderbook>;
   getTicker(symbol: string): Promise<Ticker>;
@@ -38,8 +38,19 @@ export interface AccountInfo {
   exchange: string;
   totalBalance: string;
   availableBalance: string;
+  // Aggregate trading totals
+  totalPositionInitialMargin?: string;
+  totalUnrealizedProfit?: string;
+  crossUnRealizedPnl?: string;
   positions?: Position[];
+  balances?: Balance[];
   timestamp: number;
+}
+
+export interface Balance {
+  asset: string;
+  total: string;
+  available: string;
 }
 
 export interface Position {
@@ -51,6 +62,12 @@ export interface Position {
   side: 'LONG' | 'SHORT';
   leverage?: string;
   liquidationPrice?: string;
+  // Trading calculations
+  notional?: string;
+  initialMargin?: string;
+  marginType?: string;
+  isolatedMargin?: string;
+  positionSide?: string;
 }
 
 // Order types
@@ -81,7 +98,7 @@ export interface OrderResult {
   type: OrderType;
   quantity: string;
   price?: string;
-  status: 'NEW' | 'FILLED' | 'PARTIALLY_FILLED' | 'CANCELED' | 'REJECTED'; 
+  status: 'NEW' | 'FILLED' | 'PARTIALLY_FILLED' | 'CANCELED' | 'REJECTED';
 
   timestamp: number;
 }
@@ -131,6 +148,8 @@ export interface Asset {
   minQuantity?: string;
   maxQuantity?: string;
   tickSize?: string;
+  volume24h?: string; // For sorting
+  type?: 'spot' | 'perp'; // For explicit filtering
 }
 
 export interface Fill {
