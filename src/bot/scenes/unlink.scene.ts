@@ -69,23 +69,25 @@ unlinkScene.action('unlink_confirm', async (ctx) => {
     ctx.session.activeExchange = undefined;
     
     await ctx.answerCbQuery();
-    await ctx.editMessageText(
+    await ctx.reply(
       `✅ **${activeExchange === 'aster' ? 'Aster' : 'Hyperliquid'} Unlinked**\n\n` +
       'Your credentials have been removed.\n\n' +
-      'Use /link to connect another exchange.',
+      'Redirecting...',
       { parse_mode: 'Markdown' }
     );
     
+    // Redirect to citadel (which will show link prompt)
+    return ctx.scene.enter('citadel');
+
   } catch (error: any) {
     await ctx.answerCbQuery('❌ Failed');
     await ctx.reply(`Error: ${error.message}`);
+    return ctx.scene.leave();
   }
-  
-  return ctx.scene.leave();
 });
 
 unlinkScene.action('unlink_cancel', async (ctx) => {
   await ctx.answerCbQuery();
-  await ctx.editMessageText('❌ Unlink cancelled.');
-  return ctx.scene.leave();
+  await ctx.reply('❌ Unlink cancelled.');
+  return ctx.scene.enter('settings');
 });

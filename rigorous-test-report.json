@@ -1,0 +1,374 @@
+[
+  {
+    "exchange": "aster",
+    "category": "Market Data",
+    "name": "GET /ticker/ETHUSDT",
+    "passed": true,
+    "duration": 507,
+    "details": {
+      "price": "2943.05"
+    }
+  },
+  {
+    "exchange": "aster",
+    "category": "Market Data",
+    "name": "GET /ticker/BTCUSDT",
+    "passed": true,
+    "duration": 457,
+    "details": {
+      "price": "86930.0"
+    }
+  },
+  {
+    "exchange": "aster",
+    "category": "Market Data",
+    "name": "GET /orderbook depth=5",
+    "passed": true,
+    "duration": 461,
+    "details": {
+      "bids": 5,
+      "asks": 5
+    }
+  },
+  {
+    "exchange": "aster",
+    "category": "Market Data",
+    "name": "GET /orderbook depth=10",
+    "passed": true,
+    "duration": 167,
+    "details": {
+      "bids": 10,
+      "asks": 10
+    }
+  },
+  {
+    "exchange": "aster",
+    "category": "Market Data",
+    "name": "GET /orderbook depth=20",
+    "passed": true,
+    "duration": 454,
+    "details": {
+      "bids": 20,
+      "asks": 20
+    }
+  },
+  {
+    "exchange": "aster",
+    "category": "Market Data",
+    "name": "GET /ohlcv interval=1m",
+    "passed": true,
+    "duration": 176,
+    "details": {
+      "candles": 200
+    }
+  },
+  {
+    "exchange": "aster",
+    "category": "Market Data",
+    "name": "GET /ohlcv interval=15m",
+    "passed": true,
+    "duration": 707,
+    "details": {
+      "candles": 200
+    }
+  },
+  {
+    "exchange": "aster",
+    "category": "Market Data",
+    "name": "GET /ohlcv interval=1h",
+    "passed": true,
+    "duration": 642,
+    "details": {
+      "candles": 200
+    }
+  },
+  {
+    "exchange": "aster",
+    "category": "Market Data",
+    "name": "GET /ohlcv interval=1d",
+    "passed": true,
+    "duration": 177,
+    "details": {
+      "candles": 200
+    }
+  },
+  {
+    "exchange": "aster",
+    "category": "Orders",
+    "name": "POST LIMIT POST_ONLY",
+    "passed": true,
+    "duration": 1149,
+    "details": {
+      "orderId": 12807990071,
+      "symbol": "ETHUSDT",
+      "side": "BUY",
+      "type": "LIMIT",
+      "quantity": "0.006",
+      "price": "2795.80",
+      "status": "NEW",
+      "timestamp": 1765882878328
+    }
+  },
+  {
+    "exchange": "aster",
+    "category": "Orders",
+    "name": "POST LIMIT IOC (Should Cancel)",
+    "passed": true,
+    "duration": 445,
+    "details": {
+      "orderId": 12807991128,
+      "symbol": "ETHUSDT",
+      "side": "BUY",
+      "type": "LIMIT",
+      "quantity": "0.006",
+      "price": "2795.80",
+      "status": "NEW",
+      "timestamp": 1765882879213
+    }
+  },
+  {
+    "exchange": "aster",
+    "category": "Orders",
+    "name": "POST STOP_LIMIT",
+    "passed": true,
+    "duration": 1462
+  },
+  {
+    "exchange": "aster",
+    "category": "Position",
+    "name": "Set Margin CROSS",
+    "passed": true,
+    "duration": 655
+  },
+  {
+    "exchange": "aster",
+    "category": "Position",
+    "name": "Set Margin ISOLATED",
+    "passed": true,
+    "duration": 209
+  },
+  {
+    "exchange": "aster",
+    "category": "Position",
+    "name": "Set Leverage 3x",
+    "passed": true,
+    "duration": 797
+  },
+  {
+    "exchange": "aster",
+    "category": "Position",
+    "name": "Set Leverage 5x",
+    "passed": true,
+    "duration": 1024
+  },
+  {
+    "exchange": "aster",
+    "category": "Errors",
+    "name": "Invalid Symbol",
+    "passed": true,
+    "duration": 375,
+    "details": {
+      "error": "Failed to fetch ticker: Error: Failed to fetch ticker: 400"
+    }
+  },
+  {
+    "exchange": "aster",
+    "category": "Errors",
+    "name": "Negative Quantity Order",
+    "passed": true,
+    "duration": 687
+  },
+  {
+    "exchange": "aster",
+    "category": "Errors",
+    "name": "Zero Price LIMIT Order",
+    "passed": true,
+    "duration": 699
+  },
+  {
+    "exchange": "hyperliquid",
+    "category": "Market Data",
+    "name": "GET /ticker/ETH",
+    "passed": true,
+    "duration": 1399,
+    "details": {
+      "price": 2946.45
+    }
+  },
+  {
+    "exchange": "hyperliquid",
+    "category": "Market Data",
+    "name": "GET /ticker/BTC",
+    "passed": true,
+    "duration": 1085,
+    "details": {
+      "price": 86954.5
+    }
+  },
+  {
+    "exchange": "hyperliquid",
+    "category": "Market Data",
+    "name": "GET /orderbook depth=5",
+    "passed": true,
+    "duration": 1021,
+    "details": {
+      "bids": 5,
+      "asks": 5
+    }
+  },
+  {
+    "exchange": "hyperliquid",
+    "category": "Market Data",
+    "name": "GET /orderbook depth=10",
+    "passed": true,
+    "duration": 823,
+    "details": {
+      "bids": 10,
+      "asks": 10
+    }
+  },
+  {
+    "exchange": "hyperliquid",
+    "category": "Market Data",
+    "name": "GET /orderbook depth=20",
+    "passed": true,
+    "duration": 821,
+    "details": {
+      "bids": 20,
+      "asks": 20
+    }
+  },
+  {
+    "exchange": "hyperliquid",
+    "category": "Market Data",
+    "name": "GET /ohlcv interval=1m",
+    "passed": true,
+    "duration": 359,
+    "details": {
+      "candles": 201
+    }
+  },
+  {
+    "exchange": "hyperliquid",
+    "category": "Market Data",
+    "name": "GET /ohlcv interval=15m",
+    "passed": true,
+    "duration": 890,
+    "details": {
+      "candles": 201
+    }
+  },
+  {
+    "exchange": "hyperliquid",
+    "category": "Market Data",
+    "name": "GET /ohlcv interval=1h",
+    "passed": true,
+    "duration": 528,
+    "details": {
+      "candles": 201
+    }
+  },
+  {
+    "exchange": "hyperliquid",
+    "category": "Market Data",
+    "name": "GET /ohlcv interval=1d",
+    "passed": true,
+    "duration": 398,
+    "details": {
+      "candles": 201
+    }
+  },
+  {
+    "exchange": "hyperliquid",
+    "category": "Orders",
+    "name": "POST LIMIT POST_ONLY",
+    "passed": true,
+    "duration": 3361,
+    "details": {
+      "orderId": "270830423953",
+      "symbol": "ETH",
+      "side": "BUY",
+      "type": "LIMIT",
+      "quantity": "0.006",
+      "price": "2799.6",
+      "status": "NEW",
+      "timestamp": 1765882897661
+    }
+  },
+  {
+    "exchange": "hyperliquid",
+    "category": "Orders",
+    "name": "POST LIMIT IOC (Should Cancel)",
+    "passed": true,
+    "duration": 2869,
+    "details": {
+      "orderId": "270830474450",
+      "symbol": "ETH",
+      "side": "BUY",
+      "type": "LIMIT",
+      "quantity": "0.006",
+      "price": "2799.6",
+      "status": "NEW",
+      "timestamp": 1765882900871
+    }
+  },
+  {
+    "exchange": "hyperliquid",
+    "category": "Orders",
+    "name": "POST STOP_LIMIT",
+    "passed": true,
+    "duration": 3950
+  },
+  {
+    "exchange": "hyperliquid",
+    "category": "Position",
+    "name": "Set Margin CROSS",
+    "passed": true,
+    "duration": 1610
+  },
+  {
+    "exchange": "hyperliquid",
+    "category": "Position",
+    "name": "Set Margin ISOLATED",
+    "passed": true,
+    "duration": 1526
+  },
+  {
+    "exchange": "hyperliquid",
+    "category": "Position",
+    "name": "Set Leverage 3x",
+    "passed": true,
+    "duration": 1490
+  },
+  {
+    "exchange": "hyperliquid",
+    "category": "Position",
+    "name": "Set Leverage 5x",
+    "passed": true,
+    "duration": 1344
+  },
+  {
+    "exchange": "hyperliquid",
+    "category": "Errors",
+    "name": "Invalid Symbol",
+    "passed": true,
+    "duration": 865,
+    "details": {
+      "error": "Symbol INVALID_SYM not found"
+    }
+  },
+  {
+    "exchange": "hyperliquid",
+    "category": "Errors",
+    "name": "Negative Quantity Order",
+    "passed": true,
+    "duration": 1302
+  },
+  {
+    "exchange": "hyperliquid",
+    "category": "Errors",
+    "name": "Zero Price LIMIT Order",
+    "passed": true,
+    "duration": 1861
+  }
+]
