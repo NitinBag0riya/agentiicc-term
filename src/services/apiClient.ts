@@ -165,4 +165,18 @@ export class ApiClient {
             headers: { 'Authorization': `Bearer ${token}` }
         });
     }
+
+    // Get positions from /fapi/v1/positionRisk (accurate leverage/margin data)
+    static async getPositions(token: string, exchange?: string, symbol?: string): Promise<ApiResponse<any[]>> {
+        let query = '';
+        const params: string[] = [];
+        if (exchange) params.push(`exchange=${exchange}`);
+        if (symbol) params.push(`symbol=${symbol}`);
+        if (params.length) query = '?' + params.join('&');
+
+        return this.request(`/positions${query}`, {
+            method: 'GET',
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+    }
 }

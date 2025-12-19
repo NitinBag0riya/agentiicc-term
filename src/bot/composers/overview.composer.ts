@@ -1,6 +1,9 @@
 import { Composer, Markup } from 'telegraf';
 import type { BotContext } from '../types/context';
+
 import { ApiClient } from '../../services/apiClient';
+import { getLinkedExchanges, getUser, updateUserSettings } from '../../db/users';
+
 import { cleanupButtonMessages, trackButtonMessage } from '../utils/buttonCleanup';
 
 export const overviewComposer = new Composer<BotContext>();
@@ -158,8 +161,8 @@ export async function showOverview(ctx: BotContext, editMessage = false, style: 
                 Markup.button.callback('Trade Perps', 'menu_trade_perps')
             ],
             [
-                Markup.button.callback('Account Info', 'view_account'), // Refresh basically? Or separate? User said "Account info , refresh".
-                Markup.button.callback('Refresh', 'view_account')
+                Markup.button.callback('📊 All Perps', 'positions_list'),
+                Markup.button.callback('🔄 Refresh', 'view_account')
             ]
         ];
         // Smart Switch Logic
@@ -175,7 +178,106 @@ export async function showOverview(ctx: BotContext, editMessage = false, style: 
 
         buttons.push([Markup.button.callback('🔄 Refresh', 'view_account')]);
         buttons.push([switchButton]); // Smart Switch
-        buttons.push([Markup.button.callback('« Gateway', 'back_to_gateway')]); // Keep Gateway as option? User said "instead of going back to /start". 
+        buttons.push([Markup.button.callback('« Gateway', 'back_to_gateway')]);
+        buttons.push([Markup.button.callback('⚙️ Settings', 'overview_settings')]);
+
+        // Settings Handler
+        overviewComposer.action('overview_settings', async (ctx) => {
+            await ctx.answerCbQuery();
+
+            if (!ctx.session.userId) {
+                return ctx.reply('❌ Please start with /start first');
+            }
+
+            const user = await getUser(ctx.session.userId);
+            const settings = user?.settings || {};
+            const leverage = settings.defaultLeverage || 5;
+            const notifs = settings.notifications !== false; // Default true
+
+            const msg = `⚙️ **Settings Menu**\n\n` +
+                `**Default Leverage:** ${leverage}x\n` +
+                `**Notifications:** ${notifs ? '✅ ON' : '❌ OFF'}\n\n` +
+                `Select a setting to change:`;
+
+            await ctx.editMessageText(msg, {
+                parse_mode: 'Markdown',
+                ...Markup.inlineKeyboard([
+                    [
+                        Markup.button.callback(`Lev: ${leverage}x`, 'settings_lev_cycle'),
+                        Markup.button.callback(`Notifs: ${notifs ? 'ON' : 'OFF'}`, 'settings_notif_toggle')
+                    ],
+                    [Markup.button.callback('« Back', 'view_account')]
+                ])
+            });
+        });
+
+        // Toggle Leverage
+        overviewComposer.action('settings_lev_cycle', async (ctx) => {
+            if (!ctx.session.userId) return;
+            const user = await getUser(ctx.session.userId);
+            let lev = user?.settings?.defaultLeverage || 5;
+
+            // Cycle: 5 -> 10 -> 20 -> 50 -> 5
+            if (lev === 5) lev = 10;
+            else if (lev === 10) lev = 20;
+            else if (lev === 20) lev = 50;
+            else lev = 5;
+
+            await updateUserSettings(ctx.session.userId, { defaultLeverage: lev });
+            await ctx.answerCbQuery(`Leverage set to ${lev}x`);
+            // Trigger refresh by calling the main settings handler handler logic again or just re-render
+            // Ideally we re-call the handler logic, but we can't easily invoke handlers.
+            // So we re-render the menu.
+            // ... (Duplicate logic or refactor? For now I'll just trigger the action 'overview_settings' via a fake update if possible? No.)
+            // I'll just call the view again manually.
+            const settings = { ...user?.settings, defaultLeverage: lev };
+            const notifs = settings.notifications !== false;
+
+            const msg = `⚙️ **Settings Menu**\n\n` +
+                `**Default Leverage:** ${lev}x\n` +
+                `**Notifications:** ${notifs ? '✅ ON' : '❌ OFF'}\n\n` +
+                `Select a setting to change:`;
+
+            await ctx.editMessageText(msg, {
+                parse_mode: 'Markdown',
+                ...Markup.inlineKeyboard([
+                    [
+                        Markup.button.callback(`Lev: ${lev}x`, 'settings_lev_cycle'),
+                        Markup.button.callback(`Notifs: ${notifs ? 'ON' : 'OFF'}`, 'settings_notif_toggle')
+                    ],
+                    [Markup.button.callback('« Back', 'view_account')]
+                ])
+            });
+        });
+
+        // Toggle Notifications
+        overviewComposer.action('settings_notif_toggle', async (ctx) => {
+            if (!ctx.session.userId) return;
+            const user = await getUser(ctx.session.userId);
+            const current = user?.settings?.notifications !== false;
+            const newVal = !current;
+
+            await updateUserSettings(ctx.session.userId, { notifications: newVal });
+            await ctx.answerCbQuery(`Notifications ${newVal ? 'Enabled' : 'Disabled'}`);
+
+            // Re-render
+            const lev = user?.settings?.defaultLeverage || 5;
+            const msg = `⚙️ **Settings Menu**\n\n` +
+                `**Default Leverage:** ${lev}x\n` +
+                `**Notifications:** ${newVal ? '✅ ON' : '❌ OFF'}\n\n` +
+                `Select a setting to change:`;
+
+            await ctx.editMessageText(msg, {
+                parse_mode: 'Markdown',
+                ...Markup.inlineKeyboard([
+                    [
+                        Markup.button.callback(`Lev: ${lev}x`, 'settings_lev_cycle'),
+                        Markup.button.callback(`Notifs: ${newVal ? 'ON' : 'OFF'}`, 'settings_notif_toggle')
+                    ],
+                    [Markup.button.callback('« Back', 'view_account')]
+                ])
+            });
+        });
         // User said: "select exchange button should call directly /aster...". 
         // I'll replace the main "Switch Exchange" with the smart toggle.
         // I'll keep "Gateway" as a secondary option in case they want to link/unlink.
@@ -237,4 +339,70 @@ overviewComposer.action('back_to_gateway', async (ctx) => {
 
 overviewComposer.action('settings', async (ctx) => {
     await ctx.answerCbQuery('Settings 🚧');
+});
+
+// Positions List - Show all perp positions
+overviewComposer.action('positions_list', async (ctx) => {
+    await ctx.answerCbQuery('Loading positions...');
+
+    const { authToken, activeExchange } = ctx.session;
+
+    if (!authToken) {
+        await ctx.reply('❌ Session expired. /start');
+        return;
+    }
+
+    try {
+        const res = await ApiClient.getAccount(authToken, activeExchange);
+
+        if (!res.success || !res.data) {
+            throw new Error(res.error || 'Failed to fetch data');
+        }
+
+        const positions = (res.data.positions || []).filter((p: any) => parseFloat(p.size) !== 0);
+
+        if (positions.length === 0) {
+            await ctx.reply(
+                '📊 **All Perp Positions**\n\n' +
+                '_No active positions_\n\n' +
+                'Search for a symbol to open a new position.',
+                {
+                    parse_mode: 'Markdown',
+                    ...Markup.inlineKeyboard([
+                        [Markup.button.callback('« Back to Citadel', 'view_account')]
+                    ])
+                }
+            );
+            return;
+        }
+
+        let message = '📊 **All Perp Positions**\n\n';
+
+        for (const p of positions) {
+            const pnl = parseFloat(p.unrealizedPnl);
+            const emoji = pnl >= 0 ? '📈' : '📉';
+            const sign = pnl >= 0 ? '+' : '';
+            const symbol = p.symbol;
+            const size = parseFloat(p.size);
+            const leverage = p.leverage || '1';
+
+            message += `/${symbol.replace(/USDT$/, '')} **${symbol}** (${leverage}x) ${emoji}\n`;
+            message += `Size: ${size} | PnL: ${sign}$${pnl.toFixed(2)}\n\n`;
+        }
+
+        message += `\n_Click a position to manage_`;
+
+        await ctx.reply(message, {
+            parse_mode: 'Markdown',
+            ...Markup.inlineKeyboard([
+                [Markup.button.callback('🔄 Refresh', 'positions_list')],
+                [Markup.button.callback('« Back to Citadel', 'view_account')]
+            ])
+        });
+
+    } catch (e: any) {
+        await ctx.reply(`❌ Error: ${e.message}`, {
+            ...Markup.inlineKeyboard([[Markup.button.callback('« Back', 'view_account')]])
+        });
+    }
 });

@@ -2,6 +2,8 @@ import { Composer, Markup } from 'telegraf';
 import type { BotContext } from '../types/context';
 import { ApiClient } from '../../services/apiClient';
 import { showOverview } from './overview.composer';
+import { showPositionMenu } from './position.composer';
+import { cleanupButtonMessages, trackButtonMessage } from '../utils/buttonCleanup';
 
 export const startComposer = new Composer<BotContext>();
 
@@ -22,10 +24,69 @@ const getExchangeName = (exchange: string) => {
     }
 };
 
-// ================== /start Handler ==================
+// ================== /start Handler with Deep Link Routing ==================
 startComposer.command('start', async (ctx) => {
+    const payload = ctx.payload?.trim();
+
+    // Deep link routing
+    if (payload && payload.length > 0) {
+        // Ensure session is initialized first
+        await ensureSession(ctx);
+
+        // Pattern: position-<index>
+        if (payload.startsWith('position-')) {
+            const index = parseInt(payload.replace('position-', ''), 10);
+            if (!isNaN(index) && ctx.session.authToken) {
+                try {
+                    const accRes = await ApiClient.getAccount(ctx.session.authToken, ctx.session.activeExchange);
+                    if (accRes.success && accRes.data?.positions) {
+                        const positions = accRes.data.positions.filter((p: any) => parseFloat(p.size) !== 0);
+                        if (index >= 0 && index < positions.length) {
+                            const symbol = positions[index].symbol;
+                            await showPositionMenu(ctx, symbol);
+                            return;
+                        }
+                    }
+                } catch (e) {
+                    console.error('[Deep Link] Position index error:', e);
+                }
+            }
+            await ctx.reply('❌ Position not found. Use /start to see your portfolio.');
+            return;
+        }
+
+        // Pattern: Symbol name (e.g., ETHUSDT, BTC, ETH)
+        if (/^[A-Z]{2,10}(USDT)?$/i.test(payload)) {
+            const symbol = payload.toUpperCase();
+            // Add USDT suffix if not present (for perp symbols)
+            const fullSymbol = symbol.endsWith('USDT') ? symbol : `${symbol}USDT`;
+            await showPositionMenu(ctx, fullSymbol);
+            return;
+        }
+    }
+
+    // Default: Show gateway
     await showGateway(ctx);
 });
+
+// Helper to ensure session is initialized
+async function ensureSession(ctx: BotContext) {
+    if (!ctx.session.userId) {
+        const userRes = await ApiClient.createUser(ctx.from!.id, ctx.from!.username);
+        if (userRes.success && userRes.data) {
+            ctx.session.userId = userRes.data.id;
+        }
+    }
+    if (ctx.session.userId && !ctx.session.authToken) {
+        const sRes = await ApiClient.createSession(ctx.session.userId);
+        if (sRes.success) {
+            ctx.session.authToken = sRes.token;
+            ctx.session.activeExchange = sRes.activeExchange;
+            ctx.session.linkedExchanges = sRes.linkedExchanges;
+            ctx.session.isLinked = (sRes.linkedExchanges?.length || 0) > 0;
+        }
+    }
+}
 
 // ================== Shortcut Handlers ==================
 startComposer.command('aster', async (ctx) => {
@@ -147,7 +208,11 @@ async function showGateway(ctx: BotContext, isEdit = false) {
         if (isEdit && ctx.callbackQuery?.message) {
             return ctx.editMessageText(message, { parse_mode: 'Markdown', ...buttons });
         }
-        return ctx.reply(message, { parse_mode: 'Markdown', ...buttons });
+        // Cleanup old messages before new reply
+        await cleanupButtonMessages(ctx);
+        const sentMsg = await ctx.reply(message, { parse_mode: 'Markdown', ...buttons });
+        trackButtonMessage(ctx, sentMsg.message_id);
+        return;
     }
 
     // Fetch Data for ALL linked exchanges
@@ -215,6 +280,9 @@ async function showGateway(ctx: BotContext, isEdit = false) {
     if (isEdit && ctx.callbackQuery?.message) {
         await ctx.editMessageText(message, { parse_mode: 'Markdown', ...keyboard });
     } else {
-        await ctx.reply(message, { parse_mode: 'Markdown', ...keyboard });
+        // Cleanup old messages before new reply
+        await cleanupButtonMessages(ctx);
+        const sentMsg = await ctx.reply(message, { parse_mode: 'Markdown', ...keyboard });
+        trackButtonMessage(ctx, sentMsg.message_id);
     }
 }

@@ -13,6 +13,10 @@ export interface SessionData extends Scenes.WizardSessionData {
     marginType?: string;
   }>;
   buttonMessages?: number[]; // Track messages with buttons for cleanup
+  waitingForInput?: {
+    action?: string;
+    symbol?: string;
+  };
   __scenes?: Scenes.SceneSessionData;
 }
 

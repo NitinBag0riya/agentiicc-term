@@ -90,10 +90,12 @@ export class HyperliquidAdapter implements ExchangeAdapter {
             side: size > 0 ? 'LONG' : 'SHORT',
             leverage: String(leverage),
             liquidationPrice: p.position.liquidationPx,
-            // Trading calculations
+            // Trading calculations - matching Aster format
             notional: String(notional),
             initialMargin: String(initialMargin),
             marginType: p.position.leverage?.type === 'isolated' ? 'isolated' : 'cross',
+            isolatedMargin: p.position.leverage?.type === 'isolated' ? String(initialMargin) : '0',
+            positionSide: 'BOTH' // Hyperliquid uses BOTH mode
           };
         }),
         balances: [{

@@ -8,6 +8,7 @@
 import { Composer, Markup } from 'telegraf';
 import type { BotContext } from '../types/context';
 import { ApiClient } from '../../services/apiClient';
+import { cleanupButtonMessages, trackButtonMessage } from '../utils/buttonCleanup';
 
 export const positionComposer = new Composer<BotContext>();
 
@@ -59,9 +60,38 @@ async function buildPositionInterface(ctx: BotContext, symbol: string, position:
 
     if (!position) {
         // ================= NO POSITION (NEW ORDER) =================
-        const orderType = state.orderType || 'Market';
-        const leverage = state.leverage || 5;
-        const marginType = state.marginType || 'Cross';
+        // CRITICAL: Fetch actual symbol settings from exchange, not session!
+        // getAccount returns ALL symbols we've ever interacted with, including their current leverage/margin
+        let orderType = state.orderType || 'Market';
+        let leverage = state.leverage || 5;
+        let marginType = state.marginType || 'Cross';
+
+        // Try to get actual exchange settings for this symbol from positionRisk
+        if (authToken) {
+            try {
+                // CRITICAL: Use getPositions (positionRisk) not getAccount!
+                const posRes = await ApiClient.getPositions(authToken, activeExchange || '');
+                if (posRes.success && posRes.data) {
+                    // Find this symbol in all positions (including zero-size ones)
+                    const symbolInfo = posRes.data.find(
+                        (p: any) => p.symbol === symbol ||
+                            p.symbol === symbol.replace('USDT', '') ||
+                            p.symbol.toUpperCase().includes(symbol.toUpperCase().replace('USDT', ''))
+                    );
+                    if (symbolInfo) {
+                        leverage = parseInt(symbolInfo.leverage) || leverage;
+                        marginType = symbolInfo.marginType?.toLowerCase() === 'isolated' ? 'Isolated' : 'Cross';
+                        // Update session state to match exchange
+                        state.leverage = leverage;
+                        state.marginType = marginType;
+
+                        console.log('[buildPositionInterface] No-position sync:', { symbol, leverage, marginType });
+                    }
+                }
+            } catch (e) {
+                // Use session state as fallback
+            }
+        }
 
         message = `⚡ <b>${symbol} - New Position</b>\n\n`;
         message += `${emoji} Price: $${price}\n`;
@@ -110,32 +140,52 @@ async function buildPositionInterface(ctx: BotContext, symbol: string, position:
 
     } else {
         // ================= HAS POSITION (MANAGE) =================
-        const size = parseFloat(position.size);
-        const pnl = parseFloat(position.unrealizedPnl);
-        const entry = parseFloat(position.entryPrice);
-        const mark = parseFloat(position.markPrice);
+        const size = parseFloat(position.size) || 0;
+        const pnl = parseFloat(position.unrealizedPnl) || 0;
+        const entry = parseFloat(position.entryPrice) || 0;
+        // Fix: Mark price might be missing - use entry as fallback
+        let mark = parseFloat(position.markPrice);
+        if (isNaN(mark) || mark === 0) {
+            // Try to fetch from ticker if mark price is missing
+            if (authToken) {
+                try {
+                    const tickerRes = await ApiClient.getTicker(authToken, symbol, activeExchange);
+                    if (tickerRes.success && tickerRes.data) {
+                        mark = parseFloat(tickerRes.data.price) || entry;
+                    } else {
+                        mark = entry; // Fallback to entry
+                    }
+                } catch (e) {
+                    mark = entry; // Fallback to entry
+                }
+            } else {
+                mark = entry;
+            }
+        }
         const liq = position.liquidationPrice ? parseFloat(position.liquidationPrice) : 0;
         const pnlEmoji = pnl >= 0 ? '🟢' : '🔴';
         const pnlSign = pnl >= 0 ? '+' : '';
 
-        // Use POSITION data, not session state (critical for accurate ROE)
-        const positionLeverage = parseInt(position.leverage || '1');
+        // Use POSITION data, not session state (critical for accurate data)
+        const positionLeverage = parseInt(position.leverage) || 5;
         const notional = position.notional ? parseFloat(position.notional) : Math.abs(size * mark);
         const margin = position.initialMargin ? parseFloat(position.initialMargin) : (notional / positionLeverage);
-        const roe = margin > 0 ? (pnl / margin) * 100 : 0;
+        // Fix NaN in ROE calculation
+        const roe = (margin > 0 && !isNaN(margin)) ? (pnl / margin) * 100 : 0;
         const roeSign = roe >= 0 ? '+' : '';
+        // Read actual margin type from position data
         const marginTypeDisplay = position.marginType?.toUpperCase() === 'ISOLATED' ? 'Isolated' : 'Cross';
 
-        // Sync session state with actual position data
+        // CRITICAL: Sync session state with actual exchange position data
         state.leverage = positionLeverage;
         state.marginType = marginTypeDisplay;
 
         message = `⚡ <b>Manage ${symbol} Position</b>\n\n`;
         message += `<b>${size > 0 ? 'LONG' : 'SHORT'} ${Math.abs(size).toFixed(4)} ${baseAsset}</b> (${positionLeverage}x)\n`;
-        message += `Notional: <b>$${notional.toFixed(2)}</b> | Margin: <b>$${margin.toFixed(2)}</b> (${marginTypeDisplay})\n`;
-        message += `PnL: <b>${pnlSign}$${pnl.toFixed(2)} (${roeSign}${roe.toFixed(2)}%)</b> ${pnlEmoji}\n`;
-        message += `Entry: $${entry.toFixed(4)} | Mark: $${mark.toFixed(4)}\n`;
-        if (liq > 0) message += `Liq: $${liq.toFixed(4)}\n`;
+        message += `Notional: <b>$${isNaN(notional) ? '0.00' : notional.toFixed(2)}</b> | Margin: <b>$${isNaN(margin) ? '0.00' : margin.toFixed(2)}</b> (${marginTypeDisplay})\n`;
+        message += `PnL: <b>${pnlSign}$${isNaN(pnl) ? '0.00' : pnl.toFixed(2)} (${roeSign}${isNaN(roe) ? '0.00' : roe.toFixed(2)}%)</b> ${pnlEmoji}\n`;
+        message += `Entry: $${isNaN(entry) ? '0.0000' : entry.toFixed(4)} | Mark: $${isNaN(mark) ? '0.0000' : mark.toFixed(4)}\n`;
+        if (liq > 0 && !isNaN(liq)) message += `Liq: $${liq.toFixed(4)}\n`;
 
         // ================= TP/SL STATUS =================
         // Fetch open orders to show TP/SL status
@@ -189,6 +239,15 @@ async function buildPositionInterface(ctx: BotContext, symbol: string, position:
             message += `\n📋 <b>Open Orders:</b> ${otherOrders.length}\n`;
         }
         message += '\n';
+
+        // Row 0: Settings (Order Type, Leverage, Margin Mode) - Same as no-position view
+        const orderType = state.orderType || 'Market';
+        const displayLeverage = state.leverage || positionLeverage;
+        buttons.push([
+            Markup.button.callback(`🔄 ${orderType}`, `pos_toggle_ordertype:${symbol}`),
+            Markup.button.callback(`${displayLeverage}x`, `pos_leverage_menu:${symbol}`),
+            Markup.button.callback(`🔄 ${marginTypeDisplay}`, `pos_toggle_margin:${symbol}`)
+        ]);
 
         // Row 1: Ape (add to position)
         buttons.push([
@@ -251,28 +310,56 @@ export async function showPositionMenu(ctx: BotContext, rawSymbol: string) {
     }
 
     try {
-        const res = await ApiClient.getAccount(authToken, activeExchange || '');
-        if (!res.success || !res.data) throw new Error('API Error');
+        // CRITICAL: Use getPositions (positionRisk) not getAccount for accurate leverage/margin!
+        // getAccount uses /fapi/v1/account which may have stale position settings
+        // getPositions uses /fapi/v1/positionRisk which has current settings
+        const res = await ApiClient.getPositions(authToken, activeExchange || '');
+        if (!res.success) throw new Error(res.error || 'API Error');
+
+        const positions = res.data || [];
+
+        // DEBUG: Log all positions to trace data
+        console.log('[showPositionMenu] Looking for:', rawSymbol);
+        console.log('[showPositionMenu] Positions from positionRisk:', positions.slice(0, 3).map((p: any) => ({
+            symbol: p.symbol, leverage: p.leverage, marginType: p.marginType, size: p.size
+        })));
 
         // Find position (flexible matching) - check ALL positions for leverage sync
-        const position = (res.data.positions || []).find((p: any) => {
+        const position = positions.find((p: any) => {
             const s = p.symbol.toUpperCase();
-            return s === rawSymbol || s === `${rawSymbol}USDT` || s === `${rawSymbol}-PERP`;
+            return s === rawSymbol || s === rawSymbol.toUpperCase() ||
+                s === `${rawSymbol}USDT` || s === `${rawSymbol.toUpperCase()}USDT` ||
+                s === `${rawSymbol}-PERP` || s.includes(rawSymbol.toUpperCase());
         });
+
+        // DEBUG: Log found position
+        console.log('[showPositionMenu] Found position:', position ? {
+            symbol: position.symbol,
+            leverage: position.leverage,
+            marginType: position.marginType,
+            size: position.size
+        } : 'null');
 
         // Treat zero size as null position for display, but sync leverage from any found position
         const activePosition = (position && parseFloat(position.size) !== 0) ? position : null;
 
         // CRITICAL: Sync leverage/margin from exchange data (even for zero-size positions)
         // This ensures our UI shows the actual exchange settings, not stale session defaults
-        if (position && position.leverage) {
+        if (position) {
             if (!ctx.session.tradingState) ctx.session.tradingState = {};
             if (!ctx.session.tradingState[rawSymbol]) {
                 ctx.session.tradingState[rawSymbol] = { orderType: 'Market', leverage: 5, marginType: 'Cross' };
             }
             // Sync from exchange position data
-            ctx.session.tradingState[rawSymbol].leverage = parseInt(position.leverage) || 5;
-            ctx.session.tradingState[rawSymbol].marginType = position.marginType?.toUpperCase() === 'ISOLATED' ? 'Isolated' : 'Cross';
+            const syncLeverage = parseInt(position.leverage) || 5;
+            const syncMarginType = position.marginType?.toLowerCase() === 'isolated' ? 'Isolated' : 'Cross';
+            ctx.session.tradingState[rawSymbol].leverage = syncLeverage;
+            ctx.session.tradingState[rawSymbol].marginType = syncMarginType;
+
+            console.log('[showPositionMenu] Synced session state:', {
+                leverage: syncLeverage,
+                marginType: syncMarginType
+            });
         }
 
         const targetSymbol = activePosition ? activePosition.symbol : (
@@ -284,7 +371,10 @@ export async function showPositionMenu(ctx: BotContext, rawSymbol: string) {
         if (ctx.callbackQuery) {
             await ctx.editMessageText(message, { parse_mode: 'HTML', ...Markup.inlineKeyboard(buttons) });
         } else {
-            await ctx.reply(message, { parse_mode: 'HTML', ...Markup.inlineKeyboard(buttons) });
+            // Cleanup old button messages before sending new
+            await cleanupButtonMessages(ctx);
+            const sentMsg = await ctx.reply(message, { parse_mode: 'HTML', ...Markup.inlineKeyboard(buttons) });
+            trackButtonMessage(ctx, sentMsg.message_id);
         }
 
     } catch (e: any) {
@@ -345,43 +435,74 @@ positionComposer.action(/^pos_toggle_ordertype:(.+)$/, async (ctx) => {
     await ctx.editMessageReplyMarkup(Markup.inlineKeyboard(buttons).reply_markup);
 });
 
-// Toggle Margin Type (Cross <-> Isolated) - NO API CALL, just update buttons
+// Toggle Margin Type (Cross <-> Isolated) - NOW CALLS API
 positionComposer.action(/^pos_toggle_margin:(.+)$/, async (ctx) => {
     const symbol = ctx.match[1];
+    const { authToken, activeExchange } = ctx.session;
+
+    if (!authToken) {
+        await ctx.answerCbQuery('❌ Session expired');
+        return;
+    }
+
     if (!ctx.session.tradingState) ctx.session.tradingState = {};
     if (!ctx.session.tradingState[symbol]) ctx.session.tradingState[symbol] = { orderType: 'Market', leverage: 5, marginType: 'Cross' };
 
-    const current = ctx.session.tradingState[symbol].marginType || 'Cross';
+    // CRITICAL: Fetch current margin mode from exchange using positionRisk, not session!
+    let current = 'Cross';
+    try {
+        const posRes = await ApiClient.getPositions(authToken, activeExchange || '');
+        if (posRes.success && posRes.data) {
+            const symbolInfo = posRes.data.find(
+                (p: any) => p.symbol === symbol ||
+                    p.symbol === symbol.replace('USDT', '') ||
+                    p.symbol.toUpperCase().includes(symbol.toUpperCase().replace('USDT', ''))
+            );
+            if (symbolInfo?.marginType) {
+                current = symbolInfo.marginType.toLowerCase() === 'isolated' ? 'Isolated' : 'Cross';
+            }
+        }
+    } catch (e) {
+        // Fall back to session state
+        current = ctx.session.tradingState[symbol].marginType || 'Cross';
+    }
     const next = current === 'Cross' ? 'Isolated' : 'Cross';
-    ctx.session.tradingState[symbol].marginType = next;
 
-    await ctx.answerCbQuery(`Margin: ${next}`);
+    try {
+        await ctx.answerCbQuery(`Switching to ${next}...`);
 
-    // Just update buttons, don't refetch data
-    const state = ctx.session.tradingState[symbol];
-    const buttons = [
-        [
-            Markup.button.callback(`🔄 ${state.orderType}`, `pos_toggle_ordertype:${symbol}`),
-            Markup.button.callback(`${state.leverage}x`, `pos_leverage_menu:${symbol}`),
-            Markup.button.callback(`🔄 ${state.marginType}`, `pos_toggle_margin:${symbol}`)
-        ],
-        [
-            Markup.button.callback('Long $50', `pos_long:${symbol}:50`),
-            Markup.button.callback('Long $200', `pos_long:${symbol}:200`),
-            Markup.button.callback('Long X', `pos_long_custom:${symbol}`)
-        ],
-        [
-            Markup.button.callback('Short $50', `pos_short:${symbol}:50`),
-            Markup.button.callback('Short $200', `pos_short:${symbol}:200`),
-            Markup.button.callback('Short X', `pos_short_custom:${symbol}`)
-        ],
-        [Markup.button.callback('🎯 Set TP/SL', `pos_tpsl_mode:${symbol}`)],
-        [
-            Markup.button.callback('« Back to Menu', 'menu'),
-            Markup.button.callback('🔄 Refresh', `pos_refresh:${symbol}`)
-        ]
-    ];
-    await ctx.editMessageReplyMarkup(Markup.inlineKeyboard(buttons).reply_markup);
+        // Call API to change margin type
+        const res = await ApiClient.setMarginMode(authToken, {
+            exchange: activeExchange || '',
+            symbol,
+            mode: next.toUpperCase() as 'CROSS' | 'ISOLATED'
+        });
+
+        if (res.success) {
+            ctx.session.tradingState[symbol].marginType = next;
+            await ctx.reply(`✅ **Margin mode set to ${next} for ${symbol}**`, { parse_mode: 'Markdown' });
+        } else {
+            // API error - likely has open position/orders
+            await ctx.reply(
+                `⚠️ **Cannot Switch to ${next}**\n\n` +
+                `${res.error || 'Cannot change margin type with open positions or orders.'}\n\n` +
+                `Close your position first to switch margin type.`,
+                { parse_mode: 'Markdown' }
+            );
+            return;
+        }
+    } catch (e: any) {
+        await ctx.answerCbQuery(`❌ Error`);
+        await ctx.reply(`❌ Failed to change margin: ${e.message}`);
+        return;
+    }
+
+    // Refresh position menu to show updated state
+    try {
+        await showPositionMenu(ctx, symbol);
+    } catch (e) {
+        // Ignore edit error - menu was already shown
+    }
 });
 
 // Leverage Menu
@@ -406,42 +527,56 @@ positionComposer.action(/^pos_leverage_menu:(.+)$/, async (ctx) => {
     );
 });
 
-// Set Leverage (preset) - NO API CALL, just update buttons
+// Set Leverage (preset) - NOW CALLS API
 positionComposer.action(/^pos_set_leverage:(.+):(\d+)$/, async (ctx) => {
     const symbol = ctx.match[1];
     const leverage = parseInt(ctx.match[2]);
+    const { authToken, activeExchange } = ctx.session;
+
+    if (!authToken) {
+        await ctx.answerCbQuery('❌ Session expired');
+        return;
+    }
 
     if (!ctx.session.tradingState) ctx.session.tradingState = {};
     if (!ctx.session.tradingState[symbol]) ctx.session.tradingState[symbol] = { orderType: 'Market', leverage: 5, marginType: 'Cross' };
-    ctx.session.tradingState[symbol].leverage = leverage;
 
-    await ctx.answerCbQuery(`Leverage: ${leverage}x`);
+    try {
+        await ctx.answerCbQuery(`Setting ${leverage}x...`);
 
-    // Just update buttons, don't refetch data
-    const state = ctx.session.tradingState[symbol];
-    const buttons = [
-        [
-            Markup.button.callback(`🔄 ${state.orderType}`, `pos_toggle_ordertype:${symbol}`),
-            Markup.button.callback(`${state.leverage}x`, `pos_leverage_menu:${symbol}`),
-            Markup.button.callback(`🔄 ${state.marginType}`, `pos_toggle_margin:${symbol}`)
-        ],
-        [
-            Markup.button.callback('Long $50', `pos_long:${symbol}:50`),
-            Markup.button.callback('Long $200', `pos_long:${symbol}:200`),
-            Markup.button.callback('Long X', `pos_long_custom:${symbol}`)
-        ],
-        [
-            Markup.button.callback('Short $50', `pos_short:${symbol}:50`),
-            Markup.button.callback('Short $200', `pos_short:${symbol}:200`),
-            Markup.button.callback('Short X', `pos_short_custom:${symbol}`)
-        ],
-        [Markup.button.callback('🎯 Set TP/SL', `pos_tpsl_mode:${symbol}`)],
-        [
-            Markup.button.callback('« Back to Menu', 'menu'),
-            Markup.button.callback('🔄 Refresh', `pos_refresh:${symbol}`)
-        ]
-    ];
-    await ctx.editMessageReplyMarkup(Markup.inlineKeyboard(buttons).reply_markup);
+        // Call API to set leverage
+        const res = await ApiClient.setLeverage(authToken, {
+            exchange: activeExchange || '',
+            symbol,
+            leverage
+        });
+
+        if (res.success) {
+            ctx.session.tradingState[symbol].leverage = leverage;
+            // Show success message
+            await ctx.reply(`✅ **Leverage set to ${leverage}x for ${symbol}**`, { parse_mode: 'Markdown' });
+        } else {
+            // API error
+            await ctx.reply(
+                `⚠️ **Cannot Set Leverage to ${leverage}x**\n\n` +
+                `${res.error || 'Failed to change leverage.'}\n\n` +
+                `Note: Some exchanges require no open positions to change leverage.`,
+                { parse_mode: 'Markdown' }
+            );
+            return;
+        }
+    } catch (e: any) {
+        await ctx.answerCbQuery(`❌ Error`);
+        await ctx.reply(`❌ Failed to set leverage: ${e.message}`);
+        return;
+    }
+
+    // Refresh position menu to show updated state
+    try {
+        await showPositionMenu(ctx, symbol);
+    } catch (e) {
+        // Ignore edit error - menu was already shown
+    }
 });
 
 // Custom Leverage
@@ -587,27 +722,21 @@ positionComposer.action(/^pos_close:(.+):(\d+)$/, async (ctx) => {
         return;
     }
 
-    // For 100% close, use direct API call instead of wizard
+    // For 100% close, show confirmation first
     if (percentage === 100) {
-        try {
-            await ctx.reply(`⏳ Closing ${symbol} position...`);
-
-            const result = await ApiClient.closePosition(authToken, {
-                exchange: activeExchange || '',
-                symbol: symbol
-            });
-
-            if (result.success) {
-                await ctx.reply(`✅ Position closed successfully!`);
-            } else {
-                await ctx.reply(`❌ Close failed: ${result.error || 'Unknown error'}`);
+        await ctx.reply(
+            `🚨 **Confirm Close Position**\n\n` +
+            `Symbol: **${symbol}**\n` +
+            `Close: **100%** (Market Order)\n\n` +
+            `This will close your entire position at market price.`,
+            {
+                parse_mode: 'Markdown',
+                ...Markup.inlineKeyboard([
+                    [Markup.button.callback('✅ Confirm Close', `pos_close_confirm:${symbol}`)],
+                    [Markup.button.callback('❌ Cancel', `pos_refresh:${symbol}`)]
+                ])
             }
-
-            // Refresh position menu
-            await showPositionMenu(ctx, symbol.replace(/USDT$/, ''));
-        } catch (error: any) {
-            await ctx.reply(`❌ Close failed: ${error.message}`);
-        }
+        );
         return;
     }
 
@@ -629,18 +758,145 @@ positionComposer.action(/^pos_close:(.+):(\d+)$/, async (ctx) => {
     );
 });
 
-// TP/SL Mode
+// Confirmed Close Position (100%)
+positionComposer.action(/^pos_close_confirm:(.+)$/, async (ctx) => {
+    const symbol = ctx.match[1];
+    const { authToken, activeExchange } = ctx.session;
+
+    if (!authToken) {
+        await ctx.answerCbQuery('❌ Session expired');
+        return;
+    }
+
+    await ctx.answerCbQuery('Closing position...');
+
+    try {
+        await ctx.editMessageText(`⏳ Closing ${symbol} position...`);
+
+        const result = await ApiClient.closePosition(authToken, {
+            exchange: activeExchange || '',
+            symbol: symbol
+        });
+
+        if (result.success) {
+            await ctx.reply(`✅ **Position Closed Successfully!**\n\nSymbol: ${symbol}`, {
+                parse_mode: 'Markdown',
+                ...Markup.inlineKeyboard([[Markup.button.callback('📊 View Position', `pos_refresh:${symbol}`)]])
+            });
+        } else {
+            await ctx.reply(`❌ **Close Failed**\n\n${result.error || 'Unknown error'}`, {
+                parse_mode: 'Markdown',
+                ...Markup.inlineKeyboard([[Markup.button.callback('🔄 Try Again', `pos_close:${symbol}:100`)]])
+            });
+        }
+    } catch (error: any) {
+        await ctx.reply(`❌ **Close Failed**\n\n${error.message}`, {
+            parse_mode: 'Markdown',
+            ...Markup.inlineKeyboard([[Markup.button.callback('🔄 Try Again', `pos_close:${symbol}:100`)]])
+        });
+    }
+});
+
+// TP/SL Mode - Switch to TP/SL inline buttons
 positionComposer.action(/^pos_tpsl_mode:(.+)$/, async (ctx) => {
     const symbol = ctx.match[1];
     await ctx.answerCbQuery('TP/SL Menu');
-    await ctx.scene.enter('position-tpsl', { symbol });
+
+    try {
+        // Import dynamically to avoid circular dependency
+        const { buildTPSLButtons } = await import('./tpsl.composer');
+        const buttons = await buildTPSLButtons(ctx, symbol);
+        const messageId = ctx.callbackQuery?.message?.message_id;
+
+        if (messageId) {
+            await ctx.telegram.editMessageReplyMarkup(
+                ctx.chat!.id,
+                messageId,
+                undefined,
+                Markup.inlineKeyboard(buttons).reply_markup
+            );
+        }
+    } catch (error) {
+        console.error('[TP/SL Mode] Error:', error);
+        await ctx.answerCbQuery('Failed to load TP/SL menu');
+    }
 });
 
-// Orders Mode
+// Orders Mode - Show orders management buttons
 positionComposer.action(/^pos_orders_mode:(.+)$/, async (ctx) => {
     const symbol = ctx.match[1];
     await ctx.answerCbQuery('Orders Menu');
-    await ctx.reply('📋 Orders management coming soon!');
+
+    const buttons = [
+        [
+            Markup.button.callback('❌ Cancel All Orders', `pos_cancel_all:${symbol}`),
+        ],
+        [
+            Markup.button.callback('« Back to Position', `pos_refresh:${symbol}`)
+        ]
+    ];
+
+    const messageId = ctx.callbackQuery?.message?.message_id;
+    if (messageId) {
+        await ctx.telegram.editMessageReplyMarkup(
+            ctx.chat!.id,
+            messageId,
+            undefined,
+            Markup.inlineKeyboard(buttons).reply_markup
+        );
+    }
+});
+
+// Cancel All Orders
+positionComposer.action(/^pos_cancel_all:(.+)$/, async (ctx) => {
+    const symbol = ctx.match[1];
+    const { authToken, activeExchange } = ctx.session;
+
+    if (!authToken) {
+        await ctx.answerCbQuery('❌ Session expired');
+        return;
+    }
+
+    await ctx.answerCbQuery('Cancelling all orders...');
+
+    try {
+        // Get all open orders for the symbol
+        const ordersRes = await ApiClient.getOpenOrders(authToken, symbol);
+        if (!ordersRes.success || !ordersRes.data || ordersRes.data.length === 0) {
+            await ctx.reply('📋 No open orders to cancel.', {
+                ...Markup.inlineKeyboard([[Markup.button.callback('« Back', `pos_refresh:${symbol}`)]])
+            });
+            return;
+        }
+
+        // Cancel each order
+        let cancelled = 0;
+        let failed = 0;
+
+        for (const order of ordersRes.data) {
+            try {
+                const cancelRes = await ApiClient.cancelOrder(authToken, order.orderId, symbol);
+                if (cancelRes.success) cancelled++;
+                else failed++;
+            } catch {
+                failed++;
+            }
+        }
+
+        await ctx.reply(
+            `✅ **Orders Cancelled**\n\n` +
+            `Cancelled: ${cancelled}\n` +
+            `${failed > 0 ? `Failed: ${failed}` : ''}`,
+            {
+                parse_mode: 'Markdown',
+                ...Markup.inlineKeyboard([[Markup.button.callback('📊 View Position', `pos_refresh:${symbol}`)]])
+            }
+        );
+    } catch (e: any) {
+        await ctx.reply(`❌ Failed to cancel orders: ${e.message}`, {
+            ...Markup.inlineKeyboard([[Markup.button.callback('« Back', `pos_refresh:${symbol}`)]])
+        });
+    }
 });
 
 // Margin Add/Remove

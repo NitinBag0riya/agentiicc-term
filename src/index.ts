@@ -10,6 +10,8 @@ import { overviewComposer, showOverview } from './bot/composers/overview.compose
 import { positionComposer } from './bot/composers/position.composer';
 import { tradeComposer } from './bot/composers/trade.composer';
 import { searchComposer } from './bot/composers/search.composer';
+import { tpslComposer } from './bot/composers/tpsl.composer';
+import { settingsComposer } from './bot/composers/settings.composer';
 import { leverageWizard } from './bot/scenes/leverage.scene';
 import { marginWizard } from './bot/scenes/margin.scene';
 import { marketOrderScene } from './bot/scenes/market-order.scene';
@@ -55,6 +57,8 @@ async function startBot() {
   bot.use(positionComposer);
   bot.use(tradeComposer);
   bot.use(searchComposer);
+  bot.use(tpslComposer);
+  bot.use(settingsComposer);
 
   // Command: /link
   bot.command('link', (ctx) => ctx.scene.enter('link'));

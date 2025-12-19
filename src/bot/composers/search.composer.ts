@@ -1,6 +1,7 @@
 import { Composer, Markup } from 'telegraf';
 import type { BotContext } from '../types/context';
 import { ApiClient } from '../../services/apiClient';
+import { cleanupButtonMessages, trackButtonMessage } from '../utils/buttonCleanup';
 
 export const searchComposer = new Composer<BotContext>();
 
@@ -76,10 +77,13 @@ searchComposer.on('text', async (ctx, next) => {
 
         message += `\n_Select an asset to trade:_`;
 
-        await ctx.reply(message, {
+        // Cleanup old button messages before showing new results
+        await cleanupButtonMessages(ctx);
+        const sentMsg = await ctx.reply(message, {
             parse_mode: 'HTML',
             ...Markup.inlineKeyboard(buttons)
         });
+        trackButtonMessage(ctx, sentMsg.message_id);
 
     } catch (e) {
         console.error('Search Error', e);

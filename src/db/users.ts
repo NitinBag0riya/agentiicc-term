@@ -3,7 +3,13 @@ import { query } from './postgres';
 export interface User {
   id: number;
   telegram_id: number;
-  username?: string;
+  username: string;
+  settings?: {
+    defaultLeverage?: number;
+    notifications?: boolean;
+    autoRefresh?: boolean;
+  };
+  created_at: Date;
 }
 
 export interface ApiCredentials {
@@ -67,4 +73,17 @@ export async function getLinkedExchanges(userId: number): Promise<string[]> {
     [userId]
   );
   return res.rows.map(row => row.exchange_id);
+}
+export async function getUser(userId: number): Promise<User | null> {
+  const res = await query('SELECT * FROM users WHERE id = $1', [userId]);
+  return res.rows[0] || null;
+}
+
+export async function updateUserSettings(userId: number, settings: any) {
+  // Use jsonb_merge to merge partial updates if needed, or just replace
+  // ideally validation happens before calling this
+  return query(
+    `UPDATE users SET settings = settings || $2::jsonb WHERE id = $1 RETURNING *`,
+    [userId, JSON.stringify(settings)]
+  );
 }

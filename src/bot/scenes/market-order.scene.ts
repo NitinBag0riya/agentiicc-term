@@ -23,6 +23,7 @@ interface MarketOrderState {
     leverage?: number;
     marginType?: string;
     prefilledAmount?: string;  // From $50/$200 buttons
+    reduceOnly?: boolean;      // For closing positions (bypasses min notional)
     retryCount: number;
 }
 
@@ -136,17 +137,53 @@ export const marketOrderScene = new Scenes.WizardScene<BotContext>(
             return; // Stay in same step
         }
 
-        // Show confirmation
+        // Show confirmation - Enhanced legacy-style
         const action = state.side === 'BUY' ? 'Long' : 'Short';
+        const sideEmoji = state.side === 'BUY' ? '🟢' : '🔴';
+        const riskEmoji = state.side === 'BUY' ? '🟡' : '🔴';
         const formattedAmount = formatParsedAmount(parsed, state.symbol);
+        const baseAsset = state.symbol.replace(/USDT$|USD$|PERP$/, '');
+        const leverage = state.leverage || 5;
+        const marginType = state.marginType || 'Cross';
+
+        // Calculate values differently for Cross vs Isolated
+        let calculatedSection = '';
+        if (parsed.type === 'USD' && parsed.value) {
+            const usdAmount = parseFloat(String(parsed.value));
+            const marginRequired = usdAmount / leverage;
+
+            calculatedSection = `\n━━━━━━━━━━━━━━━━━━━━━━\n` +
+                `🧮 **Calculated**\n` +
+                `Position Value: ~$${usdAmount.toFixed(2)}\n` +
+                `Margin Required: ~$${marginRequired.toFixed(2)}\n`;
+
+            if (marginType === 'Isolated') {
+                // Isolated: Margin is locked to this position only
+                calculatedSection +=
+                    `Max Loss: -$${marginRequired.toFixed(2)} (isolated)\n` +
+                    `💡 _Margin locked to this position only_`;
+            } else {
+                // Cross: Margin shared across all positions
+                calculatedSection +=
+                    `Max Loss: Your entire available balance\n` +
+                    `⚠️ _Cross margin - uses full available balance_`;
+            }
+        }
 
         await ctx.reply(
-            `🛡️ **Confirm ${action}**\n\n` +
-            `Asset: **${state.symbol}**\n` +
-            `Amount: **${formattedAmount}**\n` +
-            `Leverage: ${state.leverage || 5}x ${state.marginType || 'Cross'}\n` +
-            `Order Type: Market\n\n` +
-            `Proceed?`,
+            `${riskEmoji} **Confirm ${action} Order**\n\n` +
+            `━━━━━━━━━━━━━━━━━━━━━━\n` +
+            `📊 **Order Details**\n` +
+            `Symbol: **${state.symbol}**\n` +
+            `Side: ${sideEmoji} ${action}\n` +
+            `Type: MARKET\n\n` +
+            `📝 **Input**\n` +
+            `Amount: **${formattedAmount}**\n\n` +
+            `⚙️ **Settings**\n` +
+            `Leverage: ${leverage}x\n` +
+            `Margin: ${marginType}` +
+            `${calculatedSection}\n\n` +
+            `⚠️ Please review carefully before confirming.`,
             {
                 parse_mode: 'Markdown',
                 ...Markup.inlineKeyboard([
@@ -198,6 +235,11 @@ export const marketOrderScene = new Scenes.WizardScene<BotContext>(
                         side: state.side,
                         type: 'MARKET',
                     };
+
+                    // Add reduceOnly flag for position closes (bypasses min notional check)
+                    if (state.reduceOnly) {
+                        orderParams.reduceOnly = true;
+                    }
 
                     // For USD/Percent, we need to calculate quantity with proper precision
                     if (quantityParams.quantity) {

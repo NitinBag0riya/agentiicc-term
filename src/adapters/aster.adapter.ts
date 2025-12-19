@@ -364,19 +364,35 @@ export class AsterAdapter implements ExchangeAdapter {
       const data: any = await this.request('/fapi/v1/positionRisk');
       const positions = Array.isArray(data) ? data : [];
 
+      // CRITICAL: Do NOT filter out zero-size positions!
+      // We need ALL positions to read their leverage/margin settings
+      // The UI will filter by size when needed
       return positions
         .filter((p: any) => !symbol || p.symbol === symbol)
-        .filter((p: any) => parseFloat(p.positionAmt) !== 0)
-        .map((p: any) => ({
-          symbol: p.symbol,
-          size: p.positionAmt,
-          entryPrice: p.entryPrice,
-          markPrice: p.markPrice,
-          unrealizedPnl: p.unRealizedProfit,
-          side: parseFloat(p.positionAmt) > 0 ? 'LONG' : 'SHORT',
-          leverage: p.leverage,
-          liquidationPrice: p.liquidationPrice
-        }));
+        .map((p: any) => {
+          const size = parseFloat(p.positionAmt) || 0;
+          const markPrice = parseFloat(p.markPrice) || 0;
+          const leverage = parseInt(p.leverage) || 1;
+          const notionalVal = p.notional ? parseFloat(p.notional) : Math.abs(size * markPrice);
+          const marginVal = p.initialMargin ? parseFloat(p.initialMargin) : (notionalVal / leverage);
+
+          return {
+            symbol: p.symbol,
+            size: p.positionAmt,
+            entryPrice: p.entryPrice,
+            markPrice: p.markPrice,
+            unrealizedPnl: p.unRealizedProfit,
+            side: size > 0 ? 'LONG' : 'SHORT',
+            leverage: String(leverage),
+            liquidationPrice: p.liquidationPrice,
+            // Critical: Include these fields that were missing
+            notional: String(notionalVal),
+            initialMargin: String(marginVal),
+            marginType: p.marginType || 'cross',
+            isolatedMargin: p.isolatedMargin || '0',
+            positionSide: p.positionSide || 'BOTH'
+          };
+        });
     } catch (error) {
       throw new Error(`Failed to fetch positions: ${error}`);
     }
