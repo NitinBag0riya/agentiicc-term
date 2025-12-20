@@ -35,21 +35,6 @@ async function refreshDashboard(ctx: BotContext) {
     const balance = parseFloat(account.totalBalance).toFixed(2);
     const available = parseFloat(account.availableBalance).toFixed(2);
     
-    // Format Positions (if any)
-    let positionsText = '';
-    if (account.positions && account.positions.length > 0) {
-      positionsText = '\n\n**Active Positions:**\n';
-      for (const pos of account.positions) {
-        const sideIcon = pos.side === 'LONG' ? '🟢' : '🔴';
-        const pnl = parseFloat(pos.unrealizedPnl).toFixed(2);
-        const pnlSign = parseFloat(pos.unrealizedPnl) >= 0 ? '+' : '';
-        positionsText += `${sideIcon} **${pos.symbol}** ${pos.leverage}x\n` +
-                         `PnL: ${pnlSign}$${pnl}\n`;
-      }
-    } else {
-      positionsText = '\n\n_No active positions_';
-    }
-
     const dashboardMessage = 
       `🏰 **CITADEL OVERVIEW**
       
@@ -57,15 +42,28 @@ async function refreshDashboard(ctx: BotContext) {
 
 💰 **Balance:** $${balance}
 💵 **Available:** $${available}
-${positionsText}
 
-_Type a symbol (e.g., "BTC") to trade_`;
+_Select a position to manage or search for an asset._`;
+
+    // Buttons: Positions as buttons
+    const positionButtons = (account.positions || []).slice(0, 5).map(pos => {
+        const sideIcon = pos.side === 'LONG' ? '🟢' : '🔴';
+        const pnl = parseFloat(pos.unrealizedPnl).toFixed(2);
+        const pnlSign = parseFloat(pos.unrealizedPnl) >= 0 ? '+' : '';
+        return [Markup.button.callback(`${sideIcon} ${pos.symbol} ${pos.leverage}x | PnL: ${pnlSign}$${pnl}`, `trade_${pos.symbol}`)];
+    });
+
+    if (account.positions && account.positions.length > 5) {
+        positionButtons.push([Markup.button.callback(`...and ${account.positions.length - 5} more`, 'view_all_positions')]);
+    }
 
     // Buttons as per DFD
     const keyboard = Markup.inlineKeyboard([
-      [Markup.button.callback('📈 Trade / Search', 'search_prompt')],
-      [Markup.button.callback('🔄 Refresh', 'refresh')],
-      [Markup.button.callback('⚙️ Settings', 'settings'), Markup.button.callback('❓ Help', 'help')]
+      ...positionButtons,
+      [Markup.button.callback('🔎 Trade / Search', 'search_prompt')],
+      [Markup.button.callback('🌎 All Assets', 'search_prompt')], // Simplified to prompt
+      [Markup.button.callback('⚙️ Settings', 'settings'), Markup.button.callback('❓ Help', 'help')],
+      [Markup.button.callback('🔄 Refresh', 'refresh')]
     ]);
 
     // Update message
@@ -101,7 +99,7 @@ citadelScene.action('search_prompt', async (ctx) => {
 
 citadelScene.action('settings', async (ctx) => {
   await ctx.answerCbQuery();
-  await ctx.reply('⚙️ Settings coming in Module 3');
+  return ctx.scene.enter('settings');
 });
 
 citadelScene.action('help', async (ctx) => {
@@ -158,12 +156,7 @@ citadelScene.action(/trade_(.+)/, async (ctx) => {
   await ctx.answerCbQuery();
   
   // Transition to Trading Scene (Module 2)
-  // For now, just a placeholder as trading scene isn't ready
-  // Once trading.scene.ts is created, we will enter it:
-  // ctx.scene.enter('trading', { symbol });
-  
-  await ctx.reply(`🚀 Opening trading terminal for **${symbol}**...`);
-  // TODO: ctx.scene.enter('trading', { symbol });
+  return ctx.scene.enter('trading', { symbol });
 });
 
 citadelScene.action('cancel_search', async (ctx) => {

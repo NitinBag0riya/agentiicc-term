@@ -22,15 +22,21 @@ export function createApiServer(port: number = 3000, bot?: Telegraf<BotContext>)
 
     // ============ WEBHOOK ============
     .post('/webhook', async ({ body, headers, set }: any) => {
+      console.log('[Webhook] 📩 Received update:', body?.update_id);
+      
       if (!bot) {
+        console.error('[Webhook] ❌ Bot not initialized');
         set.status = 503;
         return { error: 'Bot not initialized' };
       }
 
       const secret = headers['x-telegram-bot-api-secret-token'];
       const expectedSecret = process.env.WEBHOOK_SECRET;
+      
+      // console.log('[Webhook] Secret check:', { received: !!secret, expected: !!expectedSecret, match: secret === expectedSecret });
 
       if (secret !== expectedSecret) {
+        console.error('[Webhook] ⛔ Forbidden: Secret mismatch');
         set.status = 403;
         return { error: 'Forbidden' };
       }
@@ -38,8 +44,9 @@ export function createApiServer(port: number = 3000, bot?: Telegraf<BotContext>)
       // Handle update
       try {
         await bot.handleUpdate(body);
+        console.log('[Webhook] ✅ Update processed');
       } catch (err) {
-        console.error('[Webhook] Error:', err);
+        console.error('[Webhook] ❌ Error processing update:', err);
       }
 
       return { ok: true };

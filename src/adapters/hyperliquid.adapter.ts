@@ -545,7 +545,9 @@ export class HyperliquidAdapter implements ExchangeAdapter {
       name: this.fromExchangeSymbol(a.name),
       baseAsset: this.fromExchangeSymbol(a.name),
       quoteAsset: 'USD',
-      minQuantity: '0.001',
+      minQuantity: a.szDecimals ? (1 / Math.pow(10, a.szDecimals)).toFixed(a.szDecimals) : '0.00001',
+      stepSize: a.szDecimals ? (1 / Math.pow(10, a.szDecimals)).toFixed(a.szDecimals) : '0.00001',
+      maxQuantity: undefined,
       tickSize: String(Math.pow(10, -a.szDecimals))
     }));
   }
@@ -753,4 +755,3 @@ export class HyperliquidAdapter implements ExchangeAdapter {
     }
   }
 }
-

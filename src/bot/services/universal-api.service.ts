@@ -109,4 +109,55 @@ export class UniversalApiService {
     const adapter = await this.getAdapter(userId, exchangeId);
     return await adapter.getOpenOrders(symbol);
   }
+  /**
+   * Set TP/SL for a position
+   */
+  static async setPositionTPSL(userId: number, exchangeId: string, symbol: string, tpPrice?: string, slPrice?: string): Promise<{ success: boolean; message: string }> {
+    const adapter = await this.getAdapter(userId, exchangeId);
+    return await adapter.setPositionTPSL(symbol, tpPrice, slPrice);
+  }
+
+  /**
+   * Update position margin (Add/Remove)
+   */
+  static async updatePositionMargin(userId: number, exchangeId: string, symbol: string, amount: string, type: 'ADD' | 'REMOVE'): Promise<{ success: boolean; message: string }> {
+    const adapter = await this.getAdapter(userId, exchangeId);
+    return await adapter.updatePositionMargin(symbol, amount, type);
+  }
+
+  /**
+   * Set Leverage
+   */
+  static async setLeverage(userId: number, exchangeId: string, symbol: string, leverage: number): Promise<{ success: boolean; message?: string }> {
+    const adapter = await this.getAdapter(userId, exchangeId);
+    return await adapter.setLeverage(symbol, leverage);
+  }
+
+  /**
+   * Set Margin Mode
+   */
+  static async setMarginMode(userId: number, exchangeId: string, symbol: string, mode: 'CROSS' | 'ISOLATED'): Promise<{ success: boolean; message?: string }> {
+    const adapter = await this.getAdapter(userId, exchangeId);
+    return await adapter.setMarginMode(symbol, mode);
+  }
+
+  /**
+   * Get Margin Mode
+   */
+  static async getMarginMode(userId: number, exchangeId: string, symbol: string): Promise<'CROSS' | 'ISOLATED'> {
+      const adapter = await this.getAdapter(userId, exchangeId);
+      // Optional method check
+      if (adapter.getMarginMode) {
+          return await adapter.getMarginMode(symbol);
+      }
+      return 'CROSS'; // Default
+  }
+
+  /**
+   * Cancel All Orders
+   */
+  static async cancelAllOrders(userId: number, exchangeId: string, symbol: string): Promise<{ success: boolean; canceledCount: number; message: string }> {
+    const adapter = await this.getAdapter(userId, exchangeId);
+    return await adapter.cancelAllOrders(symbol);
+  }
 }

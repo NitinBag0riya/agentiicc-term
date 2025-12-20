@@ -178,17 +178,16 @@ export const linkScene = new Scenes.WizardScene<BotContext>(
       ctx.session.isLinked = true;
       
       await ctx.reply(
-        `✅ **${state.exchange === 'aster' ? 'Aster' : 'Hyperliquid'} Linked!**\n\n` +
-        'Your credentials are encrypted and stored securely.\n\n' +
-        'You can now view your account details!',
-        { 
-          parse_mode: 'Markdown',
-          ...Markup.inlineKeyboard([
-            [Markup.button.callback('📊 View Account', 'view_account')],
-            [Markup.button.callback('📋 Menu', 'menu')]
-          ])
-        }
+        `✅ **${state.exchange === 'aster' ? 'Aster' : 'Hyperliquid'} Linked!**
+
+Your credentials are encrypted and stored securely.
+
+Redirecting to Citadel...`,
+        { parse_mode: 'Markdown' }
       );
+      
+      // Enter Citadel Scene
+      return ctx.scene.enter('citadel');
       
     } catch (error: any) {
       await ctx.reply(

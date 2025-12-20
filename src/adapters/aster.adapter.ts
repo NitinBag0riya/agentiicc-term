@@ -434,6 +434,7 @@ export class AsterAdapter implements ExchangeAdapter {
         quoteAsset: s.quoteAsset,
         minQuantity: s.filters?.find((f: any) => f.filterType === 'LOT_SIZE')?.minQty,
         maxQuantity: s.filters?.find((f: any) => f.filterType === 'LOT_SIZE')?.maxQty,
+        stepSize: s.filters?.find((f: any) => f.filterType === 'LOT_SIZE')?.stepSize,
         tickSize: s.filters?.find((f: any) => f.filterType === 'PRICE_FILTER')?.tickSize
       }));
     } catch (error) {

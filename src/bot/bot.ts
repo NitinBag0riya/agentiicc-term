@@ -9,6 +9,9 @@ import { createSessionMiddleware } from './middleware/session';
 import { createReferralMiddleware, needsReferralCode, validateReferralCode, createUserWithReferral } from './middleware/referral';
 import { linkScene } from './scenes/link.scene';
 import { unlinkScene } from './scenes/unlink.scene';
+import { citadelScene } from './scenes/citadel.scene';
+import { tradingScene } from './scenes/trading.scene';
+import { settingsScene } from './scenes/settings.scene';
 import { setBotInfo } from './utils/botInfo';
 import { getOrCreateUser } from '../db/users';
 import { getPostgres } from '../db/postgres';
@@ -35,11 +38,13 @@ _Your Unified Trading Terminal_
 /**
  * Generate inline keyboard for unlinked users
  */
-function getUnlinkedKeyboard(exchange: string = 'aster') {
-  return Markup.inlineKeyboard([
-    [Markup.button.callback('🔗 Link via API Key', 'start_link')],
-    [Markup.button.callback('❓ Help', 'help')],
+export function getUnlinkedKeyboard(exchange: string = 'aster', userId?: number) {
+  const keyboard = Markup.inlineKeyboard([
+    [Markup.button.url('✨ Connect via Wallet', `https://your-mini-app.com?startapp=${userId}`)],
+    [Markup.button.callback('🏰 Enter Citadel', 'enter_citadel')],
+    [Markup.button.callback('🔑 Link API Key', 'link_exchange')]
   ]);
+  return keyboard;
 }
 
 /**
@@ -60,6 +65,9 @@ export function createBot(token: string): Telegraf<BotContext> {
   const stage = new Scenes.Stage<BotContext>([
     linkScene,
     unlinkScene,
+    citadelScene,
+    tradingScene,
+    settingsScene,
   ]);
   bot.use(stage.middleware());
 
@@ -79,21 +87,8 @@ export function createBot(token: string): Telegraf<BotContext> {
  */
 export async function showMenu(ctx: BotContext) {
   if (ctx.session.isLinked) {
-    // Show Citadel overview (will be implemented in Module 2)
-    await ctx.reply(
-      `📊 **Citadel Overview**
-
-Exchange: ${ctx.session.activeExchange?.toUpperCase()}
-
-_Trading interface coming in Module 2_`,
-      {
-        parse_mode: 'Markdown',
-        ...Markup.inlineKeyboard([
-          [Markup.button.callback('🔄 Refresh', 'refresh_overview')],
-          [Markup.button.callback('⚙️ Settings', 'settings')],
-        ])
-      }
-    );
+    // Show Citadel Overview (Module 2)
+    return ctx.scene.enter('citadel');
   } else {
     await ctx.reply(WELCOME_MESSAGE_UNLINKED, {
       parse_mode: 'Markdown',
@@ -240,9 +235,15 @@ Share your code to invite friends!
   // ==================== Button Handlers ====================
 
   // Start link flow
-  bot.action('start_link', async ctx => {
+  bot.action(['start_link', 'link_exchange'], async ctx => {
     await ctx.answerCbQuery();
     return ctx.scene.enter('link');
+  });
+
+  // Enter Citadel
+  bot.action('enter_citadel', async ctx => {
+    await ctx.answerCbQuery();
+    return ctx.scene.enter('citadel');
   });
 
   // Help
@@ -273,20 +274,10 @@ Share your code to invite friends!
     await showMenu(ctx);
   });
 
-  // Settings (placeholder for Module 3)
+  // Settings
   bot.action('settings', async ctx => {
     await ctx.answerCbQuery();
-    await ctx.editMessageText(
-      `⚙️ **Settings**
-
-_Settings menu coming in Module 3_`,
-      {
-        parse_mode: 'Markdown',
-        ...Markup.inlineKeyboard([
-          [Markup.button.callback('« Back', 'menu')],
-        ]),
-      }
-    );
+    return ctx.scene.enter('settings');
   });
 
   console.log('[Bot] ✅ Commands setup complete');

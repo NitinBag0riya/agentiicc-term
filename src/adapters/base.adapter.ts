@@ -10,7 +10,6 @@ export interface ExchangeAdapter {
   // Order operations
   placeOrder(params: PlaceOrderParams): Promise<OrderResult>;
   cancelOrder(orderId: string, symbol?: string): Promise<CancelResult>;
-  cancelAllOrders?(symbol?: string): Promise<{ success: boolean; canceledCount: number; message: string }>;
   getOpenOrders(symbol?: string): Promise<Order[]>;
   getOrderHistory(symbol?: string, limit?: number): Promise<Order[]>;
   getFills(symbol?: string, limit?: number): Promise<Fill[]>;
@@ -22,9 +21,12 @@ export interface ExchangeAdapter {
   updatePositionMargin(symbol: string, amount: string, type: 'ADD' | 'REMOVE'): Promise<{ success: boolean; message: string }>;
   
   // Margin & Leverage operations
-  setLeverage?(symbol: string, leverage: number): Promise<{ success: boolean; message?: string }>;
-  setMarginMode?(symbol: string, mode: 'CROSS' | 'ISOLATED'): Promise<{ success: boolean; message?: string }>;
-  getMarginMode?(symbol: string): Promise<'CROSS' | 'ISOLATED'>;
+  setLeverage(symbol: string, leverage: number): Promise<{ success: boolean; message?: string }>;
+  setMarginMode(symbol: string, mode: 'CROSS' | 'ISOLATED'): Promise<{ success: boolean; message?: string }>;
+  getMarginMode(symbol: string): Promise<'CROSS' | 'ISOLATED'>;
+
+  // Order operations extension
+  cancelAllOrders(symbol?: string): Promise<{ success: boolean; canceledCount: number; message: string }>;
   
   // Market data
   getOrderbook(symbol: string, depth?: number): Promise<Orderbook>;
@@ -130,6 +132,7 @@ export interface Asset {
   quoteAsset: string;
   minQuantity?: string;
   maxQuantity?: string;
+  stepSize?: string;
   tickSize?: string;
 }
 
