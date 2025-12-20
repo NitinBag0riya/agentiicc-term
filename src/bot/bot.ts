@@ -11,7 +11,7 @@ import { linkScene } from './scenes/link.scene';
 import { unlinkScene } from './scenes/unlink.scene';
 import { setBotInfo } from './utils/botInfo';
 import { getOrCreateUser } from '../db/users';
-import { getPostgres } from '../../db/postgres';
+import { getPostgres } from '../db/postgres';
 
 /**
  * Welcome message for unlinked users (DFD: welcome screen)
