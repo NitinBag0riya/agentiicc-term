@@ -1,9 +1,6 @@
-/**
- * Unified Trading API Server
- * Provides normalized endpoints that work across all exchanges
- */
-
 import { Elysia } from 'elysia';
+import type { Telegraf } from 'telegraf';
+import type { BotContext } from '../bot/types/context';
 import { AdapterFactory } from '../adapters/factory';
 import { SessionStore } from '../middleware/session';
 import { requireAuth } from '../middleware/auth';
@@ -11,7 +8,7 @@ import { getOrCreateUser, storeApiCredentials, getLinkedExchanges } from '../db/
 import { encrypt } from '../utils/encryption';
 import type { PlaceOrderParams } from '../adapters/base.adapter';
 
-export function createApiServer(port: number = 3000) {
+export function createApiServer(port: number = 3000, bot?: Telegraf<BotContext>) {
   const app = new Elysia()
     // CORS
     .onRequest(({ set }) => {
@@ -22,6 +19,31 @@ export function createApiServer(port: number = 3000) {
 
     // Health check
     .get('/health', () => ({ status: 'ok', timestamp: Date.now() }))
+
+    // ============ WEBHOOK ============
+    .post('/webhook', async ({ body, headers, set }: any) => {
+      if (!bot) {
+        set.status = 503;
+        return { error: 'Bot not initialized' };
+      }
+
+      const secret = headers['x-telegram-bot-api-secret-token'];
+      const expectedSecret = process.env.WEBHOOK_SECRET;
+
+      if (secret !== expectedSecret) {
+        set.status = 403;
+        return { error: 'Forbidden' };
+      }
+
+      // Handle update
+      try {
+        await bot.handleUpdate(body);
+      } catch (err) {
+        console.error('[Webhook] Error:', err);
+      }
+
+      return { ok: true };
+    })
 
     // ============ USER & CREDENTIALS ============
 

@@ -92,3 +92,15 @@ export async function initSchema() {
 
   console.log('✅ Database Schema Initialized');
 }
+
+export function getPostgres(): Pool {
+  return getPool();
+}
+
+export async function disconnectPostgres(): Promise<void> {
+  if (globalPool) {
+    await globalPool.end();
+    globalPool = null;
+    console.log('[DB] PostgreSQL disconnected');
+  }
+}
