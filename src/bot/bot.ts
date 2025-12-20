@@ -17,14 +17,26 @@ import { getPostgres } from '../db/postgres';
  * Welcome message for unlinked users (DFD: welcome screen)
  */
 const WELCOME_MESSAGE_UNLINKED =
-  '👋 **Welcome to AgentiFi Trading Bot**\\n' +
-  '_Your Unified Trading Terminal_\\n\\n' +
-  '**Choose How to Connect:**\\n\\n' +
-  '🔗 **API Key** - Connect via exchange API credentials\\n' +
-  '🔐 **WalletConnect** - One-click wallet connection (Coming Soon)\\n\\n' +
-  '🔒 _Your credentials are encrypted and stored securely_\\n\\n' +
-  '**Available Commands:**\\n' +
-  '/menu - Open main menu\\n' +
+  '👋 **Welcome to AgentiFi Trading Bot**
+' +
+  '_Your Unified Trading Terminal_
+
+' +
+  '**Choose How to Connect:**
+
+' +
+  '🔗 **API Key** - Connect via exchange API credentials
+' +
+  '🔐 **WalletConnect** - One-click wallet connection (Coming Soon)
+
+' +
+  '🔒 _Your credentials are encrypted and stored securely_
+
+' +
+  '**Available Commands:**
+' +
+  '/menu - Open main menu
+' +
   '/help - Get help';
 
 /**
@@ -76,8 +88,12 @@ export async function showMenu(ctx: BotContext) {
   if (ctx.session.isLinked) {
     // Show Citadel overview (will be implemented in Module 2)
     await ctx.reply(
-      '📊 **Citadel Overview**\\n\\n' +
-      `Exchange: ${ctx.session.activeExchange?.toUpperCase()}\\n\\n` +
+      '📊 **Citadel Overview**
+
+' +
+      `Exchange: ${ctx.session.activeExchange?.toUpperCase()}
+
+` +
       '_Trading interface coming in Module 2_',
       {
         parse_mode: 'Markdown',
@@ -117,11 +133,19 @@ export function setupBot(bot: Telegraf<BotContext>): void {
       // User needs referral code
       if (!payload) {
         await ctx.reply(
-          '🔒 **Welcome to AgentiFi!**\\n\\n' +
-            'This bot requires a **referral code** to access.\\n\\n' +
-            '**How to get started:**\\n' +
-            '1️⃣ Get a referral code from an existing user\\n' +
-            '2️⃣ Send `/start YOUR_CODE` to activate access\\n\\n' +
+          '🔒 **Welcome to AgentiFi!**
+
+' +
+            'This bot requires a **referral code** to access.
+
+' +
+            '**How to get started:**
+' +
+            '1️⃣ Get a referral code from an existing user
+' +
+            '2️⃣ Send `/start YOUR_CODE` to activate access
+
+' +
             '💡 Example: `/start ABC12XYZ`',
           {
             parse_mode: 'Markdown',
@@ -138,8 +162,12 @@ export function setupBot(bot: Telegraf<BotContext>): void {
 
       if (!validation.valid) {
         await ctx.reply(
-          '❌ **Invalid Referral Code**\\n\\n' +
-            `The code \`${payload}\` is not valid.\\n\\n` +
+          '❌ **Invalid Referral Code**
+
+' +
+            `The code \`${payload}\` is not valid.
+
+` +
             'Try again with: `/start VALID_CODE`',
           { parse_mode: 'Markdown' }
         );
@@ -160,12 +188,22 @@ export function setupBot(bot: Telegraf<BotContext>): void {
       ctx.session.username = username || undefined;
 
       await ctx.reply(
-        '✅ **Welcome to AgentiFi!**\\n\\n' +
-          `You've successfully joined using ${validation.referrerUsername}'s referral code!\\n\\n` +
-          `🎁 **Your Referral Code:** \`${result.ownReferralCode}\`\\n\\n` +
-          'Share your code to invite friends!\\n\\n' +
-          '**Next Steps:**\\n' +
-          '1️⃣ Link your trading account (/menu)\\n' +
+        '✅ **Welcome to AgentiFi!**
+
+' +
+          `You've successfully joined using ${validation.referrerUsername}'s referral code!
+
+` +
+          `🎁 **Your Referral Code:** \`${result.ownReferralCode}\`
+
+` +
+          'Share your code to invite friends!
+
+' +
+          '**Next Steps:**
+' +
+          '1️⃣ Link your trading account (/menu)
+' +
           '2️⃣ Start trading!',
         {
           parse_mode: 'Markdown',
@@ -201,18 +239,33 @@ export function setupBot(bot: Telegraf<BotContext>): void {
   // ==================== /help Command ====================
   bot.command('help', async ctx => {
     const helpMessage =
-      '📚 **AgentiFi Trading Bot Help**\\n\\n' +
-      '**🔗 Getting Started:**\\n' +
-      '1️⃣ Use /menu and click "Link via API Key"\\n' +
-      '2️⃣ Enter your exchange API credentials\\n' +
-      '3️⃣ Start trading!\\n\\n' +
-      '**🎯 Features:**\\n' +
-      '• Market & Limit Orders\\n' +
-      '• Take Profit & Stop Loss\\n' +
-      '• Futures Trading\\n' +
-      '• Position Management\\n\\n' +
-      '**🔧 Commands:**\\n' +
-      '/menu - Open main menu\\n' +
+      '📚 **AgentiFi Trading Bot Help**
+
+' +
+      '**🔗 Getting Started:**
+' +
+      '1️⃣ Use /menu and click "Link via API Key"
+' +
+      '2️⃣ Enter your exchange API credentials
+' +
+      '3️⃣ Start trading!
+
+' +
+      '**🎯 Features:**
+' +
+      '• Market & Limit Orders
+' +
+      '• Take Profit & Stop Loss
+' +
+      '• Futures Trading
+' +
+      '• Position Management
+
+' +
+      '**🔧 Commands:**
+' +
+      '/menu - Open main menu
+' +
       '/help - Show this help';
 
     await ctx.reply(helpMessage, { parse_mode: 'Markdown' });
@@ -230,13 +283,22 @@ export function setupBot(bot: Telegraf<BotContext>): void {
   bot.action('help', async ctx => {
     await ctx.answerCbQuery();
     const helpMessage =
-      '📚 **AgentiFi Trading Bot Help**\\n\\n' +
-      '**🔗 Getting Started:**\\n' +
-      '1️⃣ Use /menu and click "Link via API Key"\\n' +
-      '2️⃣ Enter your exchange API credentials\\n' +
-      '3️⃣ Start trading!\\n\\n' +
-      '**🔧 Commands:**\\n' +
-      '/menu - Open main menu\\n' +
+      '📚 **AgentiFi Trading Bot Help**
+
+' +
+      '**🔗 Getting Started:**
+' +
+      '1️⃣ Use /menu and click "Link via API Key"
+' +
+      '2️⃣ Enter your exchange API credentials
+' +
+      '3️⃣ Start trading!
+
+' +
+      '**🔧 Commands:**
+' +
+      '/menu - Open main menu
+' +
       '/help - Show this help';
 
     await ctx.editMessageText(helpMessage, {
@@ -256,7 +318,9 @@ export function setupBot(bot: Telegraf<BotContext>): void {
   bot.action('settings', async ctx => {
     await ctx.answerCbQuery();
     await ctx.editMessageText(
-      '⚙️ **Settings**\\n\\n' +
+      '⚙️ **Settings**
+
+' +
       '_Settings menu coming in Module 3_',
       {
         parse_mode: 'Markdown',

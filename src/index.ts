@@ -14,7 +14,8 @@ dotenv.config();
 
 async function startApp() {
   try {
-    console.log('🚀 Starting AgentiFi Trading Bot...\\n');
+    console.log('🚀 Starting AgentiFi Trading Bot...
+');
 
     // 1. Connect to databases
     console.log('[DB] Connecting to PostgreSQL...');
