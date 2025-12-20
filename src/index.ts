@@ -53,18 +53,42 @@ async function startApp() {
     
     const app = createApiServer(port, bot);
     
-    app.listen(port, () => {
-      console.log('\\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    app.listen(port, async () => {
+      console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
       console.log(`✅ AgentiFi Bot + API Server running`);
       console.log(`📡 Port: ${port}`);
       console.log(`🤖 Bot: @${botInfo.username}`);
-      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\\n');
+      
+      // Set webhook if WEBHOOK_URL is provided
+      const webhookUrl = process.env.WEBHOOK_URL;
+      if (webhookUrl) {
+        try {
+          await bot.telegram.setWebhook(`${webhookUrl}/webhook`, {
+            secret_token: process.env.WEBHOOK_SECRET,
+          });
+          console.log(`🔗 Webhook set: ${webhookUrl}/webhook`);
+        } catch (error) {
+          console.error('⚠️  Failed to set webhook:', error);
+        }
+      } else {
+        console.log('⚠️  WEBHOOK_URL not set - bot will not receive updates');
+      }
+      
+      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
     });
 
     // 6. Graceful shutdown
     const shutdown = async () => {
-      console.log('\\n📡 Shutting down gracefully...');
-      await bot.stop();
+      console.log('\n📡 Shutting down gracefully...');
+      try {
+        // Only stop bot if webhook was set
+        if (process.env.WEBHOOK_URL) {
+          await bot.telegram.deleteWebhook();
+          console.log('✅ Webhook deleted');
+        }
+      } catch (error) {
+        console.error('⚠️  Error during shutdown:', error);
+      }
       await disconnectRedis();
       await disconnectPostgres();
       process.exit(0);
