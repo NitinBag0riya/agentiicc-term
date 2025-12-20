@@ -121,13 +121,11 @@ export function createReferralMiddleware(): Middleware<BotContext> {
     
     if (needs) {
       await ctx.reply(
-        '🔒 **Access Required**
+        `🔒 **Access Required**
 
-' +
-        'Please use `/start YOUR_REFERRAL_CODE` to activate your account.
+Please use \`/start YOUR_REFERRAL_CODE\` to activate your account.
 
-' +
-        'Don\'t have a code? Ask a friend who uses this bot!',
+Don't have a code? Ask a friend who uses this bot!`,
         { parse_mode: 'Markdown' }
       );
       return; // Block further processing

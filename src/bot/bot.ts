@@ -17,27 +17,20 @@ import { getPostgres } from '../db/postgres';
  * Welcome message for unlinked users (DFD: welcome screen)
  */
 const WELCOME_MESSAGE_UNLINKED =
-  '👋 **Welcome to AgentiFi Trading Bot**
-' +
-  '_Your Unified Trading Terminal_
+  `👋 **Welcome to AgentiFi Trading Bot**
 
-' +
-  '**Choose How to Connect:**
+_Your Unified Trading Terminal_
 
-' +
-  '🔗 **API Key** - Connect via exchange API credentials
-' +
-  '🔐 **WalletConnect** - One-click wallet connection (Coming Soon)
+**Choose How to Connect:**
 
-' +
-  '🔒 _Your credentials are encrypted and stored securely_
+🔗 **API Key** - Connect via exchange API credentials
+🔐 **WalletConnect** - One-click wallet connection (Coming Soon)
 
-' +
-  '**Available Commands:**
-' +
-  '/menu - Open main menu
-' +
-  '/help - Get help';
+🔒 _Your credentials are encrypted and stored securely_
+
+**Available Commands:**
+/menu - Open main menu
+/help - Get help`;
 
 /**
  * Generate inline keyboard for unlinked users
@@ -88,13 +81,11 @@ export async function showMenu(ctx: BotContext) {
   if (ctx.session.isLinked) {
     // Show Citadel overview (will be implemented in Module 2)
     await ctx.reply(
-      '📊 **Citadel Overview**
+      `📊 **Citadel Overview**
 
-' +
-      `Exchange: ${ctx.session.activeExchange?.toUpperCase()}
+Exchange: ${ctx.session.activeExchange?.toUpperCase()}
 
-` +
-      '_Trading interface coming in Module 2_',
+_Trading interface coming in Module 2_`,
       {
         parse_mode: 'Markdown',
         ...Markup.inlineKeyboard([
@@ -133,20 +124,15 @@ export function setupBot(bot: Telegraf<BotContext>): void {
       // User needs referral code
       if (!payload) {
         await ctx.reply(
-          '🔒 **Welcome to AgentiFi!**
+          `🔒 **Welcome to AgentiFi!**
 
-' +
-            'This bot requires a **referral code** to access.
+This bot requires a **referral code** to access.
 
-' +
-            '**How to get started:**
-' +
-            '1️⃣ Get a referral code from an existing user
-' +
-            '2️⃣ Send `/start YOUR_CODE` to activate access
+**How to get started:**
+1️⃣ Get a referral code from an existing user
+2️⃣ Send \`/start YOUR_CODE\` to activate access
 
-' +
-            '💡 Example: `/start ABC12XYZ`',
+💡 Example: \`/start ABC12XYZ\``,
           {
             parse_mode: 'Markdown',
             ...Markup.inlineKeyboard([
@@ -162,13 +148,11 @@ export function setupBot(bot: Telegraf<BotContext>): void {
 
       if (!validation.valid) {
         await ctx.reply(
-          '❌ **Invalid Referral Code**
+          `❌ **Invalid Referral Code**
 
-' +
-            `The code \`${payload}\` is not valid.
+The code \`${payload}\` is not valid.
 
-` +
-            'Try again with: `/start VALID_CODE`',
+Try again with: \`/start VALID_CODE\``,
           { parse_mode: 'Markdown' }
         );
         return;
@@ -188,23 +172,17 @@ export function setupBot(bot: Telegraf<BotContext>): void {
       ctx.session.username = username || undefined;
 
       await ctx.reply(
-        '✅ **Welcome to AgentiFi!**
+        `✅ **Welcome to AgentiFi!**
 
-' +
-          `You've successfully joined using ${validation.referrerUsername}'s referral code!
+You've successfully joined using ${validation.referrerUsername}'s referral code!
 
-` +
-          `🎁 **Your Referral Code:** \`${result.ownReferralCode}\`
+🎁 **Your Referral Code:** \`${result.ownReferralCode}\`
 
-` +
-          'Share your code to invite friends!
+Share your code to invite friends!
 
-' +
-          '**Next Steps:**
-' +
-          '1️⃣ Link your trading account (/menu)
-' +
-          '2️⃣ Start trading!',
+**Next Steps:**
+1️⃣ Link your trading account (/menu)
+2️⃣ Start trading!`,
         {
           parse_mode: 'Markdown',
           ...Markup.inlineKeyboard([
@@ -239,34 +217,22 @@ export function setupBot(bot: Telegraf<BotContext>): void {
   // ==================== /help Command ====================
   bot.command('help', async ctx => {
     const helpMessage =
-      '📚 **AgentiFi Trading Bot Help**
+      `📚 **AgentiFi Trading Bot Help**
 
-' +
-      '**🔗 Getting Started:**
-' +
-      '1️⃣ Use /menu and click "Link via API Key"
-' +
-      '2️⃣ Enter your exchange API credentials
-' +
-      '3️⃣ Start trading!
+**🔗 Getting Started:**
+1️⃣ Use /menu and click "Link via API Key"
+2️⃣ Enter your exchange API credentials
+3️⃣ Start trading!
 
-' +
-      '**🎯 Features:**
-' +
-      '• Market & Limit Orders
-' +
-      '• Take Profit & Stop Loss
-' +
-      '• Futures Trading
-' +
-      '• Position Management
+**🎯 Features:**
+• Market & Limit Orders
+• Take Profit & Stop Loss
+• Futures Trading
+• Position Management
 
-' +
-      '**🔧 Commands:**
-' +
-      '/menu - Open main menu
-' +
-      '/help - Show this help';
+**🔧 Commands:**
+/menu - Open main menu
+/help - Show this help`;
 
     await ctx.reply(helpMessage, { parse_mode: 'Markdown' });
   });
@@ -283,23 +249,16 @@ export function setupBot(bot: Telegraf<BotContext>): void {
   bot.action('help', async ctx => {
     await ctx.answerCbQuery();
     const helpMessage =
-      '📚 **AgentiFi Trading Bot Help**
+      `📚 **AgentiFi Trading Bot Help**
 
-' +
-      '**🔗 Getting Started:**
-' +
-      '1️⃣ Use /menu and click "Link via API Key"
-' +
-      '2️⃣ Enter your exchange API credentials
-' +
-      '3️⃣ Start trading!
+**🔗 Getting Started:**
+1️⃣ Use /menu and click "Link via API Key"
+2️⃣ Enter your exchange API credentials
+3️⃣ Start trading!
 
-' +
-      '**🔧 Commands:**
-' +
-      '/menu - Open main menu
-' +
-      '/help - Show this help';
+**🔧 Commands:**
+/menu - Open main menu
+/help - Show this help`;
 
     await ctx.editMessageText(helpMessage, {
       parse_mode: 'Markdown',
@@ -318,10 +277,9 @@ export function setupBot(bot: Telegraf<BotContext>): void {
   bot.action('settings', async ctx => {
     await ctx.answerCbQuery();
     await ctx.editMessageText(
-      '⚙️ **Settings**
+      `⚙️ **Settings**
 
-' +
-      '_Settings menu coming in Module 3_',
+_Settings menu coming in Module 3_`,
       {
         parse_mode: 'Markdown',
         ...Markup.inlineKeyboard([
