@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>AgentFi - Secure Wallet Link</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/style.css">
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+</head>
+<body>
+  <div id="app">
+    <div class="container">
+      <div class="header">
+        <h1>🔐 Sign in via WalletConnect</h1>
+        <p>Connect your wallet to start trading on <span class="exchange-placeholder">Aster DEX</span></p>
+      </div>
+
+      <div id="status" class="status"></div>
+
+      <div id="connect-section" class="section">
+        <button id="connect-btn" class="primary-btn">
+          🌐 Connect Wallet
+        </button>
+        <p class="hint">Supports MetaMask, WalletConnect, and more</p>
+      </div>
+
+      <div id="loading-section" class="section hidden">
+        <div class="loader"></div>
+        <p id="loading-text">Connecting...</p>
+      </div>
+
+      <div id="success-section" class="section hidden">
+        <div class="success-icon">✅</div>
+        <h2>Success!</h2>
+        <p>Your wallet has been linked to <span class="exchange-placeholder">Aster DEX</span></p>
+        <p class="wallet-address" id="wallet-address"></p>
+      </div>
+
+      <div id="error-section" class="section hidden">
+        <div class="error-icon">❌</div>
+        <h2>Error</h2>
+        <p id="error-message"></p>
+        <button id="retry-btn" class="secondary-btn">Try Again</button>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="/app.js"></script>
+</body>
+</html>

@@ -1,226 +1,176 @@
-/**
- * Link Scene - Allows users to link Aster or Hyperliquid exchange credentials
- * Accepts both credentials in single message: "credential1 credential2"
- */
-
 import { Scenes, Markup } from 'telegraf';
 import type { BotContext } from '../types/context';
-import { storeApiCredentials } from '../../db/users';
-import { encrypt } from '../../utils/encryption';
+import { UniversalApiService } from '../services/universal-api.service';
+import { exitSceneToMenu } from '../utils/countdown';
 
-interface LinkState {
+interface LinkWizardState {
   exchange?: 'aster' | 'hyperliquid';
-  apiKey?: string;
-  apiSecret?: string;
-  accountAddress?: string;
-  privateKey?: string;
+  cred1?: string;
+  cred1Name?: string;
+  cred2?: string;
+  cred2Name?: string;
 }
 
 export const linkScene = new Scenes.WizardScene<BotContext>(
   'link',
-  
-  // Step 0: Choose exchange
+
+  // Step 1: Show Mini-App button
   async (ctx) => {
+    // Allow linking multiple exchanges - user can overwrite or add new ones
+    // if (ctx.session.isLinked) ... removed blocker
+
+    const miniAppUrl = process.env.MINI_APP_URL || 'https://your-mini-app-url.com';
+    
     await ctx.reply(
-      '🔗 **Link Exchange**\n\n' +
-      'Select which exchange you want to link:',
+      '🔗 **Link Your Exchange Account**\n\n' +
+      'Connect your wallet via our secure Mini-App.\n\n' +
+      '**Supported Exchanges:**\n' +
+      '• 🌟 Aster DEX\n' +
+      '• ⚡ Hyperliquid\n' +
+      '• And more...\n\n' +
+      '**Supported Wallets:**\n' +
+      '• MetaMask\n' +
+      '• Trust Wallet\n' +
+      '• WalletConnect\n' +
+      '• And more...',
       {
         parse_mode: 'Markdown',
         ...Markup.inlineKeyboard([
-          [Markup.button.callback('Aster DEX', 'link_aster')],
-          [Markup.button.callback('Hyperliquid', 'link_hyperliquid')],
-          [Markup.button.callback('❌ Cancel', 'link_cancel')]
-        ])
+          [Markup.button.webApp('🔐 Connect Wallet', miniAppUrl)],
+          [Markup.button.callback('⌨️ Manual Entry (API Keys)', 'manual_link')],
+          [Markup.button.callback('❌ Cancel', 'cancel_link')],
+        ]),
       }
     );
     return ctx.wizard.next();
   },
-  
-  // Step 1: Process exchange selection and ask for credentials
+
+  // Step 2: Handle Manual Link or Wait for Mini-App
   async (ctx) => {
-    const state = ctx.wizard.state as LinkState;
-    
-    if (!state.exchange) {
-      await ctx.reply('Please select an exchange using the buttons above.');
-      return;
-    }
-    
-    if (state.exchange === 'aster') {
-      await ctx.reply(
-        '🔑 **Aster DEX Credentials**\n\n' +
-        'Send your credentials in one message:\n' +
-        '`API_KEY API_SECRET`\n\n' +
-        'Example:\n' +
-        '`abc123xyz def456uvw`\n\n' +
-        '_(Separate with a space)_',
-        { parse_mode: 'Markdown' }
-      );
-    } else {
-      await ctx.reply(
-        '🔑 **Hyperliquid Credentials**\n\n' +
-        'Send your credentials in one message:\n' +
-        '`WALLET_ADDRESS PRIVATE_KEY`\n\n' +
-        'Example:\n' +
-        '`0x1234...5678 0xabcd...ef01`\n\n' +
-        '_(Separate with a space)_',
-        { parse_mode: 'Markdown' }
-      );
-    }
-    
-    return ctx.wizard.next();
-  },
-  
-  // Step 2: Process both credentials from single message
-  async (ctx) => {
-    const state = ctx.wizard.state as LinkState;
-    
-    if (!ctx.message || !('text' in ctx.message)) {
-      await ctx.reply('Please send a text message with your credentials.');
-      return;
-    }
-    
-    const text = ctx.message.text.trim();
-    
-    if (text === '/cancel') {
-      await ctx.reply('❌ Link cancelled.');
-      return ctx.scene.leave();
-    }
-    
-    // Parse space-separated credentials
-    const parts = text.split(/\s+/);
-    
-    if (parts.length < 2) {
-      await ctx.reply(
-        '❌ Invalid format. Please send both credentials separated by a space.\n\n' +
-        (state.exchange === 'aster' 
-          ? 'Format: `API_KEY API_SECRET`' 
-          : 'Format: `WALLET_ADDRESS PRIVATE_KEY`'),
-        { parse_mode: 'Markdown' }
-      );
-      return;
-    }
-    
-    const [credential1, credential2] = parts;
-    
-    if (state.exchange === 'aster') {
-      // Aster: API Key and Secret
-      state.apiKey = credential1;
-      state.apiSecret = credential2;
-    } else {
-      // Hyperliquid: Wallet Address and Private Key
-      
-      // Validate wallet address format
-      if (!credential1.startsWith('0x') || credential1.length !== 42) {
-        await ctx.reply(
-          '❌ Invalid wallet address format.\n\n' +
-          'Address must start with 0x and be 42 characters.\n\n' +
-          'Format: `0x1234...5678 privatekey`',
-          { parse_mode: 'Markdown' }
-        );
-        return;
-      }
-      
-      // Validate and normalize private key
-      let privateKey = credential2;
-      if (!privateKey.startsWith('0x')) {
-        privateKey = '0x' + privateKey;
-      }
-      if (privateKey.length !== 66) {
-        await ctx.reply(
-          '❌ Invalid private key format.\n\n' +
-          'Private key must be 64 hex characters.\n\n' +
-          'Format: `0x1234...5678 abcd...ef01`',
-          { parse_mode: 'Markdown' }
-        );
-        return;
-      }
-      
-      state.accountAddress = credential1;
-      state.privateKey = credential2;
-    }
-    
-    // Save credentials
-    await ctx.reply('⏳ Saving credentials...');
-    
-    // Get or create user
-    let userId = ctx.session.userId;
-    if (!userId) {
-      // User hasn't run /start yet, create them now
-      if (!ctx.from) {
-        await ctx.reply('❌ Unable to identify user. Please try /start first.');
-        return ctx.scene.leave();
-      }
-      
-      const { getOrCreateUser } = await import('../../db/users');
-      const user = await getOrCreateUser(ctx.from.id, ctx.from.username);
-      ctx.session.userId = user.id;
-      userId = user.id;
-    }
-    
-    try {
-      if (state.exchange === 'aster') {
-        await storeApiCredentials(
-          userId,
-          'aster',
-          encrypt(state.apiKey!),
-          encrypt(state.apiSecret!)
-        );
-      } else {
-        await storeApiCredentials(
-          userId,
-          'hyperliquid',
-          encrypt(state.accountAddress!),
-          encrypt(state.privateKey!)
-        );
-      }
-      
-      ctx.session.activeExchange = state.exchange;
-      ctx.session.isLinked = true;
-      
-      await ctx.reply(
-        `✅ **${state.exchange === 'aster' ? 'Aster' : 'Hyperliquid'} Linked!**\n\n` +
-        'Your credentials are encrypted and stored securely.\n\n' +
-        'You can now view your account details!',
-        { 
+    const callbackData = (ctx.callbackQuery as any)?.data;
+    const state = ctx.wizard.state as LinkWizardState;
+
+    // If user chose manual entry, show exchange selection
+    if (callbackData === 'manual_link') {
+      await ctx.answerCbQuery();
+      await ctx.editMessageText(
+        '⌨️ **Manual API Key Entry**\n\n' +
+        'Select the exchange you want to link:',
+        {
           parse_mode: 'Markdown',
           ...Markup.inlineKeyboard([
-            [Markup.button.callback('📊 View Account', 'view_account')],
-            [Markup.button.callback('📋 Menu', 'menu')]
-          ])
+            [Markup.button.callback('🌟 Aster DEX', 'link_aster')],
+            [Markup.button.callback('⚡ Hyperliquid', 'link_hyperliquid')],
+            [Markup.button.callback('« Back', 'cancel_link')],
+          ]),
         }
       );
-      
-    } catch (error: any) {
-      await ctx.reply(
-        `❌ **Failed to link exchange**\n\n` +
-        `Error: ${error.message}`,
-        { parse_mode: 'Markdown' }
-      );
+      return; // Stay in same step
     }
-    
-    return ctx.scene.leave();
+
+    // Handle exchange selection for manual entry
+    if (callbackData === 'link_aster') {
+      state.exchange = 'aster';
+      state.cred1Name = 'API Key';
+      state.cred2Name = 'API Secret';
+    } else if (callbackData === 'link_hyperliquid') {
+      state.exchange = 'hyperliquid';
+      state.cred1Name = 'Wallet Address';
+      state.cred2Name = 'Private Key';
+    } else {
+      if (ctx.message) await ctx.reply('Please use the buttons above.');
+      return;
+    }
+
+    await ctx.answerCbQuery();
+    await ctx.editMessageText(
+      `🔗 **Link ${state.exchange.toUpperCase()}**\n\n` +
+      `**Step 1 of 2:** Send your **${state.cred1Name}**`,
+      {
+        parse_mode: 'Markdown',
+        ...Markup.inlineKeyboard([[Markup.button.callback('❌ Cancel', 'cancel_link')]]),
+      }
+    );
+    return ctx.wizard.next();
+  },
+
+  // Step 3: Receive Cred 1
+  async (ctx) => {
+    if (!ctx.message || !('text' in ctx.message)) return;
+    const text = ctx.message.text.trim();
+    if (text.startsWith('/')) {
+      await exitSceneToMenu(ctx, '❌ Linking Cancelled');
+      return ctx.scene.leave();
+    }
+
+    const state = ctx.wizard.state as LinkWizardState;
+    state.cred1 = text;
+
+    await ctx.reply(
+      `✅ **${state.cred1Name} received**\n\n` +
+      `**Step 2 of 2:** Send your **${state.cred2Name}**`,
+      {
+        parse_mode: 'Markdown',
+        ...Markup.inlineKeyboard([[Markup.button.callback('❌ Cancel', 'cancel_link')]]),
+      }
+    );
+    return ctx.wizard.next();
+  },
+
+  // Step 4: Finalize
+  async (ctx) => {
+    if (!ctx.message || !('text' in ctx.message)) return;
+    const text = ctx.message.text.trim();
+    if (text.startsWith('/')) {
+      await exitSceneToMenu(ctx, '❌ Linking Cancelled');
+      return ctx.scene.leave();
+    }
+
+    const state = ctx.wizard.state as LinkWizardState;
+    const userId = ctx.from!.id;
+    state.cred2 = text;
+
+    await ctx.reply(`⏳ Validating your ${state.exchange?.toUpperCase()} credentials...`);
+
+    try {
+      // Actually save credentials to database via API
+      const response = await UniversalApiService.linkAccount(
+        userId.toString(),
+        state.exchange!,
+        state.cred1!,
+        state.cred2!
+      );
+
+      if (!response || !response.success) {
+        throw new Error(response?.error || 'Failed to link account');
+      }
+
+      // Update session after successful link
+      ctx.session.userId = userId;
+      ctx.session.isLinked = true;
+      ctx.session.activeExchange = state.exchange;
+
+      await exitSceneToMenu(
+        ctx,
+        `✅ **${state.exchange?.toUpperCase()} Successfully Linked!**\n\n` +
+        `Your account is now connected and ready to trade.`
+      );
+      return ctx.scene.leave();
+    } catch (error: any) {
+      await exitSceneToMenu(ctx, `❌ **Linking Failed**\n\n${error.message}`);
+      return ctx.scene.leave();
+    }
   }
 );
 
-// Action handlers
-linkScene.action('link_aster', async (ctx) => {
-  const state = ctx.wizard.state as LinkState;
-  state.exchange = 'aster';
+linkScene.action('cancel_link', async (ctx) => {
   await ctx.answerCbQuery();
-  await ctx.editMessageText('Selected: Aster DEX');
-  return ctx.wizard.next();
-});
-
-linkScene.action('link_hyperliquid', async (ctx) => {
-  const state = ctx.wizard.state as LinkState;
-  state.exchange = 'hyperliquid';
-  await ctx.answerCbQuery();
-  await ctx.editMessageText('Selected: Hyperliquid');
-  return ctx.wizard.next();
-});
-
-linkScene.action('link_cancel', async (ctx) => {
-  await ctx.answerCbQuery();
-  await ctx.editMessageText('❌ Link cancelled.');
+  await exitSceneToMenu(ctx, '❌ **Linking Cancelled**');
   return ctx.scene.leave();
+});
+
+linkScene.leave(async (ctx) => {
+  if (ctx.wizard) {
+    Object.keys(ctx.wizard.state).forEach(key => delete (ctx.wizard.state as any)[key]);
+  }
 });

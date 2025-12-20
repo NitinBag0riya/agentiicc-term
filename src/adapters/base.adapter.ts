@@ -6,6 +6,8 @@
 export interface ExchangeAdapter {
   // Account operations
   getAccount(): Promise<AccountInfo>;
+  getNonce?(address: string): Promise<string>;
+  linkAccount?(params: { address: string; signature: string; nonce: string; telegramId: string }): Promise<{ apiKey: string; apiSecret: string }>;
   
   // Order operations
   placeOrder(params: PlaceOrderParams): Promise<OrderResult>;
@@ -152,5 +154,3 @@ export interface OHLCV {
   close: string;
   volume: string;
 }
-
-

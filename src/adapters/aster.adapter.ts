@@ -577,4 +577,44 @@ export class AsterAdapter implements ExchangeAdapter {
       throw new Error(`Failed to fetch OHLCV: ${error}`);
     }
   }
+
+  async getNonce(address: string): Promise<string> {
+    try {
+      const resp = await fetch('https://sapi.asterdex.com/api/v1/getNonce', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({ address, userOperationType: 'CREATE_API_KEY' })
+      });
+      if (!resp.ok) throw new Error(await resp.text());
+      const nonce = await resp.text();
+      return nonce.trim();
+    } catch (error) {
+      throw new Error(`Failed to get Aster nonce: ${error}`);
+    }
+  }
+
+  async linkAccount(params: { address: string; signature: string; nonce: string; telegramId: string }): Promise<{ apiKey: string; apiSecret: string }> {
+    try {
+      const resp = await fetch('https://sapi.asterdex.com/api/v1/createApiKey', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+          address: params.address,
+          userOperationType: 'CREATE_API_KEY',
+          userSignature: params.signature,
+          desc: `TG_${params.telegramId}_${Math.floor(Math.random() * 1000)}`,
+          timestamp: params.nonce
+        })
+      });
+
+      if (!resp.ok) throw new Error(`Aster Error: ${await resp.text()}`);
+      const data: any = await resp.json();
+      return {
+        apiKey: data.apiKey,
+        apiSecret: data.apiSecret
+      };
+    } catch (error: any) {
+      throw new Error(`Failed to link Aster account: ${error.message}`);
+    }
+  }
 }

@@ -61,10 +61,14 @@ export async function deleteApiCredentials(userId: number, exchangeId: string) {
   );
 }
 
-export async function getLinkedExchanges(userId: number): Promise<string[]> {
-  const res = await query(
-    'SELECT exchange_id FROM api_credentials WHERE user_id = $1',
-    [userId]
+export async function getLinkedExchanges(userId: string | number): Promise<Array<{exchange: string, apiKey: string, apiSecret: string}>> {
+  const result = await query(
+    'SELECT exchange_id, api_key_encrypted, api_secret_encrypted FROM api_credentials WHERE user_id = $1',
+    [userId.toString()] // Convert to string to handle large IDs
   );
-  return res.rows.map(row => row.exchange_id);
+  return result.rows.map((row: any) => ({
+    exchange: row.exchange_id,
+    apiKey: row.api_key_encrypted,
+    apiSecret: row.api_secret_encrypted
+  }));
 }
