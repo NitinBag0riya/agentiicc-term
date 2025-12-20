@@ -1,0 +1,327 @@
+{
+  "project_info": {
+    "name": "Journey Map App Documentation",
+    "generated_at": "2025-12-19",
+    "description": "Aggregated documentation for UI navigation, transformations, and API endpoints."
+  },
+  "navigation": {
+    "flows": {
+      "authentication": {
+        "screens": {
+          "welcome": {
+            "ctas": [
+              {
+                "label": "Sign in via WalletConnect",
+                "target": "mini_app_auth"
+              },
+              { "label": "Link via API Key", "target": "link_wizard_step1" },
+              { "label": "Help", "target": "help" }
+            ]
+          },
+          "link_wizard_step1": {
+            "ctas": [
+              {
+                "label": "User types wallet address",
+                "target": "link_wizard_step2"
+              },
+              { "label": "Cancel", "target": "welcome" }
+            ]
+          },
+          "link_wizard_step2": {
+            "ctas": [
+              { "label": "User types private key", "target": "validating" },
+              { "label": "Back", "target": "link_wizard_step1" },
+              { "label": "Cancel", "target": "welcome" }
+            ]
+          },
+          "validating": {
+            "ctas": [
+              { "label": "Success", "target": "citadel" },
+              { "label": "Failure", "target": "api_error" }
+            ]
+          }
+        }
+      },
+      "overview": {
+        "screens": {
+          "citadel": {
+            "ctas": [
+              { "label": "Click position", "target": "position_with_open" },
+              { "label": "Click All Perps", "target": "all_perps" },
+              { "label": "Click All Assets", "target": "all_assets" },
+              { "label": "Click Trade", "target": "search_prompt" },
+              { "label": "Type symbol", "target": "search_results" },
+              { "label": "Click Settings", "target": "settings" },
+              { "label": "Click Help", "target": "help" },
+              { "label": "Click Refresh", "target": "citadel" }
+            ]
+          },
+          "search_results": {
+            "ctas": [
+              { "label": "Click SOLUSDT", "target": "position_no_open" },
+              { "label": "Click Back", "target": "citadel" }
+            ]
+          }
+        }
+      },
+      "trading": {
+        "screens": {
+          "position_no_open": {
+            "ctas": [
+              {
+                "label": "Click Market/Limit",
+                "target": "position_no_open",
+                "action": "toggle_order_type"
+              },
+              { "label": "Click Long $50", "target": "confirm_order" },
+              { "label": "Click Long $200", "target": "confirm_order" },
+              { "label": "Click Long X", "target": "custom_amount" },
+              { "label": "Click Short $50", "target": "confirm_order" },
+              { "label": "Click Short $200", "target": "confirm_order" },
+              { "label": "Click Short X", "target": "custom_amount" },
+              { "label": "Click 10x", "target": "leverage_menu" },
+              {
+                "label": "Click Cross",
+                "target": "position_no_open",
+                "action": "toggle_margin_mode"
+              },
+              { "label": "Click Set TP/SL", "target": "tpsl_setup" },
+              { "label": "Click Refresh", "target": "position_no_open" },
+              { "label": "Click Back", "target": "citadel" }
+            ]
+          },
+          "position_with_open": {
+            "ctas": [
+              {
+                "label": "Click Market/Limit",
+                "target": "position_with_open",
+                "action": "toggle_order_type"
+              },
+              { "label": "Click Ape $50", "target": "confirm_add" },
+              { "label": "Click Ape $200", "target": "confirm_add" },
+              { "label": "Click Ape X", "target": "custom_amount" },
+              { "label": "Click Close All", "target": "confirm_close" },
+              { "label": "Click Sell 25%", "target": "confirm_close" },
+              { "label": "Click Sell 69%", "target": "confirm_close" },
+              { "label": "Click Sell X", "target": "custom_sell" },
+              {
+                "label": "Click Cross/Isolated",
+                "target": "position_with_open",
+                "action": "toggle_margin_mode"
+              },
+              { "label": "Click Set TP/SL", "target": "tpsl_manager" },
+              { "label": "Click Manage Orders", "target": "order_list" },
+              { "label": "Click 10x", "target": "leverage_menu" },
+              { "label": "Click Refresh", "target": "position_with_open" },
+              { "label": "Click Back", "target": "citadel" }
+            ]
+          },
+          "custom_amount": {
+            "ctas": [
+              { "label": "User types amount", "target": "confirm_order" },
+              { "label": "Click quick amount", "target": "confirm_order" },
+              { "label": "Click Cancel", "target": "position_no_open" }
+            ]
+          },
+          "custom_sell": {
+            "ctas": [
+              { "label": "User types percentage", "target": "confirm_close" },
+              { "label": "User types USDT amount", "target": "confirm_close" },
+              { "label": "User types SOL quantity", "target": "confirm_close" },
+              { "label": "Click Cancel", "target": "position_with_open" }
+            ]
+          },
+          "confirm_add": {
+            "ctas": [
+              { "label": "Click Confirm Add", "target": "executing" },
+              { "label": "Click Cancel", "target": "position_with_open" }
+            ]
+          },
+          "confirm_close": {
+            "ctas": [
+              { "label": "Click Confirm Close", "target": "executing" },
+              { "label": "Click Cancel", "target": "position_with_open" }
+            ]
+          },
+          "confirm_order": {
+            "ctas": [
+              { "label": "Click Confirm", "target": "executing" },
+              { "label": "Click Re-calc", "target": "confirm_order" },
+              { "label": "Click Cancel", "target": "position_no_open" }
+            ]
+          },
+          "executing": {
+            "ctas": [
+              { "label": "Success", "target": "order_success" },
+              { "label": "Failure", "target": "order_error" }
+            ]
+          },
+          "order_success": {
+            "ctas": [
+              { "label": "Click Set TP/SL", "target": "tpsl_manager" },
+              {
+                "label": "Click View Position",
+                "target": "position_with_open"
+              },
+              { "label": "Click Back", "target": "citadel" }
+            ]
+          }
+        }
+      },
+      "advanced": {
+        "screens": {
+          "tpsl_manager": {
+            "ctas": [
+              {
+                "label": "Click +2%/+5%/+10%",
+                "target": "tpsl_manager",
+                "action": "update_tp"
+              },
+              {
+                "label": "Click -2%/-5%/-10%",
+                "target": "tpsl_manager",
+                "action": "update_sl"
+              },
+              { "label": "Click Custom (TP)", "target": "tpsl_custom" },
+              { "label": "Click Custom (SL)", "target": "tpsl_custom" },
+              { "label": "Click Set Orders", "target": "confirm_tpsl" },
+              { "label": "Click Clear All", "target": "confirm_clear_tpsl" },
+              { "label": "Click Back", "target": "position_with_open" }
+            ]
+          },
+          "tpsl_custom": {
+            "ctas": [
+              { "label": "User enters TP", "target": "tpsl_manager" },
+              { "label": "User enters SL", "target": "tpsl_manager" },
+              { "label": "Click Set", "target": "confirm_tpsl" },
+              { "label": "Click Cancel", "target": "tpsl_manager" }
+            ]
+          },
+          "order_list": {
+            "ctas": [
+              { "label": "Click View", "target": "order_detail" },
+              { "label": "Click Cancel", "target": "confirm_cancel_order" },
+              {
+                "label": "Click Cancel All Orders",
+                "target": "confirm_cancel_all"
+              },
+              { "label": "Click Back", "target": "position_with_open" }
+            ]
+          }
+        }
+      },
+      "settings": {
+        "screens": {
+          "settings": {
+            "ctas": [
+              { "label": "Click Asset Mode", "target": "asset_mode" },
+              { "label": "Click Unlink API", "target": "confirm_unlink" },
+              { "label": "Click Back", "target": "citadel" }
+            ]
+          },
+          "help": {
+            "ctas": [
+              { "label": "Click Settings", "target": "settings" },
+              { "label": "Click Menu", "target": "citadel" }
+            ]
+          }
+        }
+      }
+    }
+  },
+  "transformations": {
+    "position_data": {
+      "pnl_percentage": {
+        "formula": "PnL% = (unRealizedProfit / margin) * 100",
+        "javascript": "`${(parseFloat(unRealizedProfit) / parseFloat(margin) * 100).toFixed(2)}%`"
+      },
+      "side_detection": {
+        "formula": "side = positionAmt > 0 ? \"LONG\" : \"SHORT\"",
+        "javascript": "`${parseFloat(positionAmt) > 0 ? \"LONG 🟢\" : \"SHORT 🔴\"}`"
+      },
+      "position_value": {
+        "formula": "positionValue = Math.abs(positionAmt) * markPrice",
+        "javascript": "`$${(Math.abs(parseFloat(positionAmt)) * parseFloat(markPrice)).toFixed(2)}`"
+      }
+    },
+    "ticker_data": {
+      "change_dollars": {
+        "formula": "change$ = lastPrice - openPrice",
+        "javascript": "`${(parseFloat(lastPrice) - parseFloat(openPrice)) >= 0 ? \"+\" : \"\"}$${(parseFloat(lastPrice) - parseFloat(openPrice)).toFixed(2)}`"
+      },
+      "volume_formatting": {
+        "formula": "volumeDisplay = quoteVolume / 1,000,000",
+        "javascript": "`${(parseFloat(quoteVolume) / 1000000).toFixed(1)}M USDT`"
+      }
+    },
+    "order_data": {
+      "type_formatting": {
+        "javascript": "type.split(\"_\").map(w => w.charAt(0) + w.slice(1).toLowerCase()).join(\" \")"
+      },
+      "timestamp_formatting": {
+        "javascript": "new Date(time).toLocaleString(\"en-US\", { month: \"short\", day: \"numeric\", hour: \"2-digit\", minute: \"2-digit\" })"
+      },
+      "order_value": {
+        "formula": "orderValue = origQty * price",
+        "javascript": "`$${(parseFloat(origQty) * parseFloat(price)).toFixed(2)} USDT`"
+      }
+    },
+    "margin_management": {
+      "add_remove": {
+        "formula": "newMargin = currentMargin + (type === \"ADD\" ? amount : -amount)",
+        "javascript": "`$${(parseFloat(margin) + (type === \"ADD\" ? parseFloat(amount) : -parseFloat(amount))).toFixed(2)}`"
+      }
+    }
+  },
+  "api_mapping": {
+    "authentication": {
+      "welcome": {
+        "endpoints": ["POST /user"]
+      },
+      "link_wizard_step2": {
+        "endpoints": ["POST /user/credentials"]
+      },
+      "validating": {
+        "endpoints": [
+          "POST /user/credentials",
+          "POST /auth/session",
+          "GET /account"
+        ]
+      }
+    },
+    "overview": {
+      "citadel": {
+        "endpoints": ["GET /account", "GET /positions", "GET /ticker"]
+      }
+    },
+    "trading": {
+      "position_no_open": {
+        "endpoints": [
+          "GET /ticker",
+          "GET /orders",
+          "POST /account/leverage",
+          "POST /account/margin-mode"
+        ]
+      },
+      "position_with_open": {
+        "endpoints": [
+          "GET /positions",
+          "GET /orders",
+          "GET /ticker",
+          "POST /order",
+          "POST /position/tp-sl"
+        ]
+      },
+      "confirm_order": {
+        "endpoints": ["POST /account/leverage", "POST /order"]
+      }
+    },
+    "missing_endpoints": [
+      {
+        "method": "DELETE",
+        "path": "/user/credentials",
+        "description": "Unlink Exchange"
+      }
+    ]
+  }
+}
