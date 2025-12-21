@@ -7,11 +7,17 @@ import { Telegraf, Scenes, Markup } from 'telegraf';
 import type { BotContext } from './types/context';
 import { createSessionMiddleware } from './middleware/session';
 import { createReferralMiddleware, needsReferralCode, validateReferralCode, createUserWithReferral } from './middleware/referral';
+
+// Legacy scenes (kept for backwards compatibility)
 import { linkScene } from './scenes/link.scene';
 import { unlinkScene } from './scenes/unlink.scene';
 import { citadelScene } from './scenes/citadel.scene';
 import { tradingScene } from './scenes/trading.scene';
 import { settingsScene } from './scenes/settings.scene';
+
+// New DFD-based scenes (all 34 screens from dataflow-telegram.json)
+import { allScenes } from './scenes';
+
 import { setBotInfo } from './utils/botInfo';
 import { getOrCreateUser } from '../db/users';
 import { getPostgres } from '../db/postgres';
@@ -33,13 +39,16 @@ export function createBot(token: string): Telegraf<BotContext> {
   // Middleware: Referral enforcement
   bot.use(createReferralMiddleware());
 
-  // Middleware: Scene manager
+  // Middleware: Scene manager - includes all DFD-based scenes plus legacy scenes
   const stage = new Scenes.Stage<BotContext>([
+    // Legacy scenes (backwards compatibility)
     linkScene,
     unlinkScene,
     citadelScene,
     tradingScene,
     settingsScene,
+    // New DFD-based scenes (34 screens from dataflow-telegram.json)
+    ...allScenes,
   ]);
   bot.use(stage.middleware());
 
