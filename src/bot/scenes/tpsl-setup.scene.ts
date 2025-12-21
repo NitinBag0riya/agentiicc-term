@@ -7,28 +7,33 @@ export const tpslSetupScene = new Scenes.BaseScene<BotContext>('tpsl_setup');
 tpslSetupScene.enter(async (ctx) => {
   const symbol = ctx.session.tradingSymbol || 'SOLUSDT';
   
-  const message = `┌─────────────────────────────┐
-│ 🎯 Set TP/SL                │
-│                             │
-│ Symbol: ${symbol}            │
-│                             │
-│ ━━━━━━━━━━━━━━━━━━━━━━━    │
-│                             │
-│ Take Profit (TP):           │
-│ Set the price to close      │
-│ position with profit        │
-│                             │
-│ Stop Loss (SL):             │
-│ Set the price to close      │
-│ position to limit loss      │
-│                             │
-│ ━━━━━━━━━━━━━━━━━━━━━━━    │
-│                             │
-│ 💡 Type TP price first,     │
-│    then SL price            │
-└─────────────────────────────┘`;
+  const { createBox } = require('../utils/format');
 
-  await ctx.reply(message, {
+  const lines = [
+    '🎯 Set TP/SL',
+    '',
+    `Symbol: ${symbol}`,
+    '',
+    '━━━━━━━━━━━━━━━━━━━━━━━',
+    '',
+    'Take Profit (TP):',
+    'Set the price to close',
+    'position with profit',
+    '',
+    'Stop Loss (SL):',
+    'Set the price to close',
+    'position to limit loss',
+    '',
+    '━━━━━━━━━━━━━━━━━━━━━━━',
+    '',
+    '💡 Type TP price first,',
+    '   then SL price'
+  ];
+
+  const message = createBox('', lines, 32);
+
+  await ctx.reply('```\n' + message + '\n```', {
+    parse_mode: 'MarkdownV2',
     ...Markup.inlineKeyboard([
       [
         Markup.button.callback('🎯 Set TP', 'set_tp'),

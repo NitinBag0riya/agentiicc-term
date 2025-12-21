@@ -3,74 +3,74 @@ import type { BotContext } from '../types/context';
 
 export const linkWizardAsterStep1Scene = new Scenes.BaseScene<BotContext>('link_wizard_aster_step1');
 
-// Enter handler - Display Link Wizard Aster Step 1 (Screen 5)
+// Enter handler - Aster API Key Step 1
 linkWizardAsterStep1Scene.enter(async (ctx) => {
-  const message = `┌─────────────────────────────┐
-│ 🔗 Aster DEX API Setup     │
-│                             │
-│ Step 1: Enter your wallet   │
-│ address from Aster DEX      │
-│                             │
-│ 📝 Format: 0x...           │
-│                             │
-│ 💡 Find this in:           │
-│ Settings > API Keys >       │
-│ Wallet Address              │
-│                             │
-│ 🔒 This will be encrypted   │
-│    and stored securely      │
-└─────────────────────────────┘`;
+  const { createBox } = require('../utils/format');
 
-  await ctx.reply(message, {
+  const lines = [
+    '🔗 Aster DEX API Setup',
+    '   Step 1: Enter your API Key',
+    '',
+    '📝 Find this in:',
+    'Aster DEX → Settings →',
+    'API Keys → Create New Key',
+    '',
+    'Required permissions:',
+    '• Read account info',
+    '• Place orders',
+    '• Read positions',
+    '',
+    '🔒 This will be encrypted',
+    '   and stored securely'
+  ];
+
+  const message = createBox('API Setup', lines, 32);
+
+  await ctx.reply('```\n' + message + '\n```', {
+    parse_mode: 'MarkdownV2',
     ...Markup.inlineKeyboard([
       [
-        Markup.button.callback('Type address', 'type_address'),
         Markup.button.callback('🔙 Back', 'back'),
         Markup.button.callback('❌ Cancel', 'cancel'),
       ],
     ]),
   });
   
-  // Set scene state to expect wallet address input
-  ctx.scene.session.state = { awaitingWalletAddress: true, exchange: 'aster' };
+  ctx.scene.session.state = { awaitingApiKey: true, exchange: 'aster' };
 });
 
-// Handle text input for wallet address
+// Handle text input for API key
 linkWizardAsterStep1Scene.on('text', async (ctx) => {
   const state = ctx.scene.session.state as any;
   
-  if (state?.awaitingWalletAddress) {
-    const walletAddress = ctx.message.text.trim();
+  if (state?.awaitingApiKey) {
+    const apiKey = ctx.message.text.trim();
     
     // Basic validation
-    if (!walletAddress.startsWith('0x') || walletAddress.length !== 42) {
-      await ctx.reply('❌ Invalid wallet address format. Please enter a valid Ethereum address (0x...)');
+    if (apiKey.length < 10) {
+      await ctx.reply('❌ Invalid API key format. Please enter a valid API key.');
       return;
     }
     
-    // Store wallet address in session
-    ctx.session.tempWalletAddress = walletAddress;
+    // Store API key in session
+    ctx.session.tempApiKey = apiKey;
     
-    // Navigate to Step 2
+    // Navigate to Step 2 (API Secret)
     await ctx.scene.enter('link_wizard_aster_step2');
   }
 });
 
-// CTA 1: Type address (just a prompt, actual input handled by text handler)
-linkWizardAsterStep1Scene.action('type_address', async (ctx) => {
-  await ctx.answerCbQuery('Please type your wallet address below');
-});
-
-// CTA 2: Back → Screen 2 (Exchange Selection Aster)
+// CTA: Back → Exchange Selection Aster
 linkWizardAsterStep1Scene.action('back', async (ctx) => {
   await ctx.answerCbQuery();
   await ctx.scene.enter('exchange_selection_aster');
 });
 
-// CTA 3: Cancel → Screen 15 (Universal Citadel)
+// CTA: Cancel → Universal Citadel
 linkWizardAsterStep1Scene.action('cancel', async (ctx) => {
   await ctx.answerCbQuery();
   await ctx.scene.enter('universal_citadel');
 });
 
 export default linkWizardAsterStep1Scene;
+

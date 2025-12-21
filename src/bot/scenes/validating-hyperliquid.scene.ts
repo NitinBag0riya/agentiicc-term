@@ -5,21 +5,25 @@ export const validatingHyperliquidScene = new Scenes.BaseScene<BotContext>('vali
 
 // Enter handler - Screen 10: Validating Hyperliquid Connection
 validatingHyperliquidScene.enter(async (ctx) => {
-  const message = `┌─────────────────────────────┐
-│ ⏳ Validating Hyperliquid   │
-│    Connection               │
-│                             │
-│ Testing API credentials...  │
-│ ▓▓▓▓▓▓░░░░░░░░░░░░░        │
-│                             │
-│ Connecting to Hyperliquid...│
-│ Fetching account data...    │
-│                             │
-│ This may take a few         │
-│ seconds.                    │
-└─────────────────────────────┘`;
+  const { createBox } = require('../utils/format');
 
-  await ctx.reply(message);
+  const lines = [
+    '⏳ Validating Hyperliquid',
+    '   Connection',
+    '',
+    'Testing API credentials...',
+    '▓▓▓▓▓▓░░░░░░░░░░░░░',
+    '',
+    'Connecting to Hyperliquid...',
+    'Fetching account data...',
+    '',
+    'This may take a few',
+    'seconds.'
+  ];
+
+  const message = createBox('Validating', lines, 32);
+
+  await ctx.reply('```\n' + message + '\n```', { parse_mode: 'MarkdownV2' });
   
   // Simulate validation delay
   await new Promise(resolve => setTimeout(resolve, 1500));
@@ -33,9 +37,27 @@ validatingHyperliquidScene.enter(async (ctx) => {
     return;
   }
   
-  // For now, just assume success and redirect to link scene
-  // The actual linking is handled by the existing link.scene.ts
+  // Encrypt credentials (API Key = Private Key, Secret = Wallet Address for Hyperliquid mapping)
+  const { encrypt } = require('../../utils/encryption');
+  const { storeApiCredentials, getOrCreateUser } = require('../../db/users');
+  
+  const encKey = encrypt(apiKey); // Private Key
+  const encSecret = encrypt(walletAddress); // Wallet Address
+  
+  // Store in database
+  const telegramId = ctx.from?.id;
+  if (telegramId) {
+     const user = await getOrCreateUser(telegramId, ctx.from?.username);
+     if (user && user.id) {
+        await storeApiCredentials(user.id, 'hyperliquid', encKey, encSecret);
+        ctx.session.userId = user.id;
+     }
+  }
+  
+  // Set session state
   ctx.session.linkExchange = 'hyperliquid';
+  ctx.session.isLinked = true;
+  ctx.session.activeExchange = 'hyperliquid';
   
   // Clear temp session data
   delete ctx.session.tempWalletAddress;

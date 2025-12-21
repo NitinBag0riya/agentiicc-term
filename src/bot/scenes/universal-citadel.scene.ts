@@ -6,7 +6,10 @@ export const universalCitadelScene = new Scenes.BaseScene<BotContext>('universal
 
 // Enter handler - Screen 15: Universal Command Citadel
 universalCitadelScene.enter(async (ctx) => {
-  const userId = ctx.from?.id?.toString();
+  const telegramId = ctx.from?.id;
+  const username = ctx.from?.username;
+  const { createBox } = require('../utils/format');
+  const { getOrCreateUser } = require('../../db/users');
   
   // Fetch linked exchanges data
   let asterStatus = '❌ Not Connected';
@@ -22,27 +25,53 @@ universalCitadelScene.enter(async (ctx) => {
   let hyperliquidConnected = false;
   
   try {
-    if (userId) {
+    if (telegramId) {
+      // Resolve internal User ID
+      const user = await getOrCreateUser(telegramId, username);
+      const userId = user.id;
+
       // Check Aster
       try {
-        const asterData = await UniversalApiService.getAccount(userId, 'aster');
+        const asterData = await UniversalApiService.getAccountSummary(userId, 'aster');
         if (asterData) {
           asterConnected = true;
           asterStatus = '✅ Connected';
-          asterBalance = `Balance: $${asterData.totalBalance?.toFixed(2) || '0.00'}`;
-          asterPnl = `uPnL: ${asterData.unrealizedPnl >= 0 ? '+' : ''}$${asterData.unrealizedPnl?.toFixed(2) || '0.00'}`;
+          const balance = parseFloat(asterData.totalBalance);
+          asterBalance = `Balance: $${isNaN(balance) ? '0.00' : balance.toFixed(2)}`;
+          
+          let totalUpnl = 0;
+          if (asterData.positions) {
+             for (const pos of asterData.positions) {
+                const pnl = parseFloat(pos.unrealizedPnl);
+                if (!isNaN(pnl)) {
+                    totalUpnl += pnl;
+                }
+             }
+          }
+          asterPnl = `uPnL: ${totalUpnl >= 0 ? '+' : ''}$${totalUpnl.toFixed(2)}`;
           asterPositions = `${asterData.positions?.length || 0} Positions`;
         }
       } catch (e) {}
       
       // Check Hyperliquid
       try {
-        const hlData = await UniversalApiService.getAccount(userId, 'hyperliquid');
+        const hlData = await UniversalApiService.getAccountSummary(userId, 'hyperliquid');
         if (hlData) {
           hyperliquidConnected = true;
           hyperliquidStatus = '✅ Connected';
-          hyperliquidBalance = `Balance: $${hlData.totalBalance?.toFixed(2) || '0.00'}`;
-          hyperliquidPnl = `uPnL: ${hlData.unrealizedPnl >= 0 ? '+' : ''}$${hlData.unrealizedPnl?.toFixed(2) || '0.00'}`;
+          const balance = parseFloat(hlData.totalBalance);
+          hyperliquidBalance = `Balance: $${isNaN(balance) ? '0.00' : balance.toFixed(2)}`;
+          
+          let totalUpnl = 0;
+          if (hlData.positions) {
+             for (const pos of hlData.positions) {
+                const pnl = parseFloat(pos.unrealizedPnl);
+                if (!isNaN(pnl)) {
+                    totalUpnl += pnl;
+                }
+             }
+          }
+          hyperliquidPnl = `uPnL: ${totalUpnl >= 0 ? '+' : ''}$${totalUpnl.toFixed(2)}`;
           hyperliquidPositions = `${hlData.positions?.length || 0} Positions`;
         }
       } catch (e) {}
@@ -51,31 +80,35 @@ universalCitadelScene.enter(async (ctx) => {
     console.error('Error fetching universal data:', error);
   }
   
-  const message = `┌─────────────────────────────┐
-│ 🌍 Universal Command Citadel │
-│                             │
-│ Connected Exchanges:        │
-│                             │
-│ ${asterConnected ? '✅' : '❌'} Aster DEX                │
-│ ${hyperliquidConnected ? '✅' : '❌'} Hyperliquid              │
-${!asterConnected && !hyperliquidConnected ? '│   (No exchanges connected)  │\n' : ''}│                             │
-│ ━━━━━━━━━━━━━━━━━━━━━━━    │
-│                             │
-│ 📊 Portfolio Overview:      │
-│                             │
-│ 🔸 Aster DEX:               │
-│ ${asterBalance}          │
-${asterPnl ? `│ ${asterPnl}     │\n` : ''}${asterPositions ? `│ ${asterPositions}                 │\n` : ''}│                             │
-│ 🔸 Hyperliquid:             │
-│ ${hyperliquidBalance}          │
-${hyperliquidPnl ? `│ ${hyperliquidPnl}     │\n` : ''}${hyperliquidPositions ? `│ ${hyperliquidPositions}                 │\n` : ''}│                             │
-│ ━━━━━━━━━━━━━━━━━━━━━━━    │
-│                             │
-│ 💬 Click connected exchange │
-│    for full dashboard       │
-│ 💬 Click unlinked exchange  │
-│    to connect it            │
-└─────────────────────────────┘`;
+  // Box content preparation...
+  
+  const lines = [
+    { left: 'Connected Exchanges:', right: '' },
+    '',
+    { left: asterConnected ? '✅ Aster DEX' : '❌ Aster DEX', right: '' },
+    { left: hyperliquidConnected ? '✅ Hyperliquid' : '❌ Hyperliquid', right: '' },
+    !asterConnected && !hyperliquidConnected ? '(No exchanges connected)' : null,
+    '---',
+    { left: '📊 Portfolio Overview:', right: '' },
+    '',
+    { left: '🔸 Aster DEX:', right: '' },
+    { left: asterBalance, right: '' },
+    asterPnl ? { left: asterPnl, right: '' } : null,
+    asterPositions ? { left: asterPositions, right: '' } : null,
+    '',
+    { left: '🔸 Hyperliquid:', right: '' },
+    { left: hyperliquidBalance, right: '' },
+    hyperliquidPnl ? { left: hyperliquidPnl, right: '' } : null,
+    hyperliquidPositions ? { left: hyperliquidPositions, right: '' } : null,
+    '---',
+    '💬 Click connected exchange',
+    '   for full dashboard',
+    '💬 Click unlinked exchange',
+    '   to connect it'
+  ];
+
+  // Create box with wider width (34) to avoid title truncation
+  const message = createBox('🌍 Universal Command Citadel', lines, 34);
 
   // Build keyboard based on connection status
   const row1 = [];
@@ -90,8 +123,12 @@ ${hyperliquidPnl ? `│ ${hyperliquidPnl}     │\n` : ''}${hyperliquidPositions
     row1.push(Markup.button.callback('❌ Connect Hyperliquid', 'connect_hyperliquid'));
   }
   
-  await ctx.reply(message, {
-    ...Markup.inlineKeyboard([
+  // Actually, wait, box characters might look better without code block on mobile if width is small?
+  // But code block guarantees alignment.
+  // Let's wrap message in backticks for code block.
+  await ctx.reply('```\n' + message + '\n```', {
+    parse_mode: 'MarkdownV2',
+     ...Markup.inlineKeyboard([
       row1,
       [
         Markup.button.callback('📊 All Assets', 'all_assets'),

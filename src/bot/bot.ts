@@ -39,6 +39,22 @@ export function createBot(token: string): Telegraf<BotContext> {
   // Middleware: Referral enforcement
   bot.use(createReferralMiddleware());
 
+  // Middleware: Global Command Breakout
+  // Ensures /menu and /start always work even if user is stuck in a scene
+  bot.use(async (ctx, next) => {
+    if (ctx.message && 'text' in ctx.message) {
+      const text = ctx.message.text;
+      if (text === '/menu' || text === '/start' || text.startsWith('/start ')) {
+        console.log(`[Bot] Global command detected: ${text}. Force clearing scene state.`);
+        // Manually start fresh by clearing scene session
+        if (ctx.session) {
+          ctx.session.__scenes = undefined;
+        }
+      }
+    }
+    return next();
+  });
+
   // Middleware: Scene manager - includes all DFD-based scenes plus legacy scenes
   const stage = new Scenes.Stage<BotContext>([
     // Legacy scenes (backwards compatibility)
@@ -167,6 +183,7 @@ Share your code to invite friends!
 
   // ==================== /menu Command ====================
   bot.command('menu', async ctx => {
+    console.log('[Debug] /menu command received');
     ctx.session.waitingForInput = undefined;
     await showMenu(ctx);
   });
@@ -202,16 +219,29 @@ Share your code to invite friends!
 
   // ==================== Button Handlers ====================
 
-  // Start link flow
+  // Exchange Selection (DFD: welcome -> exchange_selection_aster/hyperliquid)
+  bot.action('select_exchange_aster', async ctx => {
+    await ctx.answerCbQuery();
+    ctx.session.activeExchange = 'aster';
+    return ctx.scene.enter('exchange_selection_aster');
+  });
+
+  bot.action('select_exchange_hyperliquid', async ctx => {
+    await ctx.answerCbQuery();
+    ctx.session.activeExchange = 'hyperliquid';
+    return ctx.scene.enter('exchange_selection_hyperliquid');
+  });
+
+  // Start link flow (legacy)
   bot.action(['start_link', 'link_exchange'], async ctx => {
     await ctx.answerCbQuery();
     return ctx.scene.enter('link');
   });
 
-  // Enter Citadel
+  // Enter Citadel (DFD: universal_citadel)
   bot.action('enter_citadel', async ctx => {
     await ctx.answerCbQuery();
-    return ctx.scene.enter('citadel');
+    return ctx.scene.enter('universal_citadel');
   });
 
   // Help

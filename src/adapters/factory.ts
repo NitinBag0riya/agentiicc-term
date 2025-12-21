@@ -26,9 +26,9 @@ export class AdapterFactory {
     if (exchangeId === 'aster') {
       return new AsterAdapter(apiKey, apiSecret);
     } else if (exchangeId === 'hyperliquid') {
-      // link.scene.ts stores: api_key = Address, api_secret = PrivateKey
+      // link.scene.ts stores: api_key = PrivateKey, api_secret = WalletAddress
       // Adapter expects: (accountAddress, privateKey)
-      return new HyperliquidAdapter(apiKey, apiSecret);
+      return new HyperliquidAdapter(apiSecret, apiKey);
     } else {
       throw new Error(`Unsupported exchange: ${exchangeId}`);
     }

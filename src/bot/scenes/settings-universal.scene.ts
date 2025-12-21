@@ -5,27 +5,47 @@ export const settingsUniversalScene = new Scenes.BaseScene<BotContext>('settings
 
 // Enter handler - Screen 53: Universal Settings
 settingsUniversalScene.enter(async (ctx) => {
-  const message = `┌─────────────────────────────┐
-│ ⚙️ Universal Settings       │
-│                             │
-│ 📊 Connected Exchanges      │
-│                             │
-│ ✅ Aster DEX                │
-│   • Linked                  │
-│   • Trading enabled         │
-│                             │
-│ ✅ Hyperliquid              │
-│   • Linked                  │
-│   • Trading enabled         │
-│                             │
-│ ━━━━━━━━━━━━━━━━━━━━━━━    │
-│                             │
-│ 🔗 Manage Exchanges         │
-│ 🔔 Notifications            │
-│ 🔒 Security Settings        │
-└─────────────────────────────┘`;
+  const telegramId = ctx.from?.id;
+  const username = ctx.from?.username;
+  const { createBox } = require('../utils/format');
+  const { getOrCreateUser, getLinkedExchanges } = require('../../db/users');
 
-  await ctx.reply(message, {
+  let asterLinked = false;
+  let hyperliquidLinked = false;
+
+  try {
+     if (telegramId) {
+        const user = await getOrCreateUser(telegramId, username);
+        if (user && user.id) {
+           const linked = await getLinkedExchanges(user.id);
+           asterLinked = linked.includes('aster');
+           hyperliquidLinked = linked.includes('hyperliquid');
+        }
+     }
+  } catch (e) {
+     console.error('Settings load error:', e);
+  }
+
+  const lines = [
+    '📊 Connected Exchanges',
+    '',
+    asterLinked ? '✅ Aster DEX' : '❌ Aster DEX',
+    asterLinked ? '  • Linked' : '  • Not Linked',
+    asterLinked ? '  • Trading enabled' : '  • Tap Link to connect',
+    '',
+    hyperliquidLinked ? '✅ Hyperliquid' : '❌ Hyperliquid',
+    hyperliquidLinked ? '  • Linked' : '  • Not Linked',
+    hyperliquidLinked ? '  • Trading enabled' : '  • Tap Link to connect',
+    '',
+    '🔗 Manage Exchanges',
+    '🔔 Notifications',
+    '🔒 Security Settings'
+  ];
+
+  const message = createBox('Universal Settings', lines, 32);
+
+  await ctx.reply('```\n' + message + '\n```', {
+    parse_mode: 'MarkdownV2',
     ...Markup.inlineKeyboard([
       [
         Markup.button.callback('🔗 Link Exchange', 'link'),

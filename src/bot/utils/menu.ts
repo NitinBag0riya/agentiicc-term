@@ -4,35 +4,40 @@ import type { BotContext } from '../types/context';
 
 /**
  * Welcome message for unlinked users (DFD: welcome screen)
+ * Matches screen-definitions.ts welcome screen
  */
 export const WELCOME_MESSAGE_UNLINKED =
-  `👋 **Welcome to AgentiFi Trading Bot**
+  `👋 **Welcome to StableSolid**
 
-_Your Unified Trading Terminal_
+_Your Easy Terminal into Multi-Exchange Trading_
 
-**Choose How to Connect:**
+**Choose Exchange to Connect:**
 
-🔗 **API Key** - Connect via exchange API credentials
-🔐 **WalletConnect** - One-click wallet connection (Coming Soon)
+🔸 **Aster DEX**
+   Advanced trading features
+   Spot & perpetual swaps
 
-🔒 _Your credentials are encrypted and stored securely_
+🔸 **Hyperliquid**
+   High-leverage trading
+   BTC/ETH focused
 
-**Available Commands:**
-/menu - Open main menu
-/help - Get help`;
+💡 _Connect at least one exchange to get started_
+💡 _You can add more later_`;
 
 /**
- * Generate inline keyboard for unlinked users
+ * Generate inline keyboard for unlinked users (DFD: welcome screen CTAs)
  */
 export function getUnlinkedKeyboard(exchange: string = 'aster', userId?: number) {
   const keyboard = Markup.inlineKeyboard([
-    // Use process.env.API_URL for dynamic ngrok URL
-    [Markup.button.webApp('🔐 Connect Wallet (Web App)', `${process.env.API_URL}/webapp/index.html`)],
-    [Markup.button.callback('🏰 Enter Citadel', 'enter_citadel')],
-    [Markup.button.callback('🔑 Link API Key', 'link_exchange')]
+    [
+      Markup.button.callback('🔸 Aster DEX', 'select_exchange_aster'),
+      Markup.button.callback('🔸 Hyperliquid', 'select_exchange_hyperliquid')
+    ],
+    [Markup.button.callback('❓ Help', 'help')]
   ]);
   return keyboard;
 }
+
 
 // Import DB helper
 import { getLinkedExchanges } from '../../db/users';
@@ -58,13 +63,15 @@ export async function showMenu(ctx: BotContext) {
     }
   }
 
+  console.log('[Debug] showMenu: isLinked =', ctx.session.isLinked);
+
   if (ctx.session.isLinked) {
-    // Show Citadel Overview (Module 2)
-    return ctx.scene.enter('citadel');
+    // Show Universal Citadel (DFD-based multi-exchange dashboard)
+    console.log('[Debug] Entering universal_citadel scene');
+    return ctx.scene.enter('universal_citadel');
   } else {
-    await ctx.reply(WELCOME_MESSAGE_UNLINKED, {
-      parse_mode: 'Markdown',
-      ...getUnlinkedKeyboard(ctx.session.activeExchange, ctx.session.userId),
-    });
+    // Enter welcome scene for unlinked users (CTAs handled by scene)
+    console.log('[Debug] Entering welcome scene');
+    return ctx.scene.enter('welcome');
   }
 }

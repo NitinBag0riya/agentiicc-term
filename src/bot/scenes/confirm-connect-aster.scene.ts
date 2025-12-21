@@ -5,26 +5,31 @@ export const confirmConnectAsterScene = new Scenes.BaseScene<BotContext>('confir
 
 // Enter handler - Screen 14: Confirm Connect Aster
 confirmConnectAsterScene.enter(async (ctx) => {
-  const message = `┌─────────────────────────────┐
-│ 🔗 Connect Aster DEX        │
-│                             │
-│ You are about to connect    │
-│ Aster DEX exchange.         │
-│                             │
-│ 🔸 Advanced trading features│
-│ 🔸 Spot & perpetual swaps   │
-│ 🔸 Competitive fees         │
-│                             │
-│ This will require:          │
-│ • API Key or WalletConnect  │
-│ • Trading permissions       │
-│ • Read account balance      │
-│                             │
-│ 💡 Your credentials are     │
-│    encrypted and secure     │
-└─────────────────────────────┘`;
+  const { createBox } = require('../utils/format');
 
-  await ctx.reply(message, {
+  const lines = [
+    '🔗 Connect Aster DEX',
+    '',
+    'You are about to connect',
+    'Aster DEX exchange.',
+    '',
+    '🔸 Advanced trading features',
+    '🔸 Spot & perpetual swaps',
+    '🔸 Competitive fees',
+    '',
+    'This will require:',
+    '• API Key or WalletConnect',
+    '• Trading permissions',
+    '• Read account balance',
+    '',
+    '💡 Your credentials are',
+    '   encrypted and secure'
+  ];
+
+  const message = createBox('Connect Aster', lines, 32);
+
+  await ctx.reply('```\n' + message + '\n```', {
+    parse_mode: 'MarkdownV2',
     ...Markup.inlineKeyboard([
       [
         Markup.button.callback('🔗 Connect', 'connect'),

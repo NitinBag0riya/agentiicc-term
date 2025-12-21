@@ -8,80 +8,101 @@ export const citadelHyperliquidScene = new Scenes.BaseScene<BotContext>('citadel
 citadelHyperliquidScene.enter(async (ctx) => {
   const userId = ctx.from?.id?.toString();
   
+  const { createBox } = require('../utils/format');
+
   let perpBalance = '0.00';
   let upnl = '+$0.00 (+0.00%)';
   let marginUsed = '$0.00';
   let spotBalance = '$0.00';
   let totalBalance = '$0.00';
   let perpAvailable = '$0.00';
-  let positions: string[] = [];
+  let positionsLines: any[] = [];
   
   try {
     if (userId) {
-      const account = await UniversalApiService.getAccount(userId, 'hyperliquid');
-      const posData = await UniversalApiService.getPositions(userId, 'hyperliquid');
+      const { getOrCreateUser } = require('../../db/users');
+      // @ts-ignore
+      const user = await getOrCreateUser(parseInt(userId), ctx.from?.username);
+      const uid = user.id;
+
+      const account = await UniversalApiService.getAccountSummary(uid, 'hyperliquid');
+      const posData = await UniversalApiService.getPositions(uid, 'hyperliquid');
       
       if (account) {
-        perpBalance = `$${account.perpBalance?.toFixed(2) || '0.00'}`;
-        const pnlValue = account.unrealizedPnl || 0;
-        const pnlPercent = account.perpBalance ? ((pnlValue / account.perpBalance) * 100).toFixed(2) : '0.00';
+        // @ts-ignore
+        const anyAccount = account as any;
+        perpBalance = `$${parseFloat(account.totalBalance).toFixed(2)}`;
+        
+        // Calculate uPnL
+        let calcUpnl = 0;
+        if (posData) {
+             posData.forEach((p: any) => calcUpnl += parseFloat(p.unrealizedPnl || '0'));
+        }
+        
+        const pnlValue = calcUpnl;
+        const pnlPercent = parseFloat(account.totalBalance) ? ((pnlValue / parseFloat(account.totalBalance)) * 100).toFixed(2) : '0.00';
         upnl = `${pnlValue >= 0 ? '+' : ''}$${pnlValue.toFixed(2)} (${pnlValue >= 0 ? '+' : ''}${pnlPercent}%)`;
-        marginUsed = `$${account.marginUsed?.toFixed(2) || '0.00'}`;
-        spotBalance = `$${account.spotBalance?.toFixed(2) || '0.00'}`;
-        totalBalance = `$${account.totalBalance?.toFixed(2) || '0.00'}`;
-        perpAvailable = `$${account.perpAvailable?.toFixed(2) || '0.00'}`;
+        
+        marginUsed = `$${(anyAccount.marginUsed || 0).toFixed(2)}`;
+        spotBalance = `$${(anyAccount.spotBalance || 0).toFixed(2)}`;
+        totalBalance = `$${parseFloat(account.totalBalance).toFixed(2)}`;
+        perpAvailable = `$${parseFloat(account.availableBalance).toFixed(2)}`;
       }
       
       if (posData && posData.length > 0) {
-        positions = posData.slice(0, 2).map((p: any) => {
-          const side = parseFloat(p.positionAmt) > 0 ? '🟢' : '🔴';
-          const pnlSign = parseFloat(p.unRealizedProfit) >= 0 ? '+' : '';
-          const pnlPct = ((parseFloat(p.unRealizedProfit) / parseFloat(p.margin || '1')) * 100).toFixed(2);
-          return `│ ${p.symbol} (${p.leverage}x ${p.marginType === 'CROSS' ? 'Cross' : 'Isolated'}) ${side}    │
-│ ${pnlSign}${pnlPct}% (${pnlSign}$${parseFloat(p.unRealizedProfit).toFixed(2)})          │
-│ ${Math.abs(parseFloat(p.positionAmt))} ${p.symbol.replace(/USDT$/, '')}/$${parseFloat(p.notional).toFixed(0)}            │
-│ Margin $${parseFloat(p.margin).toFixed(2)}              │
-│ Entry $${parseFloat(p.entryPrice).toFixed(5)}              │
-│ Mark $${parseFloat(p.markPrice).toFixed(5)}               │
-│ Liq $${parseFloat(p.liquidationPrice).toFixed(5)}                │`;
+        // Build position lines for createBox
+        const activePositions = posData.slice(0, 2);
+        
+        activePositions.forEach((p: any) => {
+          const side = parseFloat(p.size) > 0 ? '🟢' : '🔴';
+          const pnlVal = parseFloat(p.unrealizedPnl);
+          const pnlSign = pnlVal >= 0 ? '+' : '';
+          const margin = parseFloat(p.initialMargin || '0') || (parseFloat(p.entryPrice) * Math.abs(parseFloat(p.size))) / parseFloat(p.leverage || '1');
+          const pnlPct = ((pnlVal / (margin || 1)) * 100).toFixed(2);
+          
+          positionsLines.push(`${p.symbol} (${p.leverage}x) ${side}`);
+          positionsLines.push(`${pnlSign}${pnlPct}% (${pnlSign}$${pnlVal.toFixed(2)})`);
+          positionsLines.push(`${Math.abs(parseFloat(p.size))} ${p.symbol.replace(/USDT$/, '')}`);
+          positionsLines.push(`Entry $${parseFloat(p.entryPrice).toFixed(4)} | Liq $${parseFloat(p.liquidationPrice || '0').toFixed(4)}`);
+          positionsLines.push(''); // Spacer
         });
         
         if (posData.length > 2) {
-          positions.push(`│ ...and ${posData.length - 2} more               │`);
+          positionsLines.push(`...and ${posData.length - 2} more positions`);
         }
+      } else {
+         positionsLines.push('No open positions');
       }
     }
   } catch (error) {
     console.error('Error fetching Hyperliquid data:', error);
   }
   
-  const positionsText = positions.length > 0 ? positions.join('\n│                             │\n') : '│ No open positions           │';
-  
-  const message = `┌─────────────────────────────┐
-│ 🏰 Hyperliquid Command      │
-│    Citadel                  │
-│                             │
-│ 📊 Perp Portfolio:          │
-│ balance ${perpBalance}           │
-│ uPnL: ${upnl}     │
-│ Margin Used: ${marginUsed}      │
-│                             │
-${positionsText}
-│                             │
-│ ━━━━━━━━━━━━━━━━━━━━━━━    │
-│                             │
-│ 💼 Account Summary:         │
-│ Perp available ${perpAvailable}    │
-│                             │
-│ Account Balance: ${totalBalance}  │
-│                             │
-│ 💬 Click any position       │
-│    to manage                │
-│ 💬 Type symbol to search    │
-│    (e.g., BTC)              │
-└─────────────────────────────┘`;
+  const lines = [
+    '🏰 Command Citadel',
+    '',
+    '📊 Perp Portfolio:',
+    { left: 'Balance:', right: perpBalance },
+    { left: 'uPnL:', right: upnl },
+    { left: 'Margin Used:', right: marginUsed },
+    '',
+    '---',
+    ...positionsLines,
+    '---',
+    '',
+    '💼 Account Summary:',
+    { left: 'Perp Avail:', right: perpAvailable },
+    { left: 'Total Balance:', right: totalBalance },
+    '',
+    '💬 Click any position',
+    '   to manage',
+    '💬 Type symbol to search'
+  ];
 
-  await ctx.reply(message, {
+  const message = createBox('Hyperliquid', lines, 34);
+
+  await ctx.reply('```\n' + message + '\n```', {
+    parse_mode: 'MarkdownV2',
     ...Markup.inlineKeyboard([
       [
         Markup.button.callback('📊 All Assets', 'all_assets'),

@@ -5,41 +5,46 @@ export const helpScene = new Scenes.BaseScene<BotContext>('help');
 
 // Enter handler - Screen 50: Help
 helpScene.enter(async (ctx) => {
-  const message = `┌─────────────────────────────┐
-│ ❓ Help & Support           │
-│                             │
-│ 📖 Getting Started:         │
-│ 1. Connect an exchange      │
-│ 2. View your portfolio      │
-│ 3. Start trading!           │
-│                             │
-│ ━━━━━━━━━━━━━━━━━━━━━━━    │
-│                             │
-│ 🔸 Commands:                │
-│ /start - Show welcome       │
-│ /menu - Main menu           │
-│ /orders - View open orders  │
-│ /settings - Bot settings    │
-│ /help - This help screen    │
-│                             │
-│ ━━━━━━━━━━━━━━━━━━━━━━━    │
-│                             │
-│ 🔸 Quick Actions:           │
-│ • Type symbol (BTC, SOL)    │
-│   to search and trade       │
-│ • Click positions to manage │
-│ • Use buttons for nav       │
-│                             │
-│ ━━━━━━━━━━━━━━━━━━━━━━━    │
-│                             │
-│ 📧 Support:                 │
-│ support@stablesolid.com     │
-│                             │
-│ 🐦 Twitter: @StableSolid    │
-│ 💬 Telegram: @StableSolidHQ │
-└─────────────────────────────┘`;
+  const { createBox } = require('../utils/format');
 
-  await ctx.reply(message, {
+  const lines = [
+    '❓ Help & Support',
+    '',
+    '📖 Getting Started:',
+    '1. Connect an exchange',
+    '2. View your portfolio',
+    '3. Start trading!',
+    '',
+    '---',
+    '',
+    '🔸 Commands:',
+    '/start - Show welcome',
+    '/menu - Main menu',
+    '/orders - View open orders',
+    '/settings - Bot settings',
+    '/help - This help screen',
+    '',
+    '---',
+    '',
+    '🔸 Quick Actions:',
+    '• Type symbol (BTC, SOL)',
+    '  to search and trade',
+    '• Click positions to manage',
+    '• Use buttons for nav',
+    '',
+    '---',
+    '',
+    '📧 Support:',
+    'support@stablesolid.com',
+    '',
+    '🐦 Twitter: @StableSolid',
+    '💬 Telegram: @StableSolidHQ'
+  ];
+
+  const message = createBox('Help', lines, 32);
+
+  await ctx.reply('```\n' + message + '\n```', {
+    parse_mode: 'MarkdownV2',
     ...Markup.inlineKeyboard([
       [
         Markup.button.callback('🏰 Citadel', 'citadel'),

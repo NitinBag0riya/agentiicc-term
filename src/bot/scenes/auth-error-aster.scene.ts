@@ -5,25 +5,30 @@ export const authErrorAsterScene = new Scenes.BaseScene<BotContext>('auth_error_
 
 // Enter handler - Screen 12: Auth Error Aster
 authErrorAsterScene.enter(async (ctx) => {
-  const message = `┌─────────────────────────────┐
-│ ❌ Connection Failed        │
-│                             │
-│ Failed to connect to        │
-│ Aster DEX.                  │
-│                             │
-│ Possible issues:            │
-│ • Invalid API credentials   │
-│ • Network connection        │
-│ • Exchange maintenance      │
-│                             │
-│ Please check your API key   │
-│ and try again.              │
-│                             │
-│ 💡 Need help? Contact       │
-│    support@stablesolid.com  │
-└─────────────────────────────┘`;
+  const { createBox } = require('../utils/format');
 
-  await ctx.reply(message, {
+  const lines = [
+    '❌ Connection Failed',
+    '',
+    'Failed to connect to',
+    'Aster DEX.',
+    '',
+    'Possible issues:',
+    '• Invalid API credentials',
+    '• Network connection',
+    '• Exchange maintenance',
+    '',
+    'Please check your API key',
+    'and try again.',
+    '',
+    '💡 Need help? Contact',
+    '   support@stablesolid.com'
+  ];
+
+  const message = createBox('Error', lines, 32);
+
+  await ctx.reply('```\n' + message + '\n```', {
+    parse_mode: 'MarkdownV2',
     ...Markup.inlineKeyboard([
       [
         Markup.button.callback('🔄 Try Again', 'try_again'),

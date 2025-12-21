@@ -7,20 +7,25 @@ export const leverageMenuScene = new Scenes.BaseScene<BotContext>('leverage_menu
 leverageMenuScene.enter(async (ctx) => {
   const currentLeverage = ctx.session.leverage || 10;
   
-  const message = `┌─────────────────────────────┐
-│ 📊 Set Leverage             │
-│                             │
-│ Current: ${currentLeverage}x               │
-│                             │
-│ ━━━━━━━━━━━━━━━━━━━━━━━    │
-│                             │
-│ Select leverage:            │
-│                             │
-│ ⚠️  Higher leverage =       │
-│    higher risk              │
-└─────────────────────────────┘`;
+  const { createBox } = require('../utils/format');
 
-  await ctx.reply(message, {
+  const lines = [
+    '📊 Set Leverage',
+    '',
+    `Current: ${currentLeverage}x`,
+    '',
+    '---',
+    '',
+    'Select leverage:',
+    '',
+    '⚠️  Higher leverage =',
+    '    higher risk'
+  ];
+
+  const message = createBox('Leverage', lines, 32);
+
+  await ctx.reply('```\n' + message + '\n```', {
+    parse_mode: 'MarkdownV2',
     ...Markup.inlineKeyboard([
       [
         Markup.button.callback('1x', 'lev_1'),

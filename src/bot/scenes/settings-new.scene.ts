@@ -7,31 +7,36 @@ export const settingsNewScene = new Scenes.BaseScene<BotContext>('settings_new')
 settingsNewScene.enter(async (ctx) => {
   const exchange = ctx.session.activeExchange || 'both';
   
-  const message = `┌─────────────────────────────┐
-│ ⚙️ Settings                 │
-│                             │
-│ 📊 Account Status           │
-│ Linked Exchanges: 2         │
-│                             │
-│ ━━━━━━━━━━━━━━━━━━━━━━━    │
-│                             │
-│ 🔗 Exchange Links           │
-│ • Aster DEX: ✅ Linked      │
-│ • Hyperliquid: ✅ Linked    │
-│                             │
-│ ━━━━━━━━━━━━━━━━━━━━━━━    │
-│                             │
-│ 🔔 Notifications            │
-│ • Trade alerts: ON          │
-│ • Price alerts: OFF         │
-│                             │
-│ ━━━━━━━━━━━━━━━━━━━━━━━    │
-│                             │
-│ 💡 Manage your exchanges    │
-│    and preferences below    │
-└─────────────────────────────┘`;
+  const { createBox } = require('../utils/format');
 
-  await ctx.reply(message, {
+  const lines = [
+    '⚙️ Settings',
+    '',
+    '📊 Account Status',
+    'Linked Exchanges: 2',
+    '',
+    '━━━━━━━━━━━━━━━━━━━━━━━',
+    '',
+    '🔗 Exchange Links',
+    '• Aster DEX: ✅ Linked',
+    '• Hyperliquid: ✅ Linked',
+    '',
+    '━━━━━━━━━━━━━━━━━━━━━━━',
+    '',
+    '🔔 Notifications',
+    '• Trade alerts: ON',
+    '• Price alerts: OFF',
+    '',
+    '━━━━━━━━━━━━━━━━━━━━━━━',
+    '',
+    '💡 Manage your exchanges',
+    '   and preferences below'
+  ];
+
+  const message = createBox('', lines, 32);
+
+  await ctx.reply('```\n' + message + '\n```', {
+    parse_mode: 'MarkdownV2',
     ...Markup.inlineKeyboard([
       [
         Markup.button.callback('🔗 Link Exchange', 'link_exchange'),

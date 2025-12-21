@@ -5,25 +5,32 @@ export const miniAppAuthHyperliquidScene = new Scenes.BaseScene<BotContext>('min
 
 // Enter handler - Display Mini App Auth Hyperliquid (Screen 6)
 miniAppAuthHyperliquidScene.enter(async (ctx) => {
-  const message = `┌─────────────────────────────┐
-│ 🔐 Connect to Hyperliquid  │
-│                             │
-│ Connecting your wallet to   │
-│ Hyperliquid...              │
-│                             │
-│ 📱 Please approve the       │
-│    connection in your       │
-│    wallet app               │
-│                             │
-│ 🔗 Required Permissions:    │
-│ • View account balance      │
-│ • Place trades              │
-│ • View positions            │
-│                             │
-│ ⏳ Waiting for approval...  │
-└─────────────────────────────┘`;
+  const { createBox } = require('../utils/format');
 
-  await ctx.reply(message, {
+  const lines = [
+    '🔐 Connect to Hyperliquid',
+    '',
+    'Connecting your wallet to',
+    'Hyperliquid...',
+    '',
+    '📱 Please approve the',
+    '   connection in your',
+    '   wallet app',
+    '',
+    '━━━━━━━━━━━━━━━━━━━━━━━',
+    '',
+    '🔗 Required Permissions:',
+    '• View account balance',
+    '• Place trades',
+    '• View positions',
+    '',
+    '⏳ Waiting for approval...'
+  ];
+
+  const message = createBox('', lines, 32);
+
+  await ctx.reply('```\n' + message + '\n```', {
+    parse_mode: 'MarkdownV2',
     ...Markup.inlineKeyboard([
       [
         Markup.button.callback('🔄 Refresh Status', 'refresh_status'),

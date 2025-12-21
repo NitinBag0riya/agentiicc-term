@@ -9,23 +9,27 @@ ordersListScene.enter(async (ctx) => {
   const symbol = ctx.session.tradingSymbol || 'All';
   const exchange = ctx.session.activeExchange || 'aster';
   
-  const message = `┌─────────────────────────────┐
-│ 📋 Open Orders              │
-│                             │
-│ Exchange: ${exchange.toUpperCase()}       │
-│ Symbol: ${symbol}               │
-│                             │
-│ ━━━━━━━━━━━━━━━━━━━━━━━    │
-│                             │
-│ No open orders              │
-│                             │
-│ ━━━━━━━━━━━━━━━━━━━━━━━    │
-│                             │
-│ 💡 Click an order to        │
-│    view details or cancel   │
-└─────────────────────────────┘`;
+  const { createBox } = require('../utils/format');
 
-  await ctx.reply(message, {
+  const lines = [
+    '📋 Open Orders',
+    '',
+    `Exchange: ${exchange.toUpperCase()}`,
+    `Symbol: ${symbol}`,
+    '',
+    '---',
+    'No open orders', // TODO: Make dynamic when API is real
+    '',
+    '---',
+    '',
+    '💡 Click an order to',
+    '   view details or cancel'
+  ];
+
+  const message = createBox('Orders', lines, 32);
+
+  await ctx.reply('```\n' + message + '\n```', {
+    parse_mode: 'MarkdownV2',
     ...Markup.inlineKeyboard([
       [
         Markup.button.callback('❌ Cancel All', 'cancel_all'),

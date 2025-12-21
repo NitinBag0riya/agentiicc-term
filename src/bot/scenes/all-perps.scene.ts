@@ -9,55 +9,74 @@ allPerpsScene.enter(async (ctx) => {
   const exchange = ctx.session.activeExchange || 'aster';
   const userId = ctx.from?.id?.toString();
   
+  const { createBox } = require('../utils/format');
+
   let totalPositions = 0;
   let totalPnl = '+$0.00';
-  let positionsList: string[] = [];
+  let positionsLines: string[] = [];
   
   try {
     if (userId) {
-      const positions = await UniversalApiService.getPositions(userId, exchange);
+      const { getOrCreateUser } = require('../../db/users');
+      // @ts-ignore
+      const user = await getOrCreateUser(parseInt(userId), ctx.from?.username);
+      const uid = user.id;
+
+      const positions = await UniversalApiService.getPositions(uid, exchange);
       if (positions && positions.length > 0) {
         totalPositions = positions.length;
         
         let combinedPnl = 0;
         positions.forEach((p: any) => {
-          combinedPnl += parseFloat(p.unRealizedProfit || '0');
+          combinedPnl += parseFloat(p.unRealizedProfit || p.unrealizedPnl || '0');
         });
         totalPnl = `${combinedPnl >= 0 ? '+' : ''}$${combinedPnl.toFixed(2)}`;
         
-        positionsList = positions.slice(0, 3).map((p: any) => {
-          const side = parseFloat(p.positionAmt) > 0 ? '🟢' : '🔴';
-          const pnlSign = parseFloat(p.unRealizedProfit) >= 0 ? '+' : '';
-          const pnlPct = ((parseFloat(p.unRealizedProfit) / parseFloat(p.margin || '1')) * 100).toFixed(2);
-          return `│ ${p.symbol} (${p.leverage}x ${p.marginType === 'CROSS' ? 'Cross' : 'Isolated'}) ${side}    │
-│ ${pnlSign}${pnlPct}% (${pnlSign}$${parseFloat(p.unRealizedProfit).toFixed(2)})          │
-│ ${Math.abs(parseFloat(p.positionAmt))} ${p.symbol.replace(/USDT$/, '')}/$${parseFloat(p.notional).toFixed(0)}            │`;
+        const activePositions = positions.slice(0, 3);
+        activePositions.forEach((p: any) => {
+           const qty = parseFloat(p.size || p.positionAmt);
+           const side = qty > 0 ? '🟢' : '🔴';
+           const pnlVal = parseFloat(p.unRealizedProfit || p.unrealizedPnl);
+           const pnlSign = pnlVal >= 0 ? '+' : '';
+           const notional = Math.abs(qty) * parseFloat(p.markPrice || '1');
+           // fallback logic
+           const margin = parseFloat(p.margin) || (notional / parseFloat(p.leverage || '1'));
+           const pnlPct = ((pnlVal / (margin || 1)) * 100).toFixed(2);
+           
+           positionsLines.push(`${p.symbol} (${p.leverage}x) ${side}`);
+           positionsLines.push(`${pnlSign}${pnlPct}% (${pnlSign}$${pnlVal.toFixed(2)})`);
+           positionsLines.push(`${Math.abs(qty)} ${p.symbol.replace(/USDT$/, '')} / $${notional.toFixed(0)}`);
+           positionsLines.push('');
         });
         
         if (positions.length > 3) {
-          positionsList.push(`│ ...and ${positions.length - 3} more               │`);
+          positionsLines.push(`...and ${positions.length - 3} more positions`);
         }
+      } else {
+         positionsLines.push('No open positions');
       }
     }
   } catch (error) {
     console.error('Error fetching positions:', error);
   }
-  
-  const positionsText = positionsList.length > 0 ? positionsList.join('\n│                             │\n') : '│ No open positions           │';
-  
-  const message = `┌─────────────────────────────┐
-│ 📈 All Perpetual Positions  │
-│                             │
-│ Total: ${totalPositions} positions          │
-│ Combined uPnL: ${totalPnl}     │
-│                             │
-${positionsText}
-│                             │
-│ 💬 Click any position to    │
-│    manage                   │
-└─────────────────────────────┘`;
 
-  await ctx.reply(message, {
+  const lines = [
+    '📈 All Perpetual Positions',
+    '',
+    `Total: ${totalPositions} positions`,
+    `Combined uPnL: ${totalPnl}`,
+    '',
+    ...positionsLines,
+    '---',
+    '',
+    '💬 Click any position to',
+    '   manage'
+  ];
+
+  const message = createBox('Perps', lines, 34);
+
+  await ctx.reply('```\n' + message + '\n```', {
+    parse_mode: 'MarkdownV2',
     ...Markup.inlineKeyboard([
       [
         Markup.button.callback('🔄 Refresh', 'refresh'),

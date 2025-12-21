@@ -5,25 +5,32 @@ export const miniAppAuthAsterScene = new Scenes.BaseScene<BotContext>('mini_app_
 
 // Enter handler - Display Mini App Auth Aster (Screen 4)
 miniAppAuthAsterScene.enter(async (ctx) => {
-  const message = `┌─────────────────────────────┐
-│ 🔐 Connect to Aster DEX    │
-│                             │
-│ Connecting your wallet to   │
-│ Aster DEX...                │
-│                             │
-│ 📱 Please approve the       │
-│    connection in your       │
-│    wallet app               │
-│                             │
-│ 🔗 Required Permissions:    │
-│ • View account balance      │
-│ • Place trades              │
-│ • View positions            │
-│                             │
-│ ⏳ Waiting for approval...  │
-└─────────────────────────────┘`;
+  const { createBox } = require('../utils/format');
 
-  await ctx.reply(message, {
+  const lines = [
+    '🔐 Connect to Aster DEX',
+    '',
+    'Connecting your wallet to',
+    'Aster DEX...',
+    '',
+    '📱 Please approve the',
+    '   connection in your',
+    '   wallet app',
+    '',
+    '━━━━━━━━━━━━━━━━━━━━━━━',
+    '',
+    '🔗 Required Permissions:',
+    '• View account balance',
+    '• Place trades',
+    '• View positions',
+    '',
+    '⏳ Waiting for approval...'
+  ];
+
+  const message = createBox('', lines, 32);
+
+  await ctx.reply('```\n' + message + '\n```', {
+    parse_mode: 'MarkdownV2',
     ...Markup.inlineKeyboard([
       [
         Markup.button.callback('🔄 Refresh Status', 'refresh_status'),

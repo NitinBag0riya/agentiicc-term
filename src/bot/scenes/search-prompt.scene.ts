@@ -5,23 +5,28 @@ export const searchPromptScene = new Scenes.BaseScene<BotContext>('search_prompt
 
 // Enter handler - Screen 22: Search Prompt
 searchPromptScene.enter(async (ctx) => {
-  const message = `┌─────────────────────────────┐
-│ 🔍 Search for Asset         │
-│                             │
-│ Type the symbol you want    │
-│ to trade:                   │
-│                             │
-│ Examples:                   │
-│ • BTC                       │
-│ • ETH                       │
-│ • SOL                       │
-│ • ASTER                     │
-│                             │
-│ 💡 Just type the symbol     │
-│    and press enter          │
-└─────────────────────────────┘`;
+  const { createBox } = require('../utils/format');
 
-  await ctx.reply(message, {
+  const lines = [
+    '🔍 Search for Asset',
+    '',
+    'Type the symbol you want',
+    'to trade:',
+    '',
+    'Examples:',
+    '• BTC',
+    '• ETH',
+    '• SOL',
+    '• ASTER',
+    '',
+    '💡 Just type the symbol',
+    '   and press enter'
+  ];
+
+  const message = createBox('', lines, 32);
+
+  await ctx.reply('```\n' + message + '\n```', {
+    parse_mode: 'MarkdownV2',
     ...Markup.inlineKeyboard([
       [
         Markup.button.callback('🏰 Back to Citadel', 'back_citadel'),

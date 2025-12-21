@@ -5,26 +5,31 @@ export const exchangeSelectionHyperliquidScene = new Scenes.BaseScene<BotContext
 
 // Enter handler - Display Exchange Selection Hyperliquid (Screen 3)
 exchangeSelectionHyperliquidScene.enter(async (ctx) => {
-  const message = `┌─────────────────────────────┐
-│ 🔗 Link Hyperliquid         │
-│                             │
-│ Choose connection method:   │
-│                             │
-│ 🔐 WalletConnect            │
-│   (Recommended)             │
-│   One-click connection      │
-│   via your wallet           │
-│                             │
-│ 🔗 API Key                  │
-│   Manual setup from         │
-│   Hyperliquid dashboard     │
-│                             │
-│ 🔒 Your credentials are     │
-│    encrypted and stored     │
-│    securely                 │
-└─────────────────────────────┘`;
+  const { createBox } = require('../utils/format');
 
-  await ctx.reply(message, {
+  const lines = [
+    '🔗 Link Hyperliquid',
+    '',
+    'Choose connection method:',
+    '',
+    '🔐 WalletConnect',
+    '  (Recommended)',
+    '  One-click connection',
+    '  via your wallet',
+    '',
+    '🔗 API Key',
+    '  Manual setup from',
+    '  Hyperliquid dashboard',
+    '',
+    '🔒 Your credentials are',
+    '   encrypted and stored',
+    '   securely'
+  ];
+
+  const message = createBox('Hyperliquid', lines, 32);
+
+  await ctx.reply('```\n' + message + '\n```', {
+    parse_mode: 'MarkdownV2',
     ...Markup.inlineKeyboard([
       [
         Markup.button.callback('🔐 WalletConnect', 'wallet_connect_hyperliquid'),

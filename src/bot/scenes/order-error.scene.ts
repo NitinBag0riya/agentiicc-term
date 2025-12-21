@@ -8,29 +8,35 @@ orderErrorScene.enter(async (ctx) => {
   const symbol = ctx.session.tradingSymbol || 'SOLUSDT';
   const errorMessage = ctx.session.lastOrderError || 'Unknown error occurred';
   
-  const message = `┌─────────────────────────────┐
-│ ❌ Order Failed             │
-│                             │
-│ Failed to execute order     │
-│ for ${symbol}               │
-│                             │
-│ ━━━━━━━━━━━━━━━━━━━━━━━    │
-│                             │
-│ Error: ${errorMessage.slice(0, 50)}  │
-│                             │
-│ ━━━━━━━━━━━━━━━━━━━━━━━    │
-│                             │
-│ Possible issues:            │
-│ • Insufficient balance      │
-│ • Invalid leverage          │
-│ • Market closed             │
-│ • API error                 │
-│                             │
-│ 💡 Please try again or      │
-│    contact support          │
-└─────────────────────────────┘`;
+  const { createBox } = require('../utils/format');
 
-  await ctx.reply(message, {
+  const lines = [
+    '❌ Order Failed',
+    '',
+    'Failed to execute order',
+    `for ${symbol}`,
+    '',
+    '━━━━━━━━━━━━━━━━━━━━━━━',
+    '',
+    // Split error message into chunks if needed or rely on createBox wrapping
+    `Error: ${errorMessage}`,
+    '',
+    '━━━━━━━━━━━━━━━━━━━━━━━',
+    '',
+    'Possible issues:',
+    '• Insufficient balance',
+    '• Invalid leverage',
+    '• Market closed',
+    '• API error',
+    '',
+    '💡 Please try again or',
+    '   contact support'
+  ];
+
+  const message = createBox('', lines, 32);
+
+  await ctx.reply('```\n' + message + '\n```', {
+    parse_mode: 'MarkdownV2',
     ...Markup.inlineKeyboard([
       [
         Markup.button.callback('🔄 Try Again', 'try_again'),

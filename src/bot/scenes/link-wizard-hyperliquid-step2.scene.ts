@@ -5,25 +5,30 @@ export const linkWizardHyperliquidStep2Scene = new Scenes.BaseScene<BotContext>(
 
 // Enter handler - Screen 11: Hyperliquid API Key
 linkWizardHyperliquidStep2Scene.enter(async (ctx) => {
-  const message = `┌─────────────────────────────┐
-│ 🔑 Hyperliquid API Key     │
-│                             │
-│ Step 2: Enter your API Key  │
-│                             │
-│ 📝 This is sensitive data   │
-│     handle with care        │
-│                             │
-│ 💡 Find this in:           │
-│ Settings > API Keys >       │
-│ Create New Key              │
-│                             │
-│ Required permissions:       │
-│ • Read account info         │
-│ • Place orders              │
-│ • Read positions            │
-└─────────────────────────────┘`;
+  const { createBox } = require('../utils/format');
 
-  await ctx.reply(message, {
+  const lines = [
+    '🔑 Hyperliquid API Key',
+    '',
+    'Step 2: Enter your API Key',
+    '',
+    '📝 This is sensitive data',
+    '    handle with care',
+    '',
+    '💡 Find this in:',
+    'Settings > API Keys >',
+    'Create New Key',
+    '',
+    'Required permissions:',
+    '• Read account info',
+    '• Place orders',
+    '• Read positions'
+  ];
+
+  const message = createBox('API Key', lines, 32);
+
+  await ctx.reply('```\n' + message + '\n```', {
+    parse_mode: 'MarkdownV2',
     ...Markup.inlineKeyboard([
       [
         Markup.button.callback('Type API key', 'type_api_key'),

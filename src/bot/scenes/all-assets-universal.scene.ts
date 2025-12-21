@@ -5,26 +5,36 @@ export const allAssetsUniversalScene = new Scenes.BaseScene<BotContext>('all_ass
 
 // Screen 51: Universal All Assets
 allAssetsUniversalScene.enter(async (ctx) => {
-  const message = `┌─────────────────────────────┐
-│ 📊 Universal Assets         │
-│                             │
-│ All assets across exchanges │
-│                             │
-│ ━━━━━━━━━━━━━━━━━━━━━━━    │
-│ 🔸 Aster DEX                │
-│ Total: $5,234.50            │
-│                             │
-│ 🔸 Hyperliquid              │
-│ Total: $3,456.72            │
-│                             │
-│ ━━━━━━━━━━━━━━━━━━━━━━━    │
-│ Combined: $8,691.22         │
-│                             │
-│ 💡 Click exchange to view   │
-│    detailed assets          │
-└─────────────────────────────┘`;
+  const { createBox } = require('../utils/format');
 
-  await ctx.reply(message, {
+  // Placeholder values - in a real implementation these should be fetched dynamically
+  const asterTotal = '$5,234.50';
+  const hyperliquidTotal = '$3,456.72';
+  const combinedTotal = '$8,691.22';
+
+  const lines = [
+    '📊 Universal Assets',
+    '',
+    'All assets across exchanges',
+    '',
+    '---',
+    '🔸 Aster DEX',
+    `Total: ${asterTotal}`,
+    '',
+    '🔸 Hyperliquid',
+    `Total: ${hyperliquidTotal}`,
+    '',
+    '---',
+    `Combined: ${combinedTotal}`,
+    '',
+    '💡 Click exchange to view',
+    '   detailed assets'
+  ];
+
+  const message = createBox('Assets', lines, 32);
+
+  await ctx.reply('```\n' + message + '\n```', {
+    parse_mode: 'MarkdownV2',
     ...Markup.inlineKeyboard([
       [
         Markup.button.callback('📊 Aster Assets', 'aster_assets'),

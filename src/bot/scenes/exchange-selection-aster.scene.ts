@@ -5,26 +5,31 @@ export const exchangeSelectionAsterScene = new Scenes.BaseScene<BotContext>('exc
 
 // Enter handler - Display Exchange Selection Aster (Screen 2)
 exchangeSelectionAsterScene.enter(async (ctx) => {
-  const message = `┌─────────────────────────────┐
-│ 🔗 Link Aster DEX           │
-│                             │
-│ Choose connection method:   │
-│                             │
-│ 🔐 WalletConnect            │
-│   (Recommended)             │
-│   One-click connection      │
-│   via your wallet           │
-│                             │
-│ 🔗 API Key                  │
-│   Manual setup from         │
-│   Aster DEX dashboard       │
-│                             │
-│ 🔒 Your credentials are     │
-│    encrypted and stored     │
-│    securely                 │
-└─────────────────────────────┘`;
+  const { createBox } = require('../utils/format');
 
-  await ctx.reply(message, {
+  const lines = [
+    '🔗 Link Aster DEX',
+    '',
+    'Choose connection method:',
+    '',
+    '🔐 WalletConnect',
+    '  (Recommended)',
+    '  One-click connection',
+    '  via your wallet',
+    '',
+    '🔗 API Key',
+    '  Manual setup from',
+    '  Aster DEX dashboard',
+    '',
+    '🔒 Your credentials are',
+    '   encrypted and stored',
+    '   securely'
+  ];
+
+  const message = createBox('Aster DEX', lines, 32);
+
+  await ctx.reply('```\n' + message + '\n```', {
+    parse_mode: 'MarkdownV2',
     ...Markup.inlineKeyboard([
       [
         Markup.button.callback('🔐 WalletConnect', 'wallet_connect_aster'),

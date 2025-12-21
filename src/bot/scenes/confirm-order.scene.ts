@@ -15,25 +15,30 @@ confirmOrderScene.enter(async (ctx) => {
   const sideEmoji = side === 'LONG' ? '🟢' : '🔴';
   const sideText = side === 'LONG' ? 'Buy' : 'Sell';
   
-  const message = `┌─────────────────────────────┐
-│ ✅ Confirm Order            │
-│                             │
-│ You are about to ${sideText.toLowerCase()}:      │
-│                             │
-│ Symbol: ${symbol}            │
-│ Side: ${side} ${sideEmoji}              │
-│ Amount: $${amount}             │
-│ Type: ${orderType}              │
-│ Leverage: ${leverage}x             │
-│ Margin: ${marginMode}             │
-│                             │
-│ ━━━━━━━━━━━━━━━━━━━━━━━    │
-│                             │
-│ ⚠️  This is a real trade!   │
-│ Please confirm your order.  │
-└─────────────────────────────┘`;
+  const { createBox } = require('../utils/format');
 
-  await ctx.reply(message, {
+  const lines = [
+    '✅ Confirm Order',
+    '',
+    `You are about to ${sideText.toLowerCase()}:`,
+    '',
+    '━━━━━━━━━━━━━━━━━━━━━━━',
+    `Symbol: ${symbol}`,
+    `Side: ${side} ${sideEmoji}`,
+    `Amount: $${amount}`,
+    `Type: ${orderType}`,
+    `Leverage: ${leverage}x`,
+    `Margin: ${marginMode}`,
+    '━━━━━━━━━━━━━━━━━━━━━━━',
+    '',
+    '⚠️  This is a real trade!',
+    'Please confirm your order.'
+  ];
+
+  const message = createBox('', lines, 32);
+
+  await ctx.reply('```\n' + message + '\n```', {
+    parse_mode: 'MarkdownV2',
     ...Markup.inlineKeyboard([
       [
         Markup.button.callback(`✅ ${sideText} ${side}`, 'execute_order'),

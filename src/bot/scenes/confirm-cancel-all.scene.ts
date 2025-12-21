@@ -8,24 +8,29 @@ confirmCancelAllScene.enter(async (ctx) => {
   const symbol = ctx.session.tradingSymbol || 'All';
   const exchange = ctx.session.activeExchange || 'aster';
   
-  const message = `┌─────────────────────────────┐
-│ ⚠️ Cancel All Orders?       │
-│                             │
-│ You are about to cancel     │
-│ ALL open orders.            │
-│                             │
-│ Exchange: ${exchange.toUpperCase()}       │
-│ Symbol: ${symbol}               │
-│                             │
-│ ━━━━━━━━━━━━━━━━━━━━━━━    │
-│                             │
-│ ⚠️ This cannot be undone!   │
-│                             │
-│ All pending orders will be  │
-│ cancelled immediately.      │
-└─────────────────────────────┘`;
+  const { createBox } = require('../utils/format');
 
-  await ctx.reply(message, {
+  const lines = [
+    '⚠️ Cancel All Orders?',
+    '',
+    'You are about to cancel',
+    'ALL open orders.',
+    '',
+    `Exchange: ${exchange.toUpperCase()}`,
+    `Symbol: ${symbol}`,
+    '',
+    '---',
+    '',
+    '⚠️ This cannot be undone!',
+    '',
+    'All pending orders will be',
+    'cancelled immediately.'
+  ];
+
+  const message = createBox('Warning', lines, 32);
+
+  await ctx.reply('```\n' + message + '\n```', {
+    parse_mode: 'MarkdownV2',
     ...Markup.inlineKeyboard([
       [
         Markup.button.callback('✅ Yes, Cancel All', 'confirm'),

@@ -3,50 +3,56 @@ import type { BotContext } from '../types/context';
 
 export const linkWizardAsterStep2Scene = new Scenes.BaseScene<BotContext>('link_wizard_aster_step2');
 
-// Enter handler - Screen 9: Aster DEX API Key
+// Enter handler - Aster API Secret Step 2
 linkWizardAsterStep2Scene.enter(async (ctx) => {
-  const message = `┌─────────────────────────────┐
-│ 🔑 Aster DEX API Key       │
-│                             │
-│ Step 2: Enter your API Key  │
-│                             │
-│ 📝 This is sensitive data   │
-│     handle with care        │
-│                             │
-│ 💡 Find this in:           │
-│ Settings > API Keys >       │
-│ Create New Key              │
-│                             │
-│ Required permissions:       │
-│ • Read account info         │
-│ • Place orders              │
-│ • Read positions            │
-└─────────────────────────────┘`;
+  const { createBox } = require('../utils/format');
 
-  await ctx.reply(message, {
+  const lines = [
+    '🔑 Aster DEX API Secret',
+    '',
+    'Step 2: Enter your API',
+    'Secret',
+    '',
+    '⚠️  Security Notice:',
+    '• Your secret is encrypted',
+    '  with AES-256',
+    '• Stored securely in our',
+    '  database',
+    '• Never transmitted in',
+    '  plain text',
+    '• Only used for authorized',
+    '  trades'
+  ];
+
+  const message = createBox('API Secret', lines, 32);
+
+  await ctx.reply('```\n' + message + '\n```', {
+    parse_mode: 'MarkdownV2',
     ...Markup.inlineKeyboard([
       [
-        Markup.button.callback('Type API key', 'type_api_key'),
         Markup.button.callback('🔙 Back', 'back'),
         Markup.button.callback('❌ Cancel', 'cancel'),
       ],
     ]),
   });
   
-  ctx.scene.session.state = { awaitingApiKey: true, exchange: 'aster' };
+  ctx.scene.session.state = { awaitingApiSecret: true, exchange: 'aster' };
 });
 
 linkWizardAsterStep2Scene.on('text', async (ctx) => {
   const state = ctx.scene.session.state as any;
-  if (state?.awaitingApiKey) {
-    const apiKey = ctx.message.text.trim();
-    ctx.session.tempApiKey = apiKey;
+  if (state?.awaitingApiSecret) {
+    const apiSecret = ctx.message.text.trim();
+    
+    // Basic validation
+    if (apiSecret.length < 10) {
+      await ctx.reply('❌ Invalid API secret format. Please enter a valid API secret.');
+      return;
+    }
+    
+    ctx.session.tempApiSecret = apiSecret;
     await ctx.scene.enter('validating_aster');
   }
-});
-
-linkWizardAsterStep2Scene.action('type_api_key', async (ctx) => {
-  await ctx.answerCbQuery('Please type your API key below');
 });
 
 linkWizardAsterStep2Scene.action('back', async (ctx) => {
@@ -60,3 +66,4 @@ linkWizardAsterStep2Scene.action('cancel', async (ctx) => {
 });
 
 export default linkWizardAsterStep2Scene;
+

@@ -8,23 +8,28 @@ limitOrderPriceScene.enter(async (ctx) => {
   const symbol = ctx.session.tradingSymbol || 'SOLUSDT';
   const side = ctx.session.orderSide || 'LONG';
   
-  const message = `┌─────────────────────────────┐
-│ 💵 Enter Limit Price        │
-│                             │
-│ Symbol: ${symbol}            │
-│ Side: ${side}                │
-│ Amount: $${ctx.session.orderAmount || 50}              │
-│                             │
-│ ━━━━━━━━━━━━━━━━━━━━━━━    │
-│                             │
-│ Enter the price at which    │
-│ you want to execute:        │
-│                             │
-│ 💡 Type price below         │
-│    Example: 142.50          │
-└─────────────────────────────┘`;
+  const { createBox } = require('../utils/format');
 
-  await ctx.reply(message, {
+  const lines = [
+    '💵 Enter Limit Price',
+    '',
+    `Symbol: ${symbol}`,
+    `Side: ${side}`,
+    `Amount: $${ctx.session.orderAmount || 50}`,
+    '',
+    '━━━━━━━━━━━━━━━━━━━━━━━',
+    '',
+    'Enter the price at which',
+    'you want to execute:',
+    '',
+    '💡 Type price below',
+    '   Example: 142.50'
+  ];
+
+  const message = createBox('', lines, 32);
+
+  await ctx.reply('```\n' + message + '\n```', {
+    parse_mode: 'MarkdownV2',
     ...Markup.inlineKeyboard([
       [
         Markup.button.callback('❌ Cancel', 'cancel'),

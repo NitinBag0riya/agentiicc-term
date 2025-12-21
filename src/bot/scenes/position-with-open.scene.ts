@@ -24,26 +24,38 @@ positionWithOpenScene.enter(async (ctx) => {
   
   try {
     if (userId) {
+      const { getOrCreateUser } = require('../../db/users');
+      // @ts-ignore
+      const user = await getOrCreateUser(parseInt(userId), ctx.from?.username);
+      const uid = user.id;
+
       // Get position data
-      const positions = await UniversalApiService.getPositions(userId, exchange);
+      const positions = await UniversalApiService.getPositions(uid, exchange);
       const position = positions?.find((p: any) => p.symbol === symbol);
       
       if (position) {
-        const qty = parseFloat(position.positionAmt);
+        // @ts-ignore
+        const p = position as any;
+        const qty = parseFloat(p.size || p.positionAmt);
         side = qty > 0 ? 'LONG' : 'SHORT';
         sideEmoji = qty > 0 ? '🟢' : '🔴';
         positionQty = Math.abs(qty).toFixed(2);
-        positionValue = `$${parseFloat(position.notional).toFixed(2)}`;
-        entryPrice = `$${parseFloat(position.entryPrice).toFixed(2)}`;
-        markPrice = `$${parseFloat(position.markPrice).toFixed(2)}`;
         
-        const pnlValue = parseFloat(position.unRealizedProfit);
-        const pnlPct = ((pnlValue / parseFloat(position.margin || '1')) * 100).toFixed(2);
+        const mark = parseFloat(p.markPrice);
+        const notional = Math.abs(qty) * mark;
+        positionValue = `$${notional.toFixed(2)}`;
+        entryPrice = `$${parseFloat(p.entryPrice).toFixed(2)}`;
+        markPrice = `$${mark.toFixed(2)}`;
+        
+        const pnlValue = parseFloat(p.unrealizedPnl || p.unRealizedProfit);
+        // Estimate margin if not provided
+        const margin = parseFloat(p.margin) || (notional / parseFloat(p.leverage || '1'));
+        const pnlPct = ((pnlValue / (margin || 1)) * 100).toFixed(2);
         pnl = `${pnlValue >= 0 ? '+' : ''}$${pnlValue.toFixed(2)} (${pnlValue >= 0 ? '+' : ''}${pnlPct}%)`;
       }
       
       // Get open orders
-      const orders = await UniversalApiService.getOrders(userId, exchange, symbol);
+      const orders = await UniversalApiService.getOpenOrders(uid, exchange, symbol);
       if (orders) {
         openOrders = orders.slice(0, 3);
       }
@@ -52,40 +64,44 @@ positionWithOpenScene.enter(async (ctx) => {
     console.error('Error fetching position:', error);
   }
   
-  // Build orders display
-  let ordersText = '';
+  const { createBox } = require('../utils/format');
+
+  // Build orders display lines
+  const ordersLines: string[] = [];
   if (openOrders.length > 0) {
-    ordersText = openOrders.map((o: any, i: number) => {
-      return `│ ${i + 1}. ${o.side} ${o.type} [${o.timeInForce}]     │
-│    ${o.origQty} @ $${o.price}         │`;
-    }).join('\n│                             │\n');
+    ordersLines.push('📋 Open Orders:');
+    openOrders.forEach((o: any, i: number) => {
+      ordersLines.push(`${i + 1}. ${o.side} ${o.type} [${o.timeInForce || 'GTC'}]`);
+      ordersLines.push(`   ${o.quantity || o.origQty} @ $${o.price}`);
+    });
   } else {
-    ordersText = '│ No open orders              │';
+    ordersLines.push('📋 Open Orders: 0');
   }
   
-  const message = `┌─────────────────────────────┐
-│ ⚡ Manage ${symbol} Position   │
-│                             │
-│ Current: ${positionValue}          │
-│ (${positionQty} ${symbol.replace(/USDT$/, '')}) @ ${entryPrice}       │
-│ ${side} ${sideEmoji}                     │
-│                             │
-│ PnL: ${pnl}     │
-│ Mark Price: ${markPrice}         │
-│                             │
-│ ━━━━━━━━━━━━━━━━━━━━━━━    │
-│ 🎯 TP/SL Status             │
-│                             │
-│ TP: ${tpPrice}              │
-│ SL: ${slPrice}              │
-│                             │
-│ ━━━━━━━━━━━━━━━━━━━━━━━    │
-│ 📋 Open Orders (${openOrders.length})          │
-│                             │
-${ordersText}
-└─────────────────────────────┘`;
+  const lines = [
+    `⚡ Manage ${symbol} Position`,
+    '',
+    `Current: ${positionValue}`,
+    `(${positionQty} ${symbol.replace(/USDT$/, '')}) @ ${entryPrice}`,
+    `${side} ${sideEmoji}`,
+    '',
+    `PnL: ${pnl}`,
+    `Mark Price: ${markPrice}`,
+    '',
+    '---',
+    '🎯 TP/SL Status',
+    '',
+    `TP: ${tpPrice}`,
+    `SL: ${slPrice}`,
+    '',
+    '---',
+    ...ordersLines
+  ];
 
-  await ctx.reply(message, {
+  const message = createBox('Position', lines, 34);
+
+  await ctx.reply('```\n' + message + '\n```', {
+    parse_mode: 'MarkdownV2',
     ...Markup.inlineKeyboard([
       [
         Markup.button.callback('➕ Increase', 'increase_position'),

@@ -5,23 +5,29 @@ export const linkWizardHyperliquidStep1Scene = new Scenes.BaseScene<BotContext>(
 
 // Enter handler - Screen 7: Hyperliquid API Setup Step 1
 linkWizardHyperliquidStep1Scene.enter(async (ctx) => {
-  const message = `┌─────────────────────────────┐
-│ 🔗 Hyperliquid API Setup   │
-│                             │
-│ Step 1: Enter your wallet   │
-│ address from Hyperliquid    │
-│                             │
-│ 📝 Format: 0x...           │
-│                             │
-│ 💡 Find this in:           │
-│ Settings > API Keys >       │
-│ Wallet Address              │
-│                             │
-│ 🔒 This will be encrypted   │
-│    and stored securely      │
-└─────────────────────────────┘`;
+  const { createBox } = require('../utils/format');
 
-  await ctx.reply(message, {
+  const lines = [
+    '🔗 Hyperliquid API Setup',
+    '   Step 1: Enter Wallet',
+    '',
+    'Step 1: Enter your wallet',
+    'address from Hyperliquid',
+    '',
+    '📝 Format: 0x...',
+    '',
+    '💡 Find this in:',
+    'Settings > API Keys >',
+    'Wallet Address',
+    '',
+    '🔒 This will be encrypted',
+    '   and stored securely'
+  ];
+
+  const message = createBox('API Setup', lines, 32);
+
+  await ctx.reply('```\n' + message + '\n```', {
+    parse_mode: 'MarkdownV2',
     ...Markup.inlineKeyboard([
       [
         Markup.button.callback('Type wallet address', 'type_address'),

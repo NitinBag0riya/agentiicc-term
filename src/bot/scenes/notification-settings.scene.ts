@@ -5,29 +5,34 @@ export const notificationSettingsScene = new Scenes.BaseScene<BotContext>('notif
 
 // Screen: Notification Settings
 notificationSettingsScene.enter(async (ctx) => {
-  const message = `┌─────────────────────────────┐
-│ 🔔 Notification Settings    │
-│                             │
-│ Configure your alerts:      │
-│                             │
-│ ━━━━━━━━━━━━━━━━━━━━━━━    │
-│                             │
-│ 📊 Trade Notifications      │
-│ • Order filled: ✅ ON       │
-│ • Order cancelled: ✅ ON    │
-│ • Position closed: ✅ ON    │
-│                             │
-│ 💰 Price Alerts             │
-│ • Price alerts: ❌ OFF      │
-│ • TP/SL triggered: ✅ ON    │
-│                             │
-│ 📈 Market Updates           │
-│ • Daily summary: ❌ OFF     │
-│                             │
-│ 💡 Toggle settings below    │
-└─────────────────────────────┘`;
+  const { createBox } = require('../utils/format');
 
-  await ctx.reply(message, {
+  const lines = [
+    '🔔 Notification Settings',
+    '',
+    'Configure your alerts:',
+    '',
+    '━━━━━━━━━━━━━━━━━━━━━━━',
+    '',
+    '📊 Trade Notifications',
+    '• Order filled: ✅ ON',
+    '• Order cancelled: ✅ ON',
+    '• Position closed: ✅ ON',
+    '',
+    '💰 Price Alerts',
+    '• Price alerts: ❌ OFF',
+    '• TP/SL triggered: ✅ ON',
+    '',
+    '📈 Market Updates',
+    '• Daily summary: ❌ OFF',
+    '',
+    '💡 Toggle settings below'
+  ];
+
+  const message = createBox('', lines, 32);
+
+  await ctx.reply('```\n' + message + '\n```', {
+    parse_mode: 'MarkdownV2',
     ...Markup.inlineKeyboard([
       [
         Markup.button.callback('📊 Trade Alerts', 'toggle_trade'),

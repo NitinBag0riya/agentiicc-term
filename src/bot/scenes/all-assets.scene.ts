@@ -9,48 +9,63 @@ allAssetsScene.enter(async (ctx) => {
   const exchange = ctx.session.activeExchange || 'aster';
   const userId = ctx.from?.id?.toString();
   
+  const { createBox } = require('../utils/format');
+
   let totalBalance = '$0.00';
-  let assetsList: string[] = [];
+  let assetsLines: string[] = [];
   
   try {
     if (userId) {
-      const account = await UniversalApiService.getAccount(userId, exchange);
+      const { getOrCreateUser } = require('../../db/users');
+      // @ts-ignore
+      const user = await getOrCreateUser(parseInt(userId), ctx.from?.username);
+      const uid = user.id;
+
+      const account = await UniversalApiService.getAccountSummary(uid, exchange);
       if (account) {
-        totalBalance = `$${account.spotBalance?.toFixed(2) || '0.00'}`;
+        // @ts-ignore
+        totalBalance = `$${(account.spotBalance || account.totalBalance).toFixed(2)}`;
       }
       
-      const assets = await UniversalApiService.getAssets(userId, exchange);
+      // const assets = await UniversalApiService.getAssets(uid, exchange);
+      const assets: any[] = []; // TODO: Implement getAssets in UniversalApiService
       if (assets && assets.length > 0) {
-        assetsList = assets.slice(0, 5).map((a: any) => {
+        const activeAssets = assets.slice(0, 5);
+        activeAssets.forEach((a: any) => {
           const pnlSign = parseFloat(a.pnlPercent || '0') >= 0 ? '+' : '';
-          return `│ ${a.symbol} ${pnlSign}${a.pnlPercent || '0.00'}% (${pnlSign}$${a.pnlValue || '0.00'}) │
-│ ${a.amount} ${a.baseAsset}              │`;
+          assetsLines.push(`${a.symbol} ${pnlSign}${a.pnlPercent || '0.00'}% (${pnlSign}$${a.pnlValue || '0.00'})`);
+          assetsLines.push(`${a.amount} ${a.baseAsset}`);
+          assetsLines.push('');
         });
         
         if (assets.length > 5) {
-          assetsList.push(`│ ...and ${assets.length - 5} more               │`);
+          assetsLines.push(`...and ${assets.length - 5} more`);
         }
+      } else {
+        assetsLines.push('No assets found');
       }
     }
   } catch (error) {
     console.error('Error fetching assets:', error);
   }
   
-  const assetsText = assetsList.length > 0 ? assetsList.join('\n│                             │\n') : '│ No assets found             │';
-  
-  const message = `┌─────────────────────────────┐
-│ 📊 All Assets               │
-│                             │
-│ Spot Portfolio:             │
-│ Balance: ${totalBalance}          │
-│                             │
-${assetsText}
-│                             │
-│ 💬 Click any asset to       │
-│    manage                   │
-└─────────────────────────────┘`;
+  const lines = [
+    '📊 All Assets',
+    '',
+    'Spot Portfolio:',
+    `Balance: ${totalBalance}`,
+    '',
+    ...assetsLines,
+    '---',
+    '',
+    '💬 Click any asset to',
+    '   manage'
+  ];
 
-  await ctx.reply(message, {
+  const message = createBox('Assets', lines, 34);
+
+  await ctx.reply('```\n' + message + '\n```', {
+    parse_mode: 'MarkdownV2',
     ...Markup.inlineKeyboard([
       [
         Markup.button.callback('🔄 Refresh', 'refresh'),

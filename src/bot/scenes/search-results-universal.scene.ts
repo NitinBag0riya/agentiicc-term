@@ -8,24 +8,24 @@ searchResultsUniversalScene.enter(async (ctx) => {
   const symbol = ctx.session.searchSymbol || 'SOL';
   const tradingSymbol = symbol.includes('USDT') ? symbol : `${symbol}USDT`;
   
-  const message = `┌─────────────────────────────┐
-│ 🔍 Universal Search Results │
-│    for "${symbol}"           │
-│                             │
-│ ━━━━━━━━━━━━━━━━━━━━━━━    │
-│ Available on:               │
-│                             │
-│ ✅ Aster DEX                │
-│   • ${tradingSymbol} (Perp)          │
-│                             │
-│ ✅ Hyperliquid              │
-│   • ${symbol} (Perp)             │
-│                             │
-│ ━━━━━━━━━━━━━━━━━━━━━━━    │
-│ Select exchange to trade    │
-└─────────────────────────────┘`;
+  const { createBox } = require('../utils/format');
 
-  await ctx.reply(message, {
+  const lines = [
+    `🔍 Search Results for "${symbol}"`,
+    '',
+    '━━━━━━━━━━━━━━━━━━━━━━━',
+    '⚡ Futures Markets:',
+    `• ${tradingSymbol} (Aster)`,
+    `• ${symbol} (Hyperliquid)`,
+    '',
+    'Click to see details',
+    'and trade'
+  ];
+
+  const message = createBox('', lines, 32);
+
+  await ctx.reply('```\n' + message + '\n```', {
+    parse_mode: 'MarkdownV2',
     ...Markup.inlineKeyboard([
       [
         Markup.button.callback(`🔸 Trade on Aster`, 'trade_aster'),

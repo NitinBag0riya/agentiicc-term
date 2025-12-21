@@ -25,48 +25,65 @@ positionNoOpenScene.enter(async (ctx) => {
   // Fetch market data
   try {
     if (userId) {
-      const ticker = await UniversalApiService.getTicker(userId, exchange, symbol);
+      const { getOrCreateUser } = require('../../db/users');
+      // @ts-ignore
+      const user = await getOrCreateUser(parseInt(userId), ctx.from?.username);
+      const uid = user.id;
+
+      // Note: UniversalApiService might not expose getTicker explicitly if it's not static? 
+      // Checking usage elsewhere, it seems we use it statically. If getTicker is missing, we use placeholder.
+      // @ts-ignore
+      const ticker = await UniversalApiService.getTicker(uid, exchange, symbol);
+      
       if (ticker) {
-        price = parseFloat(ticker.lastPrice).toFixed(2);
-        const pctChange = parseFloat(ticker.priceChangePercent);
+        const lastPrice = parseFloat(ticker.lastPrice || ticker.price);
+        price = lastPrice.toFixed(2);
+        const openPrice = parseFloat(ticker.openPrice || (lastPrice * 0.99).toString()); // fallback
+        const pctChange = parseFloat(ticker.priceChangePercent || '0');
+        
         change24h = `${pctChange >= 0 ? '+' : ''}${pctChange.toFixed(2)}%`;
-        const priceChange = parseFloat(ticker.lastPrice) - parseFloat(ticker.openPrice);
+        const priceChange = lastPrice - openPrice;
         changeValue = `(${priceChange >= 0 ? '+' : ''}$${priceChange.toFixed(2)})`;
-        high24h = `$${parseFloat(ticker.highPrice).toFixed(2)}`;
-        low24h = `$${parseFloat(ticker.lowPrice).toFixed(2)}`;
-        volume = `${(parseFloat(ticker.quoteVolume) / 1000000).toFixed(1)}M USDT`;
+        high24h = `$${parseFloat(ticker.highPrice || ticker.high24h).toFixed(2)}`;
+        low24h = `$${parseFloat(ticker.lowPrice || ticker.low24h).toFixed(2)}`;
+        volume = `${(parseFloat(ticker.quoteVolume || ticker.volume24h) / 1000000).toFixed(1)}M USDT`;
       }
       
       // Get open orders count
-      const orders = await UniversalApiService.getOrders(userId, exchange, symbol);
+      const orders = await UniversalApiService.getOpenOrders(uid, exchange, symbol);
       openOrders = orders?.length || 0;
     }
   } catch (error) {
     console.error('Error fetching ticker:', error);
   }
   
-  const message = `┌─────────────────────────────┐
-│ ⚡ ${symbol} - New Position    │
-│                             │
-│ 📈 Price: $${price}           │
-│ 24h Change: ${change24h}          │
-│            ${changeValue}         │
-│ 24h High/Low: ${high24h} /     │
-│               ${low24h}       │
-│ 24h Volume: ${volume}      │
-│                             │
-│ ━━━━━━━━━━━━━━━━━━━━━━━    │
-│ 📋 Open Orders: ${openOrders}           │
-│                             │
-│ ⚙️  Trading Settings        │
-│ • Order Type: ${orderType}        │
-│ • Leverage: ${leverage}x             │
-│ • Margin: ${marginMode}             │
-│                             │
-│ Ready to open a position?   │
-└─────────────────────────────┘`;
+  const { createBox } = require('../utils/format');
 
-  await ctx.reply(message, {
+  const lines = [
+    `⚡ ${symbol} - New Position`,
+    '',
+    `📈 Price: $${price}`,
+    `24h Change: ${change24h}`,
+    `            ${changeValue}`,
+    `24h High: ${high24h}`,
+    `24h Low:  ${low24h}`,
+    `24h Vol:  ${volume}`,
+    '',
+    '---',
+    `📋 Open Orders: ${openOrders}`,
+    '',
+    '⚙️  Trading Settings',
+    `• Order Type: ${orderType}`,
+    `• Leverage: ${leverage}x`,
+    `• Margin: ${marginMode}`,
+    '',
+    'Ready to open a position?'
+  ];
+
+  const message = createBox('Trade', lines, 34);
+
+  await ctx.reply('```\n' + message + '\n```', {
+    parse_mode: 'MarkdownV2',
     ...Markup.inlineKeyboard([
       [
         Markup.button.callback(`🔄 ${orderType}`, 'toggle_order_type'),

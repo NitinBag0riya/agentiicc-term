@@ -7,23 +7,28 @@ export const confirmClosePositionScene = new Scenes.BaseScene<BotContext>('confi
 confirmClosePositionScene.enter(async (ctx) => {
   const symbol = ctx.session.tradingSymbol || 'UNKNOWN';
   
-  const message = `┌─────────────────────────────┐
-│ ⚠️ Close Position?          │
-│                             │
-│ You are about to close your │
-│ ${symbol} position.          │
-│                             │
-│ ━━━━━━━━━━━━━━━━━━━━━━━    │
-│                             │
-│ This will:                  │
-│ • Close your entire position│
-│ • Execute at market price   │
-│ • Cancel related TP/SL      │
-│                             │
-│ ⚠️ This cannot be undone!   │
-└─────────────────────────────┘`;
+  const { createBox } = require('../utils/format');
 
-  await ctx.reply(message, {
+  const lines = [
+    '⚠️ Close Position?',
+    '',
+    'You are about to close your',
+    `${symbol} position.`,
+    '',
+    '---',
+    '',
+    'This will:',
+    '• Close your entire position',
+    '• Execute at market price',
+    '• Cancel related TP/SL',
+    '',
+    '⚠️ This cannot be undone!'
+  ];
+
+  const message = createBox('Warning', lines, 32);
+
+  await ctx.reply('```\n' + message + '\n```', {
+    parse_mode: 'MarkdownV2',
     ...Markup.inlineKeyboard([
       [
         Markup.button.callback('✅ Yes, Close', 'confirm_close'),

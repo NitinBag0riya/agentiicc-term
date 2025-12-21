@@ -147,6 +147,7 @@ export function createApiServer(port: number = 3000, bot?: Telegraf<BotContext>)
     // ============ WEBHOOK ============
     .post('/webhook', async ({ body, headers, set }: any) => {
       console.log('[Webhook] 📩 Received update:', body?.update_id);
+      console.log('[Webhook] Payload:', JSON.stringify(body, null, 2));
       
       if (!bot) {
         console.error('[Webhook] ❌ Bot not initialized');
