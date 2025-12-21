@@ -390,29 +390,86 @@ export class AsterAdapter implements ExchangeAdapter {
     }
   }
 
+  // Helper to standardise symbols (e.g. BTC -> BTCUSDT)
+  private normalizeSymbol(symbol: string): string {
+    let s = symbol.toUpperCase().trim().replace(/[^A-Z0-9]/g, '');
+    // If symbol is like BTC, ETH, SOL (3-4 chars) and doesn't end in USDT/USDC, append USDT
+    if (s.length <= 5 && !s.endsWith('USDT') && !s.endsWith('USD')) {
+        return `${s}USDT`;
+    }
+    return s;
+  }
+
   async getTicker(symbol: string): Promise<Ticker> {
+    const cleanSymbol = this.normalizeSymbol(symbol);
+    console.log(`[Aster] Fetching ticker for: '${cleanSymbol}' (Orig: ${symbol})`);
+
     try {
-      const url = `${this.baseUrl}/fapi/v1/ticker/24hr?symbol=${symbol}`;
+      // 1. Try 24hr Ticker (Best Data)
+      const url = `${this.baseUrl}/fapi/v1/ticker/24hr?symbol=${cleanSymbol}`;
       const response = await fetch(url);
       
-      if (!response.ok) {
-        throw new Error(`Failed to fetch ticker: ${response.status}`);
+      if (response.ok) {
+        const data: any = await response.json();
+        return {
+            symbol: data.symbol,
+            price: data.lastPrice,
+            change24h: data.priceChangePercent,
+            volume24h: data.volume,
+            high24h: data.highPrice,
+            low24h: data.lowPrice,
+            timestamp: Date.now()
+        };
       }
-
-      const data: any = await response.json();
-
-      return {
-        symbol: data.symbol,
-        price: data.lastPrice,
-        change24h: data.priceChangePercent,
-        volume24h: data.volume,
-        high24h: data.highPrice,
-        low24h: data.lowPrice,
-        timestamp: Date.now()
-      };
-    } catch (error) {
-      throw new Error(`Failed to fetch ticker: ${error}`);
+    } catch (e) {
+         console.warn(`[Aster] 24hr ticker failed for ${cleanSymbol}: ${e}`);
     }
+
+    try {
+        // 2. Fallback: Latest Price
+        const fallbackUrl = `${this.baseUrl}/fapi/v1/ticker/price?symbol=${cleanSymbol}`;
+        const fallbackRes = await fetch(fallbackUrl);
+        if (fallbackRes.ok) {
+            const data: any = await fallbackRes.json();
+            return {
+                symbol: cleanSymbol,
+                price: data.price,
+                change24h: '0', 
+                volume24h: '0',
+                high24h: data.price, 
+                low24h: data.price,
+                timestamp: Date.now()
+            };
+        }
+    } catch (e) {
+        console.warn(`[Aster] Price ticker failed for ${cleanSymbol}: ${e}`);
+    }
+
+    try {
+        // 3. Fallback: Orderbook (Mid Price)
+        const bookUrl = `${this.baseUrl}/fapi/v1/ticker/bookTicker?symbol=${cleanSymbol}`;
+        const bookRes = await fetch(bookUrl);
+        if (bookRes.ok) {
+            const data: any = await bookRes.json();
+            // Average bid/ask
+            const price = ((parseFloat(data.bidPrice) + parseFloat(data.askPrice)) / 2).toString();
+            return {
+                symbol: cleanSymbol,
+                price: price === 'NaN' ? '0' : price,
+                change24h: '0',
+                volume24h: '0',
+                high24h: price,
+                low24h: price,
+                timestamp: Date.now()
+            };
+        }
+    } catch (e) {
+        console.warn(`[Aster] Book ticker failed for ${cleanSymbol}: ${e}`);
+    }
+
+    // 4. No Mock Data - Throw Error if all Real APIs fail
+    console.error(`[Aster] All valid ticker endpoints failed for ${cleanSymbol}.`);
+    throw new Error(`Market data unavailable for ${symbol} (API 400/Unreachable)`);
   }
 
   async getAssets(): Promise<Asset[]> {

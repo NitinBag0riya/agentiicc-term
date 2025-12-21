@@ -14,7 +14,7 @@ interface TradingState {
   mode?: 'MARKET' | 'LIMIT';
   price?: number; // Limit Price
   amount?: number; // USD Size
-  step?: 'SELECT_TYPE' | 'ASK_PRICE' | 'ASK_AMOUNT' | 'ASK_TPSL' | 'CONFIRM' | 'ASK_MARGIN_AMOUNT';
+  step?: 'SELECT_TYPE' | 'ASK_PRICE' | 'ASK_AMOUNT' | 'ASK_TPSL' | 'CONFIRM' | 'ASK_MARGIN_AMOUNT' | 'ASK_PRE_TPSL';
   // TP/SL Temp Data
   tpPrice?: string;
   slPrice?: string;
@@ -76,82 +76,101 @@ async function refreshTradingView(ctx: BotContext) {
     let keyboard: any;
 
     if (activePosition) {
-      // ===== VIEW: ACTIVE POSITION =====
+      // ===== VIEW: ACTIVE POSITION (Manage) =====
       const pnl = parseFloat(activePosition.unrealizedPnl);
       const pnlSign = pnl >= 0 ? '+' : '';
       const sideIcon = activePosition.side === 'LONG' ? '🟢' : '🔴';
+      const isLong = activePosition.side === 'LONG';
+      const apeSideIcon = isLong ? '🟢' : '🔴';
       
       displayMessage = 
-        `📊 **${symbol} Position** ${sideIcon}
+        `📊 <b>${symbol} Position</b> ${sideIcon}
         
-**Exchange:** ${exchange.toUpperCase()}
-**Side:** ${activePosition.side} ${activePosition.leverage}x
-**Size:** ${activePosition.size} ${symbol}
-**Entry:** $${parseFloat(activePosition.entryPrice).toFixed(4)}
-**Mark:** $${parseFloat(activePosition.markPrice).toFixed(4)}
+<b>Exchange:</b> ${exchange.toUpperCase()}
+<b>Side:</b> ${activePosition.side} ${activePosition.leverage}x
+<b>Size:</b> ${activePosition.size} ${symbol}
+<b>Entry:</b> $${parseFloat(activePosition.entryPrice).toFixed(4)}
+<b>Mark:</b> $${parseFloat(activePosition.markPrice).toFixed(4)}
 
-💰 **PnL:** ${pnlSign}$${pnl.toFixed(2)}`;
+💰 <b>PnL:</b> ${pnlSign}$${pnl.toFixed(2)}`;
 
       keyboard = Markup.inlineKeyboard([
+        // Row 1: Config Toggles
         [
-            Markup.button.callback('📉 Close 100%', `close_full_${symbol}`),
-            Markup.button.callback('✂️ 50%', `close_half_${symbol}`),
-            Markup.button.callback('🤏 25%', `close_25_${symbol}`),
-            Markup.button.callback('♋ 69%', `close_69_${symbol}`)
+            Markup.button.callback('🛒 Market', 'toggle_order_type'), // Toggles order type for adds/closes
+            Markup.button.callback(`🔟 ${Math.round(parseFloat(activePosition.leverage || '1'))}x`, 'cycle_leverage'),
+            Markup.button.callback('🛡️ Margin', 'cycle_margin')
         ],
+        // Row 2: Ape (Add Size) - 3 Columns
         [
-            Markup.button.callback(`⚙️ ${Math.round(parseFloat(activePosition.leverage || '1'))}x`, 'cycle_leverage'),
-            Markup.button.callback('🛡️ Margin Mode', 'cycle_margin')
+             Markup.button.callback(`${apeSideIcon} Ape $50`, `ape_50`),
+             Markup.button.callback(`${apeSideIcon} Ape $200`, `ape_200`),
+             Markup.button.callback(`${apeSideIcon} Ape X`, `ape_custom`)
         ],
+        // Row 3: Close Actions
+        [
+             Markup.button.callback('❌ Close All', `close_full_${symbol}`)
+        ],
+        // Row 4: Partial Closes
+        [
+             Markup.button.callback('📉 25%', `close_25_${symbol}`),
+             Markup.button.callback('📉 50%', `close_half_${symbol}`),
+             Markup.button.callback('📉 75%', `close_75_${symbol}`)
+        ],
+        // Row 5: Strategy
         [
             Markup.button.callback('🎯 Set TP/SL', `setup_tpsl`),
-            Markup.button.callback('➕ Add Margin', `add_margin_placeholder`)
+            Markup.button.callback('📋 Manage Orders', 'manage_orders')
         ],
+        // Row 6: Nav
         [
-            Markup.button.callback('🎯 Set TP/SL', `setup_tpsl`),
-            Markup.button.callback('➕ Add Margin', `add_margin_placeholder`)
-        ],
-        [
-             Markup.button.callback('📋 Manage Orders', 'manage_orders')
-        ],
-        [
-          Markup.button.callback('🔄 Refresh', 'refresh'),
-          Markup.button.callback('🔙 Back', 'back_to_citadel')
+          Markup.button.callback('🔙 Back to Menu', 'back_to_citadel')
         ]
       ]);
 
     } else {
-      // ===== VIEW: NO POSITION (Trading Mode) =====
+      // ===== VIEW: NO POSITION (New Trade) =====
       
       // Default mode if unset
       if (!state.mode) state.mode = 'MARKET';
-      const modeIcon = state.mode === 'MARKET' ? '🚀' : '⏱';
+      const modeIcon = state.mode === 'MARKET' ? '🛒' : '⏱';
       const modeText = state.mode === 'MARKET' ? 'Market' : 'Limit';
 
       displayMessage = 
-        `📈 **Trade ${symbol}**
+        `📈 <b>Trade ${symbol}</b>
         
-**Price:** $${price.toFixed(4)}
-**24h:** ${changeSign}${change24h.toFixed(2)}%
+<b>Price:</b> $${price.toFixed(4)}
+<b>24h:</b> ${changeSign}${change24h.toFixed(2)}%
 
-_Select direction to open a position:_`;
+<i>Select direction and size:</i>`;
 
       keyboard = Markup.inlineKeyboard([
-        // Row 1: Config (Market/Limit | Lev | Margin) - Moved to top
+        // Row 1: Config (Toggle | Lev | Margin)
         [
             Markup.button.callback(`${modeIcon} ${modeText}`, 'toggle_order_type'),
-            Markup.button.callback('⚙️ Lev', 'cycle_leverage'),
-            Markup.button.callback('🛡️ Margin', 'cycle_margin')
+            Markup.button.callback('❓ 10x', 'cycle_leverage'), // Placeholder 10x or dynamic
+            Markup.button.callback('❓ Cross', 'cycle_margin')   // Placeholder
         ],
-        // Row 2: Actions
+        // Row 2: Quick Long
         [
-          Markup.button.callback('🟢 LONG', 'trade_long'),
-          Markup.button.callback('🔴 SHORT', 'trade_short')
+            Markup.button.callback('🟢 Long $50', 'trade_quick_long_50'),
+            Markup.button.callback('🟢 Long $200', 'trade_quick_long_200'),
+            Markup.button.callback('🟢 Long X', 'trade_long_custom')
         ],
-        // Row 3: Nav
+        // Row 3: Quick Short
         [
-            Markup.button.callback('🔄 Refresh', 'refresh'),
-            Markup.button.callback('🔙 Back', 'back_to_citadel')
+             Markup.button.callback('🔴 Short $50', 'trade_quick_short_50'),
+             Markup.button.callback('🔴 Short $200', 'trade_quick_short_200'),
+             Markup.button.callback('🔴 Short X', 'trade_short_custom')
+        ],
+        // Row 4: Tools
+        [
+             Markup.button.callback('🎯 Set TP/SL', 'setup_tpsl_pre') 
+        ],
+        // Row 5: Nav
+        [
+            Markup.button.callback('🔙 Back to Menu', 'back_to_citadel'),
+            Markup.button.callback('🔄 Refresh', 'refresh')
         ]
       ]);
     }
@@ -162,11 +181,11 @@ _Select direction to open a position:_`;
         loaderMsg.message_id,
         undefined,
         displayMessage,
-        { parse_mode: 'Markdown', ...keyboard }
+        { parse_mode: 'HTML', ...keyboard }
         );
     } catch (e) {
         // Fallback if edit fails (e.g. message too old)
-        await ctx.reply(displayMessage, { parse_mode: 'Markdown', ...keyboard });
+        await ctx.reply(displayMessage, { parse_mode: 'HTML', ...keyboard });
     }
 
   } catch (error: any) {
@@ -175,6 +194,9 @@ _Select direction to open a position:_`;
     await ctx.scene.enter('citadel');
   }
 }
+// ... (rest of file)
+// Note: I need to ensure executeTrade also uses HTML
+
 
 // ================= ACTIONS =================
 
@@ -204,17 +226,17 @@ tradingScene.action('manage_orders', async (ctx) => {
             return;
         }
 
-        let msg = `📋 **Open Orders (${symbol})**\n\n`;
+        let msg = `📋 <b>Open Orders (${symbol})</b>\n\n`;
         const buttons = [];
 
         for (const o of orders) {
-            msg += `▫️ **${o.side}** ${o.quantity} @ ${o.price}\n   ID: \`${o.orderId}\`\n\n`;
+            msg += `▫️ <b>${o.side}</b> ${o.quantity} @ ${o.price}\n   ID: <code>${o.orderId}</code>\n\n`;
             buttons.push([Markup.button.callback(`❌ Cancel ${o.side} ${o.price}`, `cancel_order_${o.orderId}`)]);
         }
         
         buttons.push([Markup.button.callback('🔙 Back', 'refresh'), Markup.button.callback('🗑️ Cancel All', 'cancel_all_orders')]);
 
-        await ctx.reply(msg, Markup.inlineKeyboard(buttons));
+        await ctx.reply(msg, { parse_mode: 'HTML', ...Markup.inlineKeyboard(buttons) });
 
     } catch (error: any) {
         await ctx.reply(`❌ Failed to fetch orders: ${error.message}`);
@@ -229,14 +251,12 @@ tradingScene.action(/cancel_order_(.+)/, async (ctx) => {
     const state = ctx.scene.state as TradingState;
     
     await ctx.answerCbQuery();
-    await ctx.reply(`⚠️ Cancelling order ${orderId}...`);
+    await ctx.reply(`⚠️ Cancelling order <code>${orderId}</code>...`, { parse_mode: 'HTML' });
     
     try {
         await UniversalApiService.cancelOrder(userId, exchange, orderId, state.symbol);
         await ctx.reply(`✅ Order cancelled.`);
         
-        // Refresh orders view by re-triggering managment? 
-        // Or just go back to main view. Let's go refresh main view.
         await refreshTradingView(ctx);
     } catch (error: any) {
         await ctx.reply(`❌ Cancel failed: ${error.message}`);
@@ -258,18 +278,18 @@ tradingScene.action(['trade_long', 'trade_short'], async (ctx) => {
   if (state.mode === 'LIMIT') {
       state.step = 'ASK_PRICE';
       await ctx.reply(
-          `🔢 **Enter Limit Price**
+          `🔢 <b>Enter Limit Price</b>
           
 Type the price to triggers order:`,
-          { reply_markup: { force_reply: true } }
+          { parse_mode: 'HTML', reply_markup: { force_reply: true } }
       );
   } else {
       state.step = 'ASK_AMOUNT';
       await ctx.reply(
-          `💰 **Enter Amount (USD)**
+          `💰 <b>Enter Amount (USD)</b>
           
 Type the value (e.g., 50, 100, 500):`,
-          { reply_markup: { force_reply: true } }
+          { parse_mode: 'HTML', reply_markup: { force_reply: true } }
       );
   }
   await ctx.answerCbQuery();
@@ -300,10 +320,10 @@ tradingScene.action('type_market', async (ctx) => {
     state.step = 'ASK_AMOUNT';
     await ctx.answerCbQuery();
     await ctx.reply(
-        `💰 **Enter Amount (USD)**
+        `💰 <b>Enter Amount (USD)</b>
         
 Type the value (e.g., 50, 100, 500):`,
-        { reply_markup: { force_reply: true } }
+        { parse_mode: 'HTML', reply_markup: { force_reply: true } }
     );
 });
 
@@ -313,40 +333,94 @@ tradingScene.action('type_limit', async (ctx) => {
     state.step = 'ASK_PRICE';
     await ctx.answerCbQuery();
     await ctx.reply(
-        `🔢 **Enter Limit Price**
+        `🔢 <b>Enter Limit Price</b>
         
 Type the price to triggers order:`,
-        { reply_markup: { force_reply: true } }
+        { parse_mode: 'HTML', reply_markup: { force_reply: true } }
     );
 });
 
 
 // --- Position Management Actions ---
 
-// Close Full
-tradingScene.action(/close_full_(.+)/, async (ctx) => {
-    const symbol = ctx.match[1];
-    await ctx.answerCbQuery();
-    await executeClose(ctx, symbol, 1.0);
+// --- Quick Trade Handlers ---
+
+// Quick Long/Short Fixed Amounts
+tradingScene.action(/trade_quick_(long|short)_(50|200)/, async (ctx) => {
+    const side = ctx.match[1] === 'long' ? 'BUY' : 'SELL';
+    const amount = parseFloat(ctx.match[2]);
+    const state = ctx.scene.state as TradingState;
+    
+    state.side = side;
+    state.amount = amount;
+    state.mode = 'MARKET'; // Quick trades are always Market
+    
+    await ctx.answerCbQuery(`⚡ Quick ${side} $${amount}`);
+    await executeTrade(ctx, state);
 });
 
-// Close Half
-tradingScene.action(/close_half_(.+)/, async (ctx) => {
-    const symbol = ctx.match[1];
+// Custom Amount Handlers
+tradingScene.action(/trade_(long|short)_custom/, async (ctx) => {
+    const side = ctx.match[1] === 'long' ? 'BUY' : 'SELL';
+    const state = ctx.scene.state as TradingState;
+    
+    state.side = side;
+    state.mode = 'MARKET';
+    state.step = 'ASK_AMOUNT';
+    
     await ctx.answerCbQuery();
-    await executeClose(ctx, symbol, 0.5);
+    await ctx.reply(
+        `💰 <b>Enter ${side} Amount (USD)</b>
+        
+Type the value:`,
+        { parse_mode: 'HTML', reply_markup: { force_reply: true } }
+    );
 });
 
-tradingScene.action(/close_25_(.+)/, async (ctx) => {
-    const symbol = ctx.match[1];
-    await ctx.answerCbQuery();
-    await executeClose(ctx, symbol, 0.25);
+
+// --- Ape (Add Size) Handlers ---
+
+tradingScene.action(/ape_(50|200|custom)/, async (ctx) => {
+    const type = ctx.match[1];
+    const state = ctx.scene.state as TradingState;
+    const userId = ctx.session.userId!;
+    const exchange = ctx.session.activeExchange!;
+    
+    // 1. Get current position to know side
+    try {
+        const positions = await UniversalApiService.getPositions(userId, exchange);
+        const pos = positions.find(p => p.symbol === state.symbol);
+        
+        if (!pos) {
+            await ctx.answerCbQuery('❌ No active position to Ape into.');
+            return refreshTradingView(ctx);
+        }
+        
+        const side = parseFloat(pos.size) > 0 ? 'BUY' : 'SELL'; // Same side to add size
+        state.side = side;
+        state.mode = 'MARKET';
+
+        if (type === 'custom') {
+            state.step = 'ASK_AMOUNT';
+            await ctx.answerCbQuery();
+            await ctx.reply(`🦍 <b>Ape Amount (USD)</b>\n\nEnter amount to ADD to position:`, { parse_mode: 'HTML', reply_markup: { force_reply: true } });
+        } else {
+            const amount = parseFloat(type);
+            state.amount = amount;
+            await ctx.answerCbQuery(`🦍 Aping $${amount}...`);
+            await executeTrade(ctx, state);
+        }
+
+    } catch (e: any) {
+        await ctx.reply(`❌ Failed to Ape: ${e.message}`);
+    }
 });
 
-tradingScene.action(/close_69_(.+)/, async (ctx) => {
+// --- Close 75% ---
+tradingScene.action(/close_75_(.+)/, async (ctx) => {
     const symbol = ctx.match[1];
     await ctx.answerCbQuery();
-    await executeClose(ctx, symbol, 0.69);
+    await executeClose(ctx, symbol, 0.75);
 });
 
 async function executeClose(ctx: BotContext, symbol: string, fraction: number) {
@@ -387,7 +461,7 @@ async function executeClose(ctx: BotContext, symbol: string, fraction: number) {
             reduceOnly: true
         });
 
-        await ctx.reply(`✅ Closed ${quantity} ${symbol}.\nOrder ID: \`${result.orderId}\``);
+        await ctx.reply(`✅ Closed ${quantity} ${symbol}.\nOrder ID: <code>${result.orderId}</code>`, { parse_mode: 'HTML' });
         await refreshTradingView(ctx);
 
     } catch (error: any) {
@@ -395,16 +469,34 @@ async function executeClose(ctx: BotContext, symbol: string, fraction: number) {
     }
 }
 
+// --- Pre-Trade TP/SL ---
+tradingScene.action('setup_tpsl_pre', async (ctx) => {
+    // Determine side if possible or just ask generic
+    const state = ctx.scene.state as TradingState;
+    state.step = 'ASK_TPSL';
+    await ctx.answerCbQuery();
+    await ctx.reply(
+        `🎯 <b>Pre-Set Take Profit / Stop Loss</b>
+        
+Enter TP and SL prices separated by space:
+Example: <code>95000 89000</code>
+(Type <code>skip</code> to skip one, e.g. <code>95000 skip</code>)`,
+        { parse_mode: 'HTML', reply_markup: { force_reply: true } }
+    );
+});
+
 // Setup TP/SL
 tradingScene.action('setup_tpsl', async (ctx) => {
     const state = ctx.scene.state as TradingState;
     state.step = 'ASK_TPSL';
     await ctx.answerCbQuery();
     await ctx.reply(
-        `🎯 **Set Take Profit / Stop Loss**
+        `🎯 <b>Set Take Profit / Stop Loss</b>
 
 Select a Quick Option relative to current price or type manually:`,
-        Markup.inlineKeyboard([
+        {
+          parse_mode: 'HTML',
+          ...Markup.inlineKeyboard([
             [
                 Markup.button.callback('💹 TP +5%', 'tpsl_calc_tp_5'),
                 Markup.button.callback('💹 TP +10%', 'tpsl_calc_tp_10')
@@ -415,7 +507,7 @@ Select a Quick Option relative to current price or type manually:`,
             ],
             [Markup.button.callback('🔙 Cancel', 'refresh')]
         ])
-    );
+    });
 });
 
 // Quick TP/SL Handler
@@ -473,11 +565,11 @@ tradingScene.action('add_margin_placeholder', async (ctx) => {
     state.step = 'ASK_MARGIN_AMOUNT';
     await ctx.answerCbQuery();
     await ctx.reply(
-        `➕ **Add Margin**
+        `➕ <b>Add Margin</b>
         
 Enter amount to add (in USD/Quote):
-Example: \`50\``,
-        { reply_markup: { force_reply: true } }
+Example: <code>50</code>`,
+        { parse_mode: 'HTML', reply_markup: { force_reply: true } }
     );
 });
 
@@ -533,11 +625,11 @@ tradingScene.on('text', async (ctx) => {
         return;
     }
 
-    // Step: ASK_TPSL
+    // Step: ASK_TPSL (Immediate Set for Open Position)
     if (state.step === 'ASK_TPSL') {
         const parts = text.split(' ');
         if (parts.length !== 2) {
-            await ctx.reply(`❌ Invalid format. Use: \`TP SL\` (e.g. \`95000 89000\`)`);
+            await ctx.reply(`❌ Invalid format. Use: TP SL (e.g. 95000 89000)`);
             return;
         }
 
@@ -550,6 +642,31 @@ tradingScene.on('text', async (ctx) => {
 
         await executeTPSL(ctx, tp, sl);
         state.step = undefined;
+        return;
+    }
+
+    // Step: ASK_PRE_TPSL (Attach to Next Trade)
+    if (state.step === 'ASK_PRE_TPSL') {
+        const parts = text.split(' ');
+        if (parts.length !== 2) {
+            await ctx.reply(`❌ Invalid format. Use: TP SL (e.g. 95000 89000)`);
+            return;
+        }
+
+        const tp = parts[0].toLowerCase() === 'skip' ? undefined : parts[0];
+        const sl = parts[1].toLowerCase() === 'skip' ? undefined : parts[1];
+
+        if (tp && isNaN(parseFloat(tp))) { await ctx.reply(`❌ Invalid TP Price`); return; }
+        if (sl && isNaN(parseFloat(sl))) { await ctx.reply(`❌ Invalid SL Price`); return; }
+
+        state.tpPrice = tp;
+        state.slPrice = sl;
+        state.step = undefined;
+
+        await ctx.reply(`✅ <b>TP/SL Attached</b>\nTP: ${tp || 'None'}\nSL: ${sl || 'None'}\n\n<i>Use the buttons above to execute the trade.</i>`, { parse_mode: 'HTML' });
+        // Don't refresh view essentially, just acknowledge. But view refresh might be nice?
+        // Let's NOT refresh view because it would clear the "Attached" status visually if we don't render it.
+        // For now, user just knows it's attached.
         return;
     }
 
@@ -606,17 +723,23 @@ async function executeTrade(ctx: BotContext, state: TradingState) {
             side: side!,
             type: mode!,
             quantity,
-            price: mode === 'LIMIT' ? price!.toString() : undefined
+            price: mode === 'LIMIT' ? price!.toString() : undefined,
+            takeProfit: state.tpPrice,
+            stopLoss: state.slPrice
         });
 
         await ctx.reply(
-            `✅ **Order Successful!**
+            `✅ <b>Order Successful!</b>
             
 Type: ${mode} ${side}
 Qty: ${quantity} ${symbol}
 Status: ${result.status}
-ID: \`${result.orderId}\``
+ID: <code>${result.orderId}</code>`, { parse_mode: 'HTML' }
         );
+
+        // Clear TP/SL after trade
+        state.tpPrice = undefined;
+        state.slPrice = undefined;
 
         await refreshTradingView(ctx);
 

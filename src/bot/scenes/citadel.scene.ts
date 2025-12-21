@@ -129,16 +129,117 @@ async function refreshDashboard(ctx: BotContext) {
   }
 }
 
+// View All Orders & Positions
+citadelScene.command('orders', async (ctx) => {
+    const userId = ctx.session.userId!;
+    const exchange = ctx.session.activeExchange!;
+    
+    await ctx.reply(`⏳ Loading active orders & positions for ${exchange}...`);
+
+    try {
+        const [positions, orders] = await Promise.all([
+            UniversalApiService.getPositions(userId, exchange),
+            UniversalApiService.getOpenOrders(userId, exchange)
+        ]);
+
+        let msg = `📋 <b>All Active Items (${exchange.toUpperCase()})</b>\n\n`;
+        let hasContent = false;
+
+        // 1. Positions
+        if (positions.length > 0) {
+            hasContent = true;
+            msg += `<b>---- POSITIONS (${positions.length}) ----</b>\n`;
+            for (const p of positions) {
+                 const rawPnl = parseFloat(p.unrealizedPnl || '0');
+                 const pnlSign = rawPnl >= 0 ? '+' : '';
+                 const sideIcon = p.side === 'LONG' ? '🟢' : '🔴';
+                 // Clickable Link to Manage
+                 msg += `${sideIcon} <b>${p.symbol}</b> ${p.leverage}x | PnL: ${pnlSign}$${rawPnl.toFixed(2)}\n   Manage: /${p.symbol}\n\n`;
+            }
+        }
+
+        // 2. Open Orders
+        if (orders.length > 0) {
+             hasContent = true;
+             msg += `<b>---- OPEN ORDERS (${orders.length}) ----</b>\n`;
+             for (const o of orders) {
+                 msg += `▫️ <b>${o.symbol}</b> ${o.side} ${o.type}\n   Qty: ${o.quantity} @ ${o.price}\n   ID: <code>${o.orderId}</code>\n   /cancel_order_${o.orderId}\n\n`;
+             }
+        }
+
+        if (!hasContent) {
+            msg += `<i>No active positions or open orders.</i>`;
+        }
+
+        await ctx.reply(msg, { parse_mode: 'HTML' });
+
+    } catch (e: any) {
+        await ctx.reply(`❌ Failed to load items: ${e.message}`);
+    }
+});
+
 // Handle Slash Command for Trading (e.g., /BTCUSDT)
 // Captures ANY slash command mostly, so we must filter reserved ones
 citadelScene.hears(/^\/([A-Z0-9]+)$/i, async (ctx) => {
     const symbol = ctx.match[1].toUpperCase();
 
-    // Ignore system commands
-    const reserved = ['START', 'MENU', 'HELP', 'SETTINGS', 'ORDERS'];
+    // Ignore system commands and common keywords
+    const reserved = [
+        'START', 'MENU', 'HELP', 'SETTINGS', 'ORDERS', 
+        'MARKET', 'LIMIT', 'TRADE', 'CANCEL', 'SEARCH', 'REFRESH'
+    ];
     if (reserved.includes(symbol)) return;
 
     await ctx.scene.enter('trading', { symbol });
+});
+
+// View All Orders & Positions
+citadelScene.command('orders', async (ctx) => {
+    const userId = ctx.session.userId!;
+    const exchange = ctx.session.activeExchange!;
+    
+    await ctx.reply(`⏳ Loading active orders & positions for ${exchange}...`);
+
+    try {
+        const [positions, orders] = await Promise.all([
+            UniversalApiService.getPositions(userId, exchange),
+            UniversalApiService.getOpenOrders(userId, exchange)
+        ]);
+
+        let msg = `📋 <b>All Active Items (${exchange.toUpperCase()})</b>\n\n`;
+        let hasContent = false;
+
+        // 1. Positions
+        if (positions.length > 0) {
+            hasContent = true;
+            msg += `<b>---- POSITIONS (${positions.length}) ----</b>\n`;
+            for (const p of positions) {
+                 const rawPnl = parseFloat(p.unrealizedPnl || '0');
+                 const pnlSign = rawPnl >= 0 ? '+' : '';
+                 const sideIcon = p.side === 'LONG' ? '🟢' : '🔴';
+                 // Clickable Link to Manage
+                 msg += `${sideIcon} <b>${p.symbol}</b> ${p.leverage}x | PnL: ${pnlSign}$${rawPnl.toFixed(2)}\n   Manage: /${p.symbol}\n\n`;
+            }
+        }
+
+        // 2. Open Orders
+        if (orders.length > 0) {
+             hasContent = true;
+             msg += `<b>---- OPEN ORDERS (${orders.length}) ----</b>\n`;
+             for (const o of orders) {
+                 msg += `▫️ <b>${o.symbol}</b> ${o.side} ${o.type}\n   Qty: ${o.quantity} @ ${o.price}\n   ID: <code>${o.orderId}</code>\n   /cancel_order_${o.orderId}\n\n`;
+             }
+        }
+
+        if (!hasContent) {
+            msg += `<i>No active positions or open orders.</i>`;
+        }
+
+        await ctx.reply(msg, { parse_mode: 'HTML' });
+
+    } catch (e: any) {
+        await ctx.reply(`❌ Failed to load items: ${e.message}`);
+    }
 });
 
 // Emergency Unlink Action

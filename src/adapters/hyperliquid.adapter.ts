@@ -543,20 +543,36 @@ export class HyperliquidAdapter implements ExchangeAdapter {
   }
 
   async getTicker(symbol: string): Promise<Ticker> {
-    // @ts-ignore
-    const mids = await this.sdk.info.getAllMids();
-    // mids is object { "BTC-PERP": "10000", ... }
+    try {
+        // @ts-ignore
+        const mids = await this.sdk.info.getAllMids(); 
+        // mids could be { "BTC": "90000", "ETH": "...", ... } OR { "BTC-PERP": ... }
+        // We try multiple variants to be safe
 
-    const exSymbol = this.toExchangeSymbol(symbol);
-    return {
-      symbol,
-      price: mids[exSymbol] || '0',
-      change24h: '0',
-      volume24h: '0',
-      high24h: '0',
-      low24h: '0',
-      timestamp: Date.now()
-    };
+        const exSymbol = this.toExchangeSymbol(symbol); // e.g. BTC-PERP
+        const baseSymbol = this.fromExchangeSymbol(symbol); // e.g. BTC
+
+        // Try exact match, exchange symbol, or base symbol
+        const price = mids[symbol] || mids[exSymbol] || mids[baseSymbol];
+
+        if (!price) {
+            console.warn(`[Hyperliquid] Ticker not found for ${symbol} in Available Mids keys (Sample: ${Object.keys(mids).slice(0,3)})`);
+            throw new Error(`Price not found for ${symbol}`);
+        }
+
+        return {
+        symbol,
+        price: price,
+        change24h: '0', // Hyperliquid basic ticker doesn't give 24h stats easily without diff API
+        volume24h: '0',
+        high24h: '0',
+        low24h: '0',
+        timestamp: Date.now()
+        };
+    } catch (error) {
+        console.warn(`[Hyperliquid] Failed to fetch ticker for ${symbol}: ${error}`);
+        throw new Error(`Market data unavailable for ${symbol}`);
+    }
   }
 
   async getAssets(): Promise<Asset[]> {
