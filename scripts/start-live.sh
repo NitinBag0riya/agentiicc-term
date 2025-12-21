@@ -5,6 +5,9 @@
 
 set -e
 
+# Ensure Bun and other tools are in PATH
+export PATH="$HOME/.bun/bin:/opt/homebrew/bin:/usr/local/bin:$PATH"
+
 cleanup() {
     echo -e "\n🛑 Shutting down..."
     kill $(jobs -p) 2>/dev/null || true
@@ -28,9 +31,34 @@ if ! command -v ngrok &> /dev/null; then
     exit 1
 fi
 
-# 2. Start API Server (Background)
-echo "📦 Starting API Server (Port 3000)..."
-bun src/run-api-only.ts > server.log 2>&1 &
+# 2. Start Ngrok (Background)
+# Detect PORT from .env
+if [ -f .env ]; then
+    PORT=$(grep "^PORT=" .env | cut -d '=' -f2)
+fi
+PORT=${PORT:-3000}
+
+echo "🌍 Establishing Ngrok Tunnel on port ${PORT}..."
+ngrok http ${PORT} > ngrok.log 2>&1 &
+NGROK_PID=$!
+
+sleep 4 # Give ngrok time to connect
+
+# 3. Extract URL
+NGROK_URL=$(curl -s http://localhost:4040/api/tunnels | grep -o 'https://[^"]*ngrok-free.app' | head -n 1)
+
+if [ -z "$NGROK_URL" ]; then
+    echo "❌ Failed to get Ngrok URL. Is Ngrok authenticated?"
+    echo "   Run: ngrok config add-authtoken <TOKEN>"
+    kill $NGROK_PID
+    exit 1
+fi
+
+echo "✅ Ngrok Active: $NGROK_URL"
+
+# 4. Start API Server with Webhook URL
+echo "📦 Starting Bot + API Server..."
+WEBHOOK_URL=$NGROK_URL bun src/index.ts > server.log 2>&1 &
 SERVER_PID=$!
 
 # Wait for server to be ready
@@ -39,28 +67,12 @@ while ! grep -q "Available endpoints" server.log; do
     if ! ps -p $SERVER_PID > /dev/null; then
         echo "❌ Server failed to start. Check server.log:"
         cat server.log
+        kill $NGROK_PID
         exit 1
     fi
     sleep 1
 done
 echo "✅ API Server is UP"
-
-# 3. Start Ngrok (Background)
-echo "🌍 Establishing Ngrok Tunnel..."
-ngrok http 3000 > /dev/null 2>&1 &
-NGROK_PID=$!
-
-sleep 3 # Give ngrok valid time to connect
-
-# 4. Extract URL
-NGROK_URL=$(curl -s http://localhost:4040/api/tunnels | grep -o 'https://[^"]*ngrok-free.app')
-
-if [ -z "$NGROK_URL" ]; then
-    echo "❌ Failed to get Ngrok URL. Is Ngrok authenticated?"
-    echo "   Run: ngrok config add-authtoken <TOKEN>"
-    kill $SERVER_PID $NGROK_PID
-    exit 1
-fi
 
 echo ""
 echo "════════════════════════════════════════════════════"

@@ -10,7 +10,7 @@ export class HyperliquidAdapter implements ExchangeAdapter {
   private accountAddress: string;
 
   constructor(accountAddress: string, privateKey?: string) {
-    this.accountAddress = accountAddress;
+    this.accountAddress = accountAddress.toLowerCase().trim();
 
     // Initialize SDK with proper options object for exchange module
     if (privateKey) {
@@ -51,7 +51,28 @@ export class HyperliquidAdapter implements ExchangeAdapter {
 
   async getAccount(): Promise<AccountInfo> {
     try {
-      const state = await this.sdk.info.perpetuals.getClearinghouseState(this.accountAddress);
+      const address = this.accountAddress.toLowerCase().trim();
+      console.log(`[Hyperliquid] Fetching account for: '${address}' (Length: ${address.length})`);
+      if (!address.startsWith('0x') || address.length !== 42) {
+        console.warn(`[Hyperliquid] ⚠️ WARNING: Address '${address}' may be invalid! Expected 42 chars starting with 0x.`);
+      }
+      
+      
+      // Use direct fetch to bypass SDK deserialization error
+      const response = await fetch('https://api.hyperliquid.xyz/info', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+           type: "clearinghouseState",
+           user: address
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`Hyperliquid API Error: ${response.status} ${response.statusText}`);
+      }
+
+      const state: any = await response.json();
       const marginSummary = state.marginSummary;
 
       return {
@@ -70,8 +91,9 @@ export class HyperliquidAdapter implements ExchangeAdapter {
         })),
         timestamp: Date.now()
       };
-    } catch (error) {
-      throw new Error(`Failed to fetch Hyperliquid account: ${error}`);
+    } catch (error: any) {
+      console.error('[Hyperliquid] getAccount Error:', error);
+      throw new Error(`Failed to fetch Hyperliquid account: ${error.message}`);
     }
   }
 

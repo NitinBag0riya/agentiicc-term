@@ -6,6 +6,7 @@
 import { Scenes, Markup } from 'telegraf';
 import type { BotContext } from '../types/context';
 import { UniversalApiService } from '../services/universal-api.service';
+import { showMenu } from '../utils/menu';
 
 interface TradingState {
   symbol: string;
@@ -20,6 +21,12 @@ interface TradingState {
 }
 
 export const tradingScene = new Scenes.BaseScene<BotContext>('trading');
+
+// Global Commands
+tradingScene.command(['menu', 'start'], async (ctx) => {
+    await ctx.scene.leave();
+    await showMenu(ctx);
+});
 
 tradingScene.enter(async (ctx) => {
   const state = ctx.scene.state as TradingState;

@@ -6,9 +6,15 @@
 import { Scenes, Markup } from 'telegraf';
 import type { BotContext } from '../types/context';
 import { UniversalApiService } from '../services/universal-api.service';
-import { getUnlinkedKeyboard } from '../bot';
+import { showMenu } from '../utils/menu';
 
 export const settingsScene = new Scenes.BaseScene<BotContext>('settings');
+
+// Global Commands
+settingsScene.command(['menu', 'start'], async (ctx) => {
+    await ctx.scene.leave();
+    await showMenu(ctx);
+});
 
 settingsScene.enter(async (ctx) => {
   await refreshSettingsView(ctx);

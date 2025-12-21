@@ -7,6 +7,7 @@ import { Scenes, Markup } from 'telegraf';
 import type { BotContext } from '../types/context';
 import { storeApiCredentials } from '../../db/users';
 import { encrypt } from '../../utils/encryption';
+import { showMenu } from '../utils/menu';
 
 interface LinkState {
   exchange?: 'aster' | 'hyperliquid';
@@ -176,13 +177,10 @@ export const linkScene = new Scenes.WizardScene<BotContext>(
       
       ctx.session.activeExchange = state.exchange;
       ctx.session.isLinked = true;
-      
       await ctx.reply(
         `✅ **${state.exchange === 'aster' ? 'Aster' : 'Hyperliquid'} Linked!**
 
-Your credentials are encrypted and stored securely.
-
-Redirecting to Citadel...`,
+Your credentials are encrypted and stored securely.`,
         { parse_mode: 'Markdown' }
       );
       
@@ -222,4 +220,10 @@ linkScene.action('link_cancel', async (ctx) => {
   await ctx.answerCbQuery();
   await ctx.editMessageText('❌ Link cancelled.');
   return ctx.scene.leave();
+});
+
+// Global Commands
+linkScene.command(['menu', 'start'], async (ctx) => {
+  await ctx.scene.leave();
+  await showMenu(ctx);
 });

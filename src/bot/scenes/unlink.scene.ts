@@ -5,6 +5,7 @@
 import { Scenes, Markup } from 'telegraf';
 import type { BotContext } from '../types/context';
 import { deleteApiCredentials, getApiCredentials } from '../../db/users';
+import { showMenu } from '../utils/menu';
 
 export const unlinkScene = new Scenes.WizardScene<BotContext>(
   'unlink',
@@ -51,6 +52,12 @@ export const unlinkScene = new Scenes.WizardScene<BotContext>(
     return;
   }
 );
+
+// Global Commands
+unlinkScene.command(['menu', 'start'], async (ctx) => {
+    await ctx.scene.leave();
+    await showMenu(ctx);
+});
 
 // Action handlers
 unlinkScene.action('unlink_confirm', async (ctx) => {

@@ -15,37 +15,9 @@ import { settingsScene } from './scenes/settings.scene';
 import { setBotInfo } from './utils/botInfo';
 import { getOrCreateUser } from '../db/users';
 import { getPostgres } from '../db/postgres';
+import { showMenu, getUnlinkedKeyboard, WELCOME_MESSAGE_UNLINKED } from './utils/menu';
 
-/**
- * Welcome message for unlinked users (DFD: welcome screen)
- */
-const WELCOME_MESSAGE_UNLINKED =
-  `👋 **Welcome to AgentiFi Trading Bot**
 
-_Your Unified Trading Terminal_
-
-**Choose How to Connect:**
-
-🔗 **API Key** - Connect via exchange API credentials
-🔐 **WalletConnect** - One-click wallet connection (Coming Soon)
-
-🔒 _Your credentials are encrypted and stored securely_
-
-**Available Commands:**
-/menu - Open main menu
-/help - Get help`;
-
-/**
- * Generate inline keyboard for unlinked users
- */
-export function getUnlinkedKeyboard(exchange: string = 'aster', userId?: number) {
-  const keyboard = Markup.inlineKeyboard([
-    [Markup.button.url('✨ Connect via Wallet', `https://your-mini-app.com?startapp=${userId}`)],
-    [Markup.button.callback('🏰 Enter Citadel', 'enter_citadel')],
-    [Markup.button.callback('🔑 Link API Key', 'link_exchange')]
-  ]);
-  return keyboard;
-}
 
 /**
  * Create bot instance
@@ -82,20 +54,7 @@ export function createBot(token: string): Telegraf<BotContext> {
   return bot;
 }
 
-/**
- * Show menu based on login status
- */
-export async function showMenu(ctx: BotContext) {
-  if (ctx.session.isLinked) {
-    // Show Citadel Overview (Module 2)
-    return ctx.scene.enter('citadel');
-  } else {
-    await ctx.reply(WELCOME_MESSAGE_UNLINKED, {
-      parse_mode: 'Markdown',
-      ...getUnlinkedKeyboard(ctx.session.activeExchange),
-    });
-  }
-}
+
 
 /**
  * Setup bot commands and handlers

@@ -6,9 +6,15 @@
 import { Scenes, Markup } from 'telegraf';
 import type { BotContext } from '../types/context';
 import { UniversalApiService } from '../services/universal-api.service';
-import { getUnlinkedKeyboard } from '../bot';
+import { showMenu, getUnlinkedKeyboard } from '../utils/menu';
 
 export const citadelScene = new Scenes.BaseScene<BotContext>('citadel');
+
+// Global Commands
+citadelScene.command(['menu', 'start'], async (ctx) => {
+  await ctx.scene.leave();
+  await showMenu(ctx);
+});
 
 // Enter handler
 citadelScene.enter(async (ctx) => {
@@ -79,11 +85,18 @@ _Select a position to manage or search for an asset._`;
     console.error('Citadel Error:', error);
     await ctx.reply(`❌ Failed to load Citadel: ${error.message}`, 
       Markup.inlineKeyboard([
-        [Markup.button.callback('🔄 Retry', 'refresh')]
+        [Markup.button.callback('🔄 Retry', 'refresh')],
+        [Markup.button.callback('🗝 Unlink Wallet', 'reset_wallet')]
       ])
     );
   }
 }
+
+// Emergency Unlink Action
+citadelScene.action('reset_wallet', async (ctx) => {
+    await ctx.answerCbQuery();
+    return ctx.scene.enter('unlink');
+});
 
 // Actions
 citadelScene.action('refresh', async (ctx) => {
