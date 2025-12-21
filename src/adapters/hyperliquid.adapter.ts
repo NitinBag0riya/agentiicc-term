@@ -113,6 +113,12 @@ export class HyperliquidAdapter implements ExchangeAdapter {
       let orderType: any = { limit: { tif: 'Gtc' } };
       let limitPrice = parseFloat(params.price || '0');
 
+      // Check if exchange module is available (Read-Only Mode Guard)
+      // @ts-ignore
+      if (!this.sdk.exchange || !this.sdk.exchange.placeOrder) {
+        throw new Error('Trading disabled. You are in Read-Only mode (WalletConnect). To trade, please link via API Key or approve the Agent Wallet in the App.');
+      }
+
       // Handle different order types
       // Helper to match Hyperliquid's strict precision (5 significant figures)
       const formatPrice = (price: number): number => {
@@ -318,6 +324,11 @@ export class HyperliquidAdapter implements ExchangeAdapter {
 
     try {
       // @ts-ignore
+      if (!this.sdk.exchange) {
+         throw new Error('Read-Only mode. Cannot cancel orders.');
+      }
+
+      // @ts-ignore
       await this.sdk.exchange.cancelOrder({
         coin: this.toExchangeSymbol(symbol),
         o: parseInt(orderId)
@@ -387,6 +398,10 @@ export class HyperliquidAdapter implements ExchangeAdapter {
     try {
       // @ts-ignore
       const meta = await this.sdk.info.perpetuals.getMeta();
+
+      // @ts-ignore
+      if (!this.sdk.exchange) throw new Error('Read-Only mode. Cannot set leverage.');
+
       const cleanSymbol = this.fromExchangeSymbol(this.toExchangeSymbol(symbol)); // "ETH"
 
       // Find matching asset in universe
@@ -427,6 +442,10 @@ export class HyperliquidAdapter implements ExchangeAdapter {
     try {
       // @ts-ignore
       const meta = await this.sdk.info.perpetuals.getMeta();
+
+      // @ts-ignore
+      if (!this.sdk.exchange) throw new Error('Read-Only mode. Cannot change margin mode.');
+
       const cleanSymbol = this.fromExchangeSymbol(this.toExchangeSymbol(symbol));
 
       // Find matching asset in universe
@@ -709,6 +728,9 @@ export class HyperliquidAdapter implements ExchangeAdapter {
       }
 
       const exSymbol = this.toExchangeSymbol(symbol);
+      // @ts-ignore
+      if (!this.sdk.exchange) throw new Error('Read-Only mode. Cannot update margin.');
+
       // @ts-ignore
       const meta = await this.sdk.info.perpetuals.getMeta();
       const assetId = meta.universe.findIndex((u: any) => u.name === exSymbol);

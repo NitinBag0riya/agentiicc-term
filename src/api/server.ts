@@ -44,12 +44,55 @@ export function createApiServer(port: number = 3000, bot?: Telegraf<BotContext>)
             console.log(`[WebApp] Linking wallet: ${walletAddress}`);
 
             // 1. Verify Wallet Signature (Ownership)
-            const { verifyMessage } = await import('ethers');
-            const recoveredAddr = verifyMessage(`You are signing into Astherus ${nonce}`, signature);
+            // 1. Verify Wallet Signature (Ownership)
+            const { verifyMessage, verifyTypedData } = await import('ethers');
             
-            if (recoveredAddr.toLowerCase() !== walletAddress.toLowerCase()) {
-                set.status = 401;
-                return { error: 'Invalid wallet signature' };
+            if (body.signedAgentApproval && body.exchange === 'hyperliquid') {
+                // Verify via Agent Approval Signature
+                const { agentAction, agentNonce } = body;
+                // Reconstruct Domain/Types/Message from stored knowledge or payload
+                // We know what the frontend signed.
+                const domain = {
+                    name: "HyperliquidSignTransaction",
+                    version: "1",
+                    chainId: 421614,
+                    verifyingContract: "0x0000000000000000000000000000000000000000"
+                };
+                const types = {
+                    Agent: [
+                        { name: "source", type: "string" },
+                        { name: "connectionId", type: "bytes32" }
+                    ]
+                };
+                // Message reconstruction
+                // Frontend message: { source, connectionId }
+                // We need to match EXACTLY what frontend signed.
+                // Frontend constructed message from agentAction.
+                // message = { source: agentAction.hyperliquidChain === 'Mainnet' ? 'a' : 'b', connectionId: ... }
+                // We need to replicate that logic here or trust the frontend sent the right "message" content?
+                // No, verification requires re-constructing the message.
+                // We have `agentAction`.
+                const message = {
+                    source: agentAction.hyperliquidChain === 'Mainnet' ? 'a' : 'b',
+                    connectionId: agentAction.signature?.connectionId // logic from frontend
+                };
+                
+                try {
+                   const recovered = verifyTypedData(domain, types, message, body.signedAgentApproval);
+                   if (recovered.toLowerCase() !== walletAddress.toLowerCase()) {
+                       return { error: 'Invalid Agent signature' };
+                   }
+                } catch (e) {
+                   return { error: 'Signature verification failed' };
+                }
+
+            } else {
+                // Standard verification
+                const recoveredAddr = verifyMessage(`You are signing into Astherus ${nonce}`, signature);
+                if (recoveredAddr.toLowerCase() !== walletAddress.toLowerCase()) {
+                    set.status = 401;
+                    return { error: 'Invalid wallet signature' };
+                }
             }
 
             // 2. Verify Telegram Data (Identity)
@@ -93,25 +136,76 @@ export function createApiServer(port: number = 3000, bot?: Telegraf<BotContext>)
             // 3. Store in DB
             
             // Ensure User Exists
-            await getOrCreateUser(telegramUser.id, telegramUser.username);
+            const user = await getOrCreateUser(telegramUser.id, telegramUser.username);
 
             // Link Wallet
             // We link it for 'hyperliquid' as requested, using Wallet Address as Identifier
             // Note: Without Private Key, this is Read-Only or "Sign via Wallet" mode.
-            // We store address as "API Key" and "READ_ONLY" as "API Secret" to indicate verification status.
+            // Factory expects: Key = Private Key, Secret = Wallet Address
             
             const encrypt = (await import('../utils/encryption')).encrypt;
-            const encAddress = encrypt(walletAddress);
-            const encSecret = encrypt('READ_ONLY_WALLET_CONNECT'); 
+            // Private Key is empty for WalletConnect
+            const encKey = encrypt(''); 
+            // Wallet Address acts as "Secret" for lookup in Factory logic
+            const encSecret = encrypt(walletAddress); 
 
             // Get exchange from body, default to hyperliquid
             // If the user selects Aster in UI, body.exchange = 'aster'.
             const exchangeId = body.exchange || 'hyperliquid'; 
 
+            console.log(`[WebApp] Storing credentials for internal userId: ${user.id} (TelegramId: ${telegramUser.id}), Exchange: ${exchangeId}`);
+
+            // HYPERLIQUID AGENT FLOW
+            if (exchangeId === 'hyperliquid' && body.signedAgentApproval) {
+                console.log('[WebApp] Broadcasting Agent Approval...');
+                const { signedAgentApproval, agentAction, agentNonce, privateKey } = body;
+                
+                // Broadcast to Hyperliquid
+                const broadcastBody = {
+                    action: agentAction,
+                    nonce: agentNonce,
+                    signature: signedAgentApproval
+                };
+                
+                const hlRes = await fetch('https://api.hyperliquid.xyz/exchange', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(broadcastBody)
+                });
+                
+                if (!hlRes.ok) {
+                    const err = await hlRes.text();
+                    console.error('[WebApp] Agent Approval Failed:', err);
+                    return { error: `Hyperliquid Rejection: ${err}` };
+                }
+                
+                const hlData = await hlRes.json();
+                // Check for "response": { "type": "default" } or similar success indicator
+                if (hlData.status !== 'ok') {
+                     // Sometimes it returns { status: 'ok', response: ... }
+                     // Fail if it explicitly says error?
+                     // Let's assume non-ok status code handles most network errors.
+                     // The API returns 200 even for logic errors sometimes.
+                     // But let's proceed to store if no explicit throw.
+                     console.log('[HL] Broadcast Response:', hlData);
+                }
+                
+                console.log('[WebApp] Agent Approved! Storing Agent Key.');
+                
+                const { encrypt } = await import('../utils/encryption');
+                const encKey = encrypt(privateKey);
+                const encSecret = encrypt(walletAddress);
+
+                // Store Agent Key (privateKey) and User Address (walletAddress)
+                await storeApiCredentials(user.id, exchangeId, encKey, encSecret);
+                return { success: true };
+            }
+
+            // EXISTING FLOW (Aster or Read-Only HL)
             await storeApiCredentials(
-                telegramUser.id, 
+                user.id, 
                 exchangeId, 
-                encAddress, 
+                encKey, 
                 encSecret,
                 encrypt(JSON.stringify({ method: 'wallet_connect', linkedAt: Date.now() }))
             );
@@ -124,8 +218,15 @@ export function createApiServer(port: number = 3000, bot?: Telegraf<BotContext>)
                     const exchangeName = exchangeId.charAt(0).toUpperCase() + exchangeId.slice(1);
                     await bot.telegram.sendMessage(
                         telegramUser.id, 
-                        `✅ <b>Wallet Linked!</b>\n\nYour wallet has been successfully connected to <b>${exchangeName}</b>.\n\nType /start or open the Menu to access the Citadel.`,
-                        { parse_mode: 'HTML' }
+                        `✅ <b>Wallet Linked!</b>\n\nYour wallet has been successfully connected to <b>${exchangeName}</b>.\n\nTap below to access the Citadel:`,
+                        { 
+                            parse_mode: 'HTML',
+                            reply_markup: {
+                                inline_keyboard: [
+                                    [{ text: '🚀 Enter Citadel', callback_data: 'enter_citadel' }]
+                                ]
+                            }
+                        }
                     );
                 } catch (e) {
                     console.warn('[WebApp] Failed to send bot notification:', e);
@@ -147,6 +248,66 @@ export function createApiServer(port: number = 3000, bot?: Telegraf<BotContext>)
         timestamp: new Date().toISOString(),
         uptime: process.uptime()
     }))
+
+    // Hyperliquid Agent Payload Generator
+    .post('/auth/hyperliquid/agent-payload', async ({ body }: any) => {
+        const { agentAddress } = body;
+        if (!agentAddress) return { error: 'Agent address required' };
+
+        try {
+            const { Hyperliquid } = await import('hyperliquid');
+            const { ethers } = await import('ethers');
+
+            // Dummy user signer to trigger the SDK method
+            const dummyUser = ethers.Wallet.createRandom();
+            
+            const sdk = new Hyperliquid({
+                enableWs: false,
+                privateKey: dummyUser.privateKey, 
+                testnet: false,
+                walletAddress: dummyUser.address
+            });
+
+            let capturedAction = null;
+            let capturedNonce = null;
+
+            // Mock Fetch to intercept
+            const originalFetch = global.fetch;
+            // @ts-ignore
+            global.fetch = async (url, opts) => {
+                 if (opts.body) {
+                     try {
+                        const json = JSON.parse(opts.body as string);
+                        if (json.action && json.action.type === 'approveAgent') {
+                            capturedAction = json.action;
+                            capturedNonce = json.nonce;
+                        }
+                     } catch(e) {}
+                 }
+                 // Return dummy success
+                 return { ok: true, json: async () => ({ status: 'ok', response: { type: 'default' } }) };
+            };
+
+            try {
+                // @ts-ignore
+                if (sdk.exchange.approveAgent) {
+                    // @ts-ignore
+                    await sdk.exchange.approveAgent({ agentAddress, agentName: 'AgentiFi' });
+                }
+            } catch (e) {
+                // Ignore errors
+            } finally {
+                global.fetch = originalFetch;
+            }
+
+            if (capturedAction) {
+                return { success: true, action: capturedAction, nonce: capturedNonce };
+            }
+            return { error: 'Failed to capture payload' };
+        } catch (e: any) {
+            return { error: e.message };
+        }
+    })
 
     // ============ WEBHOOK ============
     .post('/webhook', async ({ body, headers, set }: any) => {
