@@ -5,28 +5,62 @@ export const ordersListScene = new Scenes.BaseScene<BotContext>('orders_list');
 
 // Enter handler - Screen 41: Orders List
 ordersListScene.enter(async (ctx) => {
-  // TODO: Fetch actual orders from API
-  const symbol = ctx.session.tradingSymbol || 'All';
   const exchange = ctx.session.activeExchange || 'aster';
+  const symbol = ctx.session.tradingSymbol; // If undefined, fetches all
+  const userId = ctx.from?.id?.toString();
   
   const { createBox } = require('../utils/format');
+  const { UniversalApiService } = require('../services/universal-api.service');
+  
+  let orderLines: string[] = [];
+  
+  try {
+    if (userId) {
+      const { getOrCreateUser } = require('../../db/users');
+      // @ts-ignore
+      const user = await getOrCreateUser(parseInt(userId), ctx.from?.username);
+      const uid = user.id;
+
+      const orders = await UniversalApiService.getOpenOrders(uid, exchange, symbol === 'All' ? undefined : symbol);
+      
+      if (orders && orders.length > 0) {
+        orders.forEach((o: any) => {
+            const sideEmoji = o.side === 'BUY' ? '🟢' : '🔴';
+            // "🟢 BUY BTCUSDT $95000 (0.1)"
+            orderLines.push(`${sideEmoji} ${o.side} ${o.symbol}`);
+            orderLines.push(`   Price: ${o.price} | Qty: ${o.quantity}`);
+            orderLines.push('');
+        });
+        // Limit display
+        if (orderLines.length > 15) {
+            orderLines = orderLines.slice(0, 15);
+            orderLines.push('...and more');
+        }
+      } else {
+        orderLines.push('No open orders');
+      }
+    }
+  } catch (error) {
+    console.error('Error fetching orders:', error);
+    orderLines.push('Error fetching orders');
+  }
 
   const lines = [
     '📋 Open Orders',
     '',
     `Exchange: ${exchange.toUpperCase()}`,
-    `Symbol: ${symbol}`,
+    `Filter: ${symbol || 'All'}`,
     '',
-    '---',
-    'No open orders', // TODO: Make dynamic when API is real
+    '━━━━━━━━━━━━━━━━━━━━━━━',
     '',
-    '---',
+    ...orderLines,
+    '━━━━━━━━━━━━━━━━━━━━━━━',
     '',
-    '💡 Click an order to',
-    '   view details or cancel'
+    '💡 Click Cancel All to',
+    '   remove all orders'
   ];
 
-  const message = createBox('Orders', lines, 32);
+  const message = createBox('', lines, 32);
 
   await ctx.reply('```\n' + message + '\n```', {
     parse_mode: 'MarkdownV2',

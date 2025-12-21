@@ -40,6 +40,10 @@ tpslSetupScene.enter(async (ctx) => {
         Markup.button.callback('🛡️ Set SL', 'set_sl'),
       ],
       [
+        Markup.button.callback('✅ Apply to Position', 'apply_position'),
+        Markup.button.callback('💾 Save for Next Order', 'save_next'),
+      ],
+      [
         Markup.button.callback('🔙 Back', 'back'),
       ],
     ]),
@@ -80,9 +84,61 @@ tpslSetupScene.on('text', async (ctx) => {
   await ctx.scene.reenter();
 });
 
+tpslSetupScene.action('apply_position', async (ctx) => {
+  const exchange = ctx.session.activeExchange || 'aster';
+  const symbol = ctx.session.tradingSymbol;
+  const userId = ctx.from?.id?.toString();
+  const tp = ctx.session.tpPrice;
+  const sl = ctx.session.slPrice;
+
+  await ctx.answerCbQuery('Applying TP/SL...');
+
+  try {
+    if (userId && symbol) {
+      const { getOrCreateUser } = require('../../db/users');
+      const { UniversalApiService } = require('../services/universal-api.service');
+      // @ts-ignore
+      const user = await getOrCreateUser(parseInt(userId), ctx.from?.username);
+      
+      const result = await UniversalApiService.setPositionTPSL(
+        user.id, 
+        exchange, 
+        symbol, 
+        tp?.toString(), 
+        sl?.toString()
+      );
+      
+      if (result.success) {
+        await ctx.reply(`✅ TP/SL applied to ${symbol} position!`);
+      } else {
+         await ctx.reply(`⚠️ ${result.message}`);
+      }
+    }
+  } catch (error: any) {
+    await ctx.reply(`❌ Failed to apply: ${error.message}`);
+  }
+
+  // Go back to position view
+  await ctx.scene.enter('position_with_open');
+});
+
+tpslSetupScene.action('save_next', async (ctx) => {
+  await ctx.answerCbQuery('Saved for next order');
+  await ctx.scene.enter('position_no_open');
+});
+
 tpslSetupScene.action('back', async (ctx) => {
   await ctx.answerCbQuery();
-  await ctx.scene.enter('position_no_open');
+  // Smart back navigation
+  if (ctx.session.tpPrice || ctx.session.slPrice) {
+     // If set, assume we might be in position flow
+     // But safer to check context? For now default to no_open as safe bet or prompt?
+     // Let's try to infer: check if we have open position data cached?
+     // Simple fallback:
+     await ctx.scene.enter('position_no_open');
+  } else {
+     await ctx.scene.enter('position_no_open');
+  }
 });
 
 export default tpslSetupScene;

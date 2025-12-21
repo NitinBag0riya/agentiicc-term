@@ -42,8 +42,31 @@ confirmCancelAllScene.enter(async (ctx) => {
 
 confirmCancelAllScene.action('confirm', async (ctx) => {
   await ctx.answerCbQuery('Cancelling orders...');
-  // TODO: Execute cancel all orders via API
-  await ctx.reply('✅ All orders cancelled successfully!');
+  
+  const exchange = ctx.session.activeExchange || 'aster';
+  const symbol = ctx.session.tradingSymbol;
+  const userId = ctx.from?.id?.toString();
+
+  try {
+    if (userId) {
+        const { getOrCreateUser } = require('../../db/users');
+        const { UniversalApiService } = require('../services/universal-api.service');
+        // @ts-ignore
+        const user = await getOrCreateUser(parseInt(userId), ctx.from?.username);
+        const uid = user.id;
+
+        // Pass 'undefined' for symbol if 'All', or specific symbol if set
+        const targetSymbol = (!symbol || symbol === 'All') ? undefined : symbol;
+        
+        await UniversalApiService.cancelAllOrders(uid, exchange, targetSymbol || ''); // Adapter requires string, handle empty
+        
+        await ctx.reply('✅ All orders cancelled successfully!');
+    }
+  } catch (error: any) {
+    console.error('Cancel all failed:', error);
+    await ctx.reply(`❌ Failed to cancel orders: ${error.message}`);
+  }
+  
   await ctx.scene.enter('orders_list');
 });
 

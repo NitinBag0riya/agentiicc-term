@@ -78,6 +78,9 @@ orderExecutingScene.enter(async (ctx) => {
         side: orderSide,
         type: orderType.toUpperCase(),
         quantity: formattedQty,
+        price: orderType.toUpperCase() === 'LIMIT' ?  ctx.session.orderPrice?.toString() : undefined,
+        takeProfit: ctx.session.tpPrice?.toString(),
+        stopLoss: ctx.session.slPrice?.toString(),
         leverage,
       });
       

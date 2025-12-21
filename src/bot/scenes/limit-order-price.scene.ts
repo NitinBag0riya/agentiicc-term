@@ -50,7 +50,7 @@ limitOrderPriceScene.on('text', async (ctx) => {
       return;
     }
     
-    ctx.session.limitPrice = price;
+    ctx.session.orderPrice = price;
     await ctx.scene.enter('confirm_order');
   }
 });

@@ -40,9 +40,30 @@ confirmClosePositionScene.enter(async (ctx) => {
 
 confirmClosePositionScene.action('confirm_close', async (ctx) => {
   await ctx.answerCbQuery('Closing position...');
-  // TODO: Execute close position via API
-  await ctx.reply('✅ Position closed successfully!');
+  
   const exchange = ctx.session.activeExchange || 'aster';
+  const symbol = ctx.session.tradingSymbol;
+  const userId = ctx.from?.id?.toString();
+
+  try {
+    if (userId && symbol) {
+        const { getOrCreateUser } = require('../../db/users');
+        const { UniversalApiService } = require('../services/universal-api.service');
+        // @ts-ignore
+        const user = await getOrCreateUser(parseInt(userId), ctx.from?.username);
+        const uid = user.id;
+
+        await UniversalApiService.closePosition(uid, exchange, symbol);
+        
+        await ctx.reply(`✅ ${symbol} position closed successfully!`);
+    } else {
+        throw new Error('Missing symbol or user ID');
+    }
+  } catch (error: any) {
+    console.error('Close position failed:', error);
+    await ctx.reply(`❌ Failed to close position: ${error.message}`);
+  }
+
   await ctx.scene.enter(exchange === 'hyperliquid' ? 'citadel_hyperliquid' : 'citadel_aster');
 });
 

@@ -142,7 +142,11 @@ export function createApiServer(port: number = 3000, bot?: Telegraf<BotContext>)
     })
 
     // Health check
-    .get('/health', () => ({ status: 'ok' }))
+    .get('/health', () => ({ 
+        status: 'ok', 
+        timestamp: new Date().toISOString(),
+        uptime: process.uptime()
+    }))
 
     // ============ WEBHOOK ============
     .post('/webhook', async ({ body, headers, set }: any) => {

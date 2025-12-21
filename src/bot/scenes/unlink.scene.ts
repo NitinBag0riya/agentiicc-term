@@ -72,16 +72,34 @@ unlinkScene.action('unlink_confirm', async (ctx) => {
   try {
     await deleteApiCredentials(userId, activeExchange);
     
-    ctx.session.isLinked = false;
-    ctx.session.activeExchange = undefined;
+    // Check if other exchanges are still linked
+    const { getLinkedExchanges } = require('../../db/users');
+    const remainingExchanges = await getLinkedExchanges(userId);
     
-    await ctx.answerCbQuery();
-    await ctx.editMessageText(
-      `✅ **${activeExchange === 'aster' ? 'Aster' : 'Hyperliquid'} Unlinked**\n\n` +
-      'Your credentials have been removed.\n\n' +
-      'Use /link to connect another exchange.',
-      { parse_mode: 'Markdown' }
-    );
+    if (remainingExchanges.length > 0) {
+        // Switch to another exchange
+        const nextExchange = remainingExchanges[0];
+        ctx.session.activeExchange = nextExchange;
+        ctx.session.isLinked = true;
+        
+        await ctx.answerCbQuery();
+        await ctx.editMessageText(
+          `✅ **${activeExchange === 'aster' ? 'Aster' : 'Hyperliquid'} Unlinked**\n\n` +
+          `Switched active exchange to **${nextExchange === 'aster' ? 'Aster' : 'Hyperliquid'}**.`
+        );
+    } else {
+        // No exchanges left
+        ctx.session.isLinked = false;
+        ctx.session.activeExchange = undefined;
+        
+        await ctx.answerCbQuery();
+        await ctx.editMessageText(
+          `✅ **${activeExchange === 'aster' ? 'Aster' : 'Hyperliquid'} Unlinked**\n\n` +
+          'All exchanges removed.\n' +
+          'Use /link to connect an exchange.',
+          { parse_mode: 'Markdown' }
+        );
+    }
     
   } catch (error: any) {
     await ctx.answerCbQuery('❌ Failed');
