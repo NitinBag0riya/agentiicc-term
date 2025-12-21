@@ -58,7 +58,7 @@ echo "✅ Ngrok Active: $NGROK_URL"
 
 # 4. Start API Server with Webhook URL
 echo "📦 Starting Bot + API Server..."
-WEBHOOK_URL=$NGROK_URL bun src/index.ts > server.log 2>&1 &
+WEBHOOK_URL=$NGROK_URL API_URL=$NGROK_URL bun src/index.ts > server.log 2>&1 &
 SERVER_PID=$!
 
 # Wait for server to be ready

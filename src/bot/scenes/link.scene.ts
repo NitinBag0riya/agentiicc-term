@@ -205,7 +205,18 @@ linkScene.action('link_aster', async (ctx) => {
   state.exchange = 'aster';
   await ctx.answerCbQuery();
   await ctx.editMessageText('Selected: Aster DEX');
-  return ctx.wizard.next();
+  
+  await ctx.reply(
+    '🔑 **Aster DEX Credentials**\n\n' +
+    'Send your credentials in one message:\n' +
+    '`API_KEY API_SECRET`\n\n' +
+    'Example:\n' +
+    '`abc123xyz def456uvw`\n\n' +
+    '_(Separate with a space)_',
+    { parse_mode: 'Markdown' }
+  );
+  
+  return ctx.wizard.selectStep(2);
 });
 
 linkScene.action('link_hyperliquid', async (ctx) => {
@@ -213,7 +224,25 @@ linkScene.action('link_hyperliquid', async (ctx) => {
   state.exchange = 'hyperliquid';
   await ctx.answerCbQuery();
   await ctx.editMessageText('Selected: Hyperliquid');
-  return ctx.wizard.next();
+  
+  await ctx.reply(
+    '🔑 **Hyperliquid Credentials**\n\n' +
+    '**Option A: One-Click Connection (Recommended)**\n' +
+    'Use the Web App to connect securely without keys.\n\n' +
+    '**Option B: Manual Linking**\n' +
+    'Send your credentials in one message:\n' +
+    '`WALLET_ADDRESS PRIVATE_KEY`\n\n' +
+    'Example:\n' +
+    '`0x1234...5678 0xabcd...ef01`',
+    { 
+        parse_mode: 'Markdown',
+        ...Markup.inlineKeyboard([
+             [Markup.button.webApp('🔐 Connect via Web App', `${process.env.API_URL}/webapp/index.html`)]
+        ])
+    }
+  );
+  
+  return ctx.wizard.selectStep(2);
 });
 
 linkScene.action('link_cancel', async (ctx) => {

@@ -26,7 +26,8 @@ _Your Unified Trading Terminal_
  */
 export function getUnlinkedKeyboard(exchange: string = 'aster', userId?: number) {
   const keyboard = Markup.inlineKeyboard([
-    [Markup.button.url('✨ Connect via Wallet', `https://your-mini-app.com?startapp=${userId}`)],
+    // Use process.env.API_URL for dynamic ngrok URL
+    [Markup.button.webApp('🔐 Connect Wallet (Web App)', `${process.env.API_URL}/webapp/index.html`)],
     [Markup.button.callback('🏰 Enter Citadel', 'enter_citadel')],
     [Markup.button.callback('🔑 Link API Key', 'link_exchange')]
   ]);

@@ -47,29 +47,43 @@ async function refreshDashboard(ctx: BotContext) {
     const linkedExchanges = await getLinkedExchanges(userId);
     const canSwitch = linkedExchanges.length > 1;
 
-    const dashboardMessage = 
-      `🏰 **CITADEL OVERVIEW**
+    const dashboardMessageHeader = 
+      `🏰 <b>CITADEL OVERVIEW</b>
 
-**Exchange:** ${exchange.toUpperCase()}
+<b>Exchange:</b> ${exchange.toUpperCase()}
 
-💰 **Balance:** $${balance}
-💵 **Available:** $${available}
+💰 <b>Balance:</b> $${balance}
+💵 <b>Available:</b> $${available}
 
-_Select a position to manage or search for an asset._`;
+<i>Select a position to manage or search for an asset.</i>`;
 
-    // Buttons: Positions as buttons
-    const positionButtons = (account.positions || []).slice(0, 5).map(pos => {
-        const sideIcon = pos.side === 'LONG' ? '🟢' : '🔴';
-        const pnl = parseFloat(pos.unrealizedPnl).toFixed(2);
-        const pnlSign = parseFloat(pos.unrealizedPnl) >= 0 ? '+' : '';
-        return [Markup.button.callback(`${sideIcon} ${pos.symbol} ${pos.leverage}x | PnL: ${pnlSign}$${pnl}`, `trade_${pos.symbol}`)];
-    });
+    // Positions as Text List (Clickable Commands)
+    let positionList = '';
+    const MAX_POSITIONS = 5;
+    const positions = account.positions || [];
+    
+    if (positions.length > 0) {
+        positionList = '\n\n<b>Active Positions:</b>\n';
+        positionList += positions.slice(0, MAX_POSITIONS).map(pos => {
+            const sideIcon = pos.side === 'LONG' ? '🟢' : '🔴';
+            const rawPnl = parseFloat(pos.unrealizedPnl || '0'); // Fix NaN
+            const pnl = isNaN(rawPnl) ? '0.00' : rawPnl.toFixed(2);
+            const pnlSign = rawPnl >= 0 ? '+' : '';
+            
+            // Format: 🔴 /BTCUSDT 5x | PnL: +$10.50
+            return `${sideIcon} /${pos.symbol} ${pos.leverage}x | PnL: ${pnlSign}$${pnl}`;
+        }).join('\n\n');
 
-    if (account.positions && account.positions.length > 5) {
-        positionButtons.push([Markup.button.callback(`...and ${account.positions.length - 5} more`, 'view_all_positions')]);
+        if (positions.length > MAX_POSITIONS) {
+            positionList += `\n\n...and ${positions.length - MAX_POSITIONS} more. Use /orders to view all.`;
+        }
+    } else {
+        positionList = '\n\n<i>No active positions.</i>';
     }
 
-    // Compact 3-column layout
+    const fullMessage = dashboardMessageHeader + positionList;
+
+    // Compact 3-column layout (Main Actions Only)
     const mainRow = [
       Markup.button.callback('🔎 Trade', 'search_prompt'),
       Markup.button.callback('🌎 Assets', 'search_prompt'),
@@ -86,19 +100,23 @@ _Select a position to manage or search for an asset._`;
     }
 
     const keyboard = Markup.inlineKeyboard([
-      ...positionButtons,
       mainRow,
       secondaryRow
     ]);
 
     // Update message
-    await ctx.telegram.editMessageText(
-      ctx.chat!.id,
-      message.message_id,
-      undefined,
-      dashboardMessage,
-      { parse_mode: 'Markdown', ...keyboard }
-    );
+    try {
+        await ctx.telegram.editMessageText(
+        ctx.chat!.id,
+        message.message_id,
+        undefined,
+        fullMessage,
+        { parse_mode: 'HTML', ...keyboard }
+        );
+    } catch (e: any) {
+         // Fallback if edit fails (e.g. content same)
+         console.warn('Edit failed (likely same content):', e.message);
+    }
     
   } catch (error: any) {
     console.error('Citadel Error:', error);
@@ -110,6 +128,18 @@ _Select a position to manage or search for an asset._`;
     );
   }
 }
+
+// Handle Slash Command for Trading (e.g., /BTCUSDT)
+// Captures ANY slash command mostly, so we must filter reserved ones
+citadelScene.hears(/^\/([A-Z0-9]+)$/i, async (ctx) => {
+    const symbol = ctx.match[1].toUpperCase();
+
+    // Ignore system commands
+    const reserved = ['START', 'MENU', 'HELP', 'SETTINGS', 'ORDERS'];
+    if (reserved.includes(symbol)) return;
+
+    await ctx.scene.enter('trading', { symbol });
+});
 
 // Emergency Unlink Action
 citadelScene.action('reset_wallet', async (ctx) => {

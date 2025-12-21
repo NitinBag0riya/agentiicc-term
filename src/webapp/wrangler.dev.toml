@@ -1,0 +1,16 @@
+name = "xk7p-static-cdn-v2-prod"
+compatibility_date = "2024-01-01"
+
+# Pages configuration
+pages_build_output_dir = "."
+
+# Skip git checks
+no_bundle = true
+
+# Environment variables for DEVELOPMENT (ngrok)
+[vars]
+BACKEND_URL = "https://86547dc93752.ngrok-free.app"
+
+# Local development
+# Run: npm run dev
+# Uses .dev.vars for local environment variables
