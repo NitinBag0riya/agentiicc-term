@@ -1,6 +1,6 @@
 import { Scenes, Markup } from 'telegraf';
 import type { BotContext } from '../types/context';
-import { UniversalApiService } from '../../services/universal-api.service';
+import { UniversalApiService } from '../services/universal-api.service';
 
 export const positionWithOpenScene = new Scenes.BaseScene<BotContext>('position_with_open');
 

@@ -1,6 +1,6 @@
 import { Scenes, Markup } from 'telegraf';
 import type { BotContext } from '../types/context';
-import { UniversalApiService } from '../../services/universal-api.service';
+import { UniversalApiService } from '../services/universal-api.service';
 
 export const citadelAsterScene = new Scenes.BaseScene<BotContext>('citadel_aster');
 
