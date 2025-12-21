@@ -175,15 +175,9 @@ log_info "Setting up project..."
 
 # Check if we're in the project directory
 if [ ! -f "package.json" ]; then
-    log_warn "package.json not found in current directory"
-    read -p "Enter Git repo URL to clone (or press Enter to skip): " REPO_URL
-    if [ ! -z "$REPO_URL" ]; then
-        git clone "$REPO_URL" agentifi
-        cd agentifi
-    else
-        log_error "Cannot proceed without project files"
-        exit 1
-    fi
+    log_error "package.json not found! Please run this script from the project root directory."
+    log_error "Example: cd /path/to/AgentiFi-dev && bash scripts/setup-aws-universal.sh"
+    exit 1
 fi
 
 # Install dependencies
