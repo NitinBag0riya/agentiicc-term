@@ -91,7 +91,8 @@ export class UniversalApiService {
   static async getAsset(exchangeId: string, symbol: string): Promise<Asset | undefined> {
     const adapter = this.getPublicAdapter(exchangeId);
     const assets = await adapter.getAssets();
-    return assets.find(a => a.symbol === symbol);
+    // Try exact match first, then base asset match (e.g. BTC for BTCUSDT)
+    return assets.find(a => a.symbol === symbol || a.baseAsset === symbol);
   }
 
   /**

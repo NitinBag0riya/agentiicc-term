@@ -25,6 +25,8 @@ const retryBtn = document.getElementById('retry-btn');
 
 // State
 let provider = null;
+const urlParams = new URLSearchParams(window.location.search);
+const exchangeParam = urlParams.get('exchange');
 
 // Show/hide sections
 function showSection(section) {
@@ -283,6 +285,7 @@ async function connectWalletAndCreateApiKey() {
         signature,
         nonce,
         tgInitData: tg.initData, // Telegram auth data
+        exchange: exchangeParam // Pass exchange to backend
       })
     });
 

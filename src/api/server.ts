@@ -104,18 +104,35 @@ export function createApiServer(port: number = 3000, bot?: Telegraf<BotContext>)
             const encAddress = encrypt(walletAddress);
             const encSecret = encrypt('READ_ONLY_WALLET_CONNECT'); 
 
+            // Get exchange from body, default to hyperliquid
+            // If the user selects Aster in UI, body.exchange = 'aster'.
+            const exchangeId = body.exchange || 'hyperliquid'; 
+
             await storeApiCredentials(
                 telegramUser.id, 
-                'hyperliquid', 
+                exchangeId, 
                 encAddress, 
                 encSecret,
                 encrypt(JSON.stringify({ method: 'wallet_connect', linkedAt: Date.now() }))
             );
 
-            // Also link for 'aster' just in case?
-            // Let's stick to Hyperliquid as primary requested.
+            console.log(`[WebApp] Successfully linked ${exchangeId} for user ${telegramUser.id}`);
 
-            return { success: true, message: 'Wallet linked successfully', apiKey: walletAddress };
+            // 4. Notify User via Bot (if bot instance available)
+            if (bot) {
+                try {
+                    const exchangeName = exchangeId.charAt(0).toUpperCase() + exchangeId.slice(1);
+                    await bot.telegram.sendMessage(
+                        telegramUser.id, 
+                        `✅ <b>Wallet Linked!</b>\n\nYour wallet has been successfully connected to <b>${exchangeName}</b>.\n\nType /start or open the Menu to access the Citadel.`,
+                        { parse_mode: 'HTML' }
+                    );
+                } catch (e) {
+                    console.warn('[WebApp] Failed to send bot notification:', e);
+                }
+            }
+
+            return { success: true, message: `Wallet linked to ${exchangeId}`, apiKey: walletAddress };
 
         } catch (e: any) {
             console.error('[WebApp] Link Error:', e);

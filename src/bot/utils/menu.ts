@@ -34,10 +34,30 @@ export function getUnlinkedKeyboard(exchange: string = 'aster', userId?: number)
   return keyboard;
 }
 
+// Import DB helper
+import { getLinkedExchanges } from '../../db/users';
+
 /**
  * Show menu based on login status
  */
 export async function showMenu(ctx: BotContext) {
+  // REFRESH SESSION: Check DB for latest status
+  // API might have updated the link while bot session was stale
+  if (ctx.from?.id) {
+    const linked = await getLinkedExchanges(ctx.from.id);
+    if (linked.length > 0) {
+        ctx.session.isLinked = true;
+        
+        // Ensure active exchange is valid (actually in the linked list)
+        // If current activeExchange is NOT in linked list (e.g. 'aster' default but user only linked 'hyperliquid'), switch to first valid one.
+        if (!ctx.session.activeExchange || !linked.includes(ctx.session.activeExchange)) {
+            ctx.session.activeExchange = linked[0];
+        }
+    } else {
+        ctx.session.isLinked = false;
+    }
+  }
+
   if (ctx.session.isLinked) {
     // Show Citadel Overview (Module 2)
     return ctx.scene.enter('citadel');

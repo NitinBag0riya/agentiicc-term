@@ -130,52 +130,9 @@ async function refreshDashboard(ctx: BotContext) {
 }
 
 // View All Orders & Positions
+import { showActiveOrdersTypes } from '../utils/orders';
 citadelScene.command('orders', async (ctx) => {
-    const userId = ctx.session.userId!;
-    const exchange = ctx.session.activeExchange!;
-    
-    await ctx.reply(`⏳ Loading active orders & positions for ${exchange}...`);
-
-    try {
-        const [positions, orders] = await Promise.all([
-            UniversalApiService.getPositions(userId, exchange),
-            UniversalApiService.getOpenOrders(userId, exchange)
-        ]);
-
-        let msg = `📋 <b>All Active Items (${exchange.toUpperCase()})</b>\n\n`;
-        let hasContent = false;
-
-        // 1. Positions
-        if (positions.length > 0) {
-            hasContent = true;
-            msg += `<b>---- POSITIONS (${positions.length}) ----</b>\n`;
-            for (const p of positions) {
-                 const rawPnl = parseFloat(p.unrealizedPnl || '0');
-                 const pnlSign = rawPnl >= 0 ? '+' : '';
-                 const sideIcon = p.side === 'LONG' ? '🟢' : '🔴';
-                 // Clickable Link to Manage
-                 msg += `${sideIcon} <b>${p.symbol}</b> ${p.leverage}x | PnL: ${pnlSign}$${rawPnl.toFixed(2)}\n   Manage: /${p.symbol}\n\n`;
-            }
-        }
-
-        // 2. Open Orders
-        if (orders.length > 0) {
-             hasContent = true;
-             msg += `<b>---- OPEN ORDERS (${orders.length}) ----</b>\n`;
-             for (const o of orders) {
-                 msg += `▫️ <b>${o.symbol}</b> ${o.side} ${o.type}\n   Qty: ${o.quantity} @ ${o.price}\n   ID: <code>${o.orderId}</code>\n   /cancel_order_${o.orderId}\n\n`;
-             }
-        }
-
-        if (!hasContent) {
-            msg += `<i>No active positions or open orders.</i>`;
-        }
-
-        await ctx.reply(msg, { parse_mode: 'HTML' });
-
-    } catch (e: any) {
-        await ctx.reply(`❌ Failed to load items: ${e.message}`);
-    }
+    await showActiveOrdersTypes(ctx);
 });
 
 // Handle Slash Command for Trading (e.g., /BTCUSDT)
@@ -191,55 +148,6 @@ citadelScene.hears(/^\/([A-Z0-9]+)$/i, async (ctx) => {
     if (reserved.includes(symbol)) return;
 
     await ctx.scene.enter('trading', { symbol });
-});
-
-// View All Orders & Positions
-citadelScene.command('orders', async (ctx) => {
-    const userId = ctx.session.userId!;
-    const exchange = ctx.session.activeExchange!;
-    
-    await ctx.reply(`⏳ Loading active orders & positions for ${exchange}...`);
-
-    try {
-        const [positions, orders] = await Promise.all([
-            UniversalApiService.getPositions(userId, exchange),
-            UniversalApiService.getOpenOrders(userId, exchange)
-        ]);
-
-        let msg = `📋 <b>All Active Items (${exchange.toUpperCase()})</b>\n\n`;
-        let hasContent = false;
-
-        // 1. Positions
-        if (positions.length > 0) {
-            hasContent = true;
-            msg += `<b>---- POSITIONS (${positions.length}) ----</b>\n`;
-            for (const p of positions) {
-                 const rawPnl = parseFloat(p.unrealizedPnl || '0');
-                 const pnlSign = rawPnl >= 0 ? '+' : '';
-                 const sideIcon = p.side === 'LONG' ? '🟢' : '🔴';
-                 // Clickable Link to Manage
-                 msg += `${sideIcon} <b>${p.symbol}</b> ${p.leverage}x | PnL: ${pnlSign}$${rawPnl.toFixed(2)}\n   Manage: /${p.symbol}\n\n`;
-            }
-        }
-
-        // 2. Open Orders
-        if (orders.length > 0) {
-             hasContent = true;
-             msg += `<b>---- OPEN ORDERS (${orders.length}) ----</b>\n`;
-             for (const o of orders) {
-                 msg += `▫️ <b>${o.symbol}</b> ${o.side} ${o.type}\n   Qty: ${o.quantity} @ ${o.price}\n   ID: <code>${o.orderId}</code>\n   /cancel_order_${o.orderId}\n\n`;
-             }
-        }
-
-        if (!hasContent) {
-            msg += `<i>No active positions or open orders.</i>`;
-        }
-
-        await ctx.reply(msg, { parse_mode: 'HTML' });
-
-    } catch (e: any) {
-        await ctx.reply(`❌ Failed to load items: ${e.message}`);
-    }
 });
 
 // Emergency Unlink Action
@@ -272,6 +180,43 @@ citadelScene.action('switch_exchange', async (ctx) => {
 citadelScene.action('settings', async (ctx) => {
   await ctx.answerCbQuery();
   return ctx.scene.enter('settings');
+});
+
+// Cancel Specific Order Action
+citadelScene.action(/cancel_order_(.+)/, async (ctx) => {
+    // Format: cancel_order_ORDERID_SYMBOL
+    // Regex captures "ORDERID_SYMBOL" in match[1]
+    const rawData = ctx.match[1];
+    const parts = rawData.split('_');
+    const symbol = parts.pop(); // Last part is symbol
+    const orderId = parts.join('_'); // Rest is Order ID
+    
+    const userId = ctx.session.userId!;
+    const exchange = ctx.session.activeExchange!;
+    
+    await ctx.answerCbQuery();
+    await ctx.reply(`⚠️ Cancelling order <code>${orderId}</code> for ${symbol}...`, { parse_mode: 'HTML' });
+    
+    try {
+        if (!symbol) throw new Error('Symbol missing in callback');
+
+        await UniversalApiService.cancelOrder(userId, exchange, orderId, symbol);
+        await ctx.reply(`✅ Order cancelled.`);
+        
+        // Refresh list
+        const { showActiveOrdersTypes } = await import('../utils/orders');
+        await showActiveOrdersTypes(ctx);
+
+    } catch (error: any) {
+        await ctx.reply(`❌ Failed to cancel: ${error.message}`);
+    }
+});
+
+// Self-refresh for orders list
+citadelScene.action('orders', async (ctx) => {
+    await ctx.answerCbQuery();
+    const { showActiveOrdersTypes } = await import('../utils/orders');
+    await showActiveOrdersTypes(ctx);
 });
 
 citadelScene.action('help', async (ctx) => {

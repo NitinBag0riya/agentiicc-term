@@ -74,16 +74,23 @@ export class AsterAdapter implements ExchangeAdapter {
   }
 
   async placeOrder(params: PlaceOrderParams): Promise<OrderResult> {
+    console.log('[Aster] placeOrder called with:', params);
     try {
+      // 0. Normalize Symbol (Fix Invalid Symbol Error)
+      const symbol = this.normalizeSymbol(params.symbol);
+      console.log('[Aster] normalized symbol:', symbol);
+
       const orderParams: any = {
-        symbol: params.symbol,
+        symbol: symbol,
         side: params.side,
         type: params.type === 'STOP_LIMIT' ? 'STOP' : 
               params.type === 'TAKE_PROFIT_LIMIT' ? 'TAKE_PROFIT' : 
               params.type,
         quantity: params.quantity
       };
-
+      
+      // ... (param mapping logic same as before) ...
+      
       if (params.type === 'STOP_LIMIT' || params.type === 'TAKE_PROFIT_LIMIT') {
           // For Stop Limit, 'price' is the execution price (limit price)
           // We prefer stopLimitPrice if available, otherwise fall back to price
@@ -129,33 +136,37 @@ export class AsterAdapter implements ExchangeAdapter {
       // 1. Set Leverage if needed
       if (params.leverage) {
           try {
+              console.log('[Aster] Setting leverage...');
               await this.request('/fapi/v1/leverage', {
-                  symbol: params.symbol,
+                  symbol: symbol,
                   leverage: params.leverage
               }, 'POST');
+              console.log('[Aster] Leverage set.');
           } catch (e: any) {
-              console.warn(`Warning: Failed to set leverage: ${e.message}`);
+             console.warn(`   ⚠️ Failed to set leverage: ${e.message}`);
           }
       }
 
       // 2. Place Main Order
+      console.log('[Aster] Sending order request...', orderParams);
       const data: any = await this.request('/fapi/v1/order', orderParams, 'POST');
+      console.log('[Aster] Order response:', data);
       
-      // 3. Place TP/SL Orders if provided (Strategy Attachment)
-      if (data.orderId && (params.takeProfit || params.stopLoss)) {
+      // 3. Handle TP/SL if provided
+      if (data.orderId) {
+          const qty = params.quantity;
           const childSide = params.side === 'BUY' ? 'SELL' : 'BUY';
-          const qty = params.quantity; // We assume full close for simple attachment
-
+          
           // Take Profit
           if (params.takeProfit) {
-              this.placeConditionalOrder(params.symbol, childSide, 'TAKE_PROFIT_MARKET', params.takeProfit, qty)
+              this.placeConditionalOrder(symbol, childSide, 'TAKE_PROFIT_MARKET', params.takeProfit, qty)
                   .then(() => console.log('   ✅ Attached TP placed'))
                   .catch(e => console.warn(`   ⚠️ Failed to attach TP: ${e.message}`));
           }
 
           // Stop Loss
           if (params.stopLoss) {
-              this.placeConditionalOrder(params.symbol, childSide, 'STOP_MARKET', params.stopLoss, qty)
+              this.placeConditionalOrder(symbol, childSide, 'STOP_MARKET', params.stopLoss, qty)
                   .then(() => console.log('   ✅ Attached SL placed'))
                   .catch(e => console.warn(`   ⚠️ Failed to attach SL: ${e.message}`));
           }
@@ -172,6 +183,7 @@ export class AsterAdapter implements ExchangeAdapter {
         timestamp: data.updateTime || Date.now()
       };
     } catch (error) {
+       console.error('[Aster] placeOrder FAILED:', error);
       throw new Error(`Failed to place Aster order: ${error}`);
     }
   }
@@ -192,7 +204,7 @@ export class AsterAdapter implements ExchangeAdapter {
   async cancelOrder(orderId: string, symbol?: string): Promise<CancelResult> {
     try {
       const params: any = { orderId };
-      if (symbol) params.symbol = symbol;
+      if (symbol) params.symbol = this.normalizeSymbol(symbol); // Apply normalizeSymbol here
 
       const data: any = await this.request('/fapi/v1/order', params, 'DELETE');
 
@@ -218,7 +230,8 @@ export class AsterAdapter implements ExchangeAdapter {
     }
     
     try {
-        const data: any = await this.request('/fapi/v1/allOpenOrders', { symbol }, 'DELETE');
+        const normalizedSymbol = this.normalizeSymbol(symbol);
+        const data: any = await this.request('/fapi/v1/allOpenOrders', { symbol: normalizedSymbol }, 'DELETE');
         // Aster API returns { code: 200, msg: "success" } on success
         return {
             success: true,

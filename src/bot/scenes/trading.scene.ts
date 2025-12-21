@@ -28,6 +28,12 @@ tradingScene.command(['menu', 'start'], async (ctx) => {
     await showMenu(ctx);
 });
 
+// Orders Command
+import { showActiveOrdersTypes } from '../utils/orders';
+tradingScene.command('orders', async (ctx) => {
+    await showActiveOrdersTypes(ctx);
+});
+
 tradingScene.enter(async (ctx) => {
   const state = ctx.scene.state as TradingState;
   
@@ -165,7 +171,8 @@ async function refreshTradingView(ctx: BotContext) {
         ],
         // Row 4: Tools
         [
-             Markup.button.callback('🎯 Set TP/SL', 'setup_tpsl_pre') 
+             Markup.button.callback('🎯 Set TP/SL', 'setup_tpsl_pre'),
+             Markup.button.callback('📋 Manage Orders', 'manage_orders')
         ],
         // Row 5: Nav
         [
@@ -231,7 +238,7 @@ tradingScene.action('manage_orders', async (ctx) => {
 
         for (const o of orders) {
             msg += `▫️ <b>${o.side}</b> ${o.quantity} @ ${o.price}\n   ID: <code>${o.orderId}</code>\n\n`;
-            buttons.push([Markup.button.callback(`❌ Cancel ${o.side} ${o.price}`, `cancel_order_${o.orderId}`)]);
+            buttons.push([Markup.button.callback(`❌ Cancel ${o.side} ${o.price}`, `cancel_order_${o.orderId}_${symbol}`)]);
         }
         
         buttons.push([Markup.button.callback('🔙 Back', 'refresh'), Markup.button.callback('🗑️ Cancel All', 'cancel_all_orders')]);
@@ -245,23 +252,40 @@ tradingScene.action('manage_orders', async (ctx) => {
 
 // Cancel Specific Order
 tradingScene.action(/cancel_order_(.+)/, async (ctx) => {
-    const orderId = ctx.match[1];
+    // Format: cancel_order_ORDERID_SYMBOL
+    const rawData = ctx.match[1];
+    const parts = rawData.split('_');
+    
+    // Attempt to extract symbol if present (new format from orders.ts or updated here)
+    // If only one part, it's just ID (fallback legacy logic).
+    let orderId = rawData;
+    let symbolOverride = undefined;
+
+    if (parts.length > 1) {
+        symbolOverride = parts.pop(); // Last token is symbol
+        orderId = parts.join('_');    // Rest is ID
+    }
+
     const userId = ctx.session.userId!;
     const exchange = ctx.session.activeExchange!;
     const state = ctx.scene.state as TradingState;
     
+    // Use override if available (from global list), else fall back to current scene state
+    const targetSymbol = symbolOverride || state.symbol;
+
     await ctx.answerCbQuery();
     await ctx.reply(`⚠️ Cancelling order <code>${orderId}</code>...`, { parse_mode: 'HTML' });
     
     try {
-        await UniversalApiService.cancelOrder(userId, exchange, orderId, state.symbol);
+        await UniversalApiService.cancelOrder(userId, exchange, orderId, targetSymbol);
         await ctx.reply(`✅ Order cancelled.`);
         
         await refreshTradingView(ctx);
     } catch (error: any) {
-        await ctx.reply(`❌ Cancel failed: ${error.message}`);
-    } 
-});
+        await ctx.reply(`❌ Failed to cancel order: ${error.message}`);
+    }
+}); 
+
 
 // --- Trade Flow Start ---
 
@@ -417,10 +441,32 @@ tradingScene.action(/ape_(50|200|custom)/, async (ctx) => {
 });
 
 // --- Close 75% ---
+// --- Close 75% ---
 tradingScene.action(/close_75_(.+)/, async (ctx) => {
     const symbol = ctx.match[1];
     await ctx.answerCbQuery();
     await executeClose(ctx, symbol, 0.75);
+});
+
+// --- Close 50% ---
+tradingScene.action(/close_half_(.+)/, async (ctx) => {
+    const symbol = ctx.match[1];
+    await ctx.answerCbQuery();
+    await executeClose(ctx, symbol, 0.5);
+});
+
+// --- Close 25% ---
+tradingScene.action(/close_25_(.+)/, async (ctx) => {
+    const symbol = ctx.match[1];
+    await ctx.answerCbQuery();
+    await executeClose(ctx, symbol, 0.25);
+});
+
+// --- Close Full ---
+tradingScene.action(/close_full_(.+)/, async (ctx) => {
+    const symbol = ctx.match[1];
+    await ctx.answerCbQuery();
+    await executeClose(ctx, symbol, 1.0);
 });
 
 async function executeClose(ctx: BotContext, symbol: string, fraction: number) {
@@ -716,8 +762,9 @@ async function executeTrade(ctx: BotContext, state: TradingState) {
         const factor = Math.pow(10, precision);
         const quantity = (Math.floor(rawQty * factor) / factor).toFixed(precision);
 
-        console.log(`[Trade] $${amount} @ $${execPrice} -> ${quantity} ${symbol} (Prec: ${precision})`);
+        // console.log(`[Trade] $${amount} @ $${execPrice} -> ${quantity} ${symbol} (Prec: ${precision})`);
 
+        // console.log('[Trade] Calling UniversalApiService.placeOrder...');
         const result = await UniversalApiService.placeOrder(userId, exchange, {
             symbol,
             side: side!,
@@ -727,6 +774,13 @@ async function executeTrade(ctx: BotContext, state: TradingState) {
             takeProfit: state.tpPrice,
             stopLoss: state.slPrice
         });
+        // console.log('[Trade] Order Result:', result);
+
+        // Success Message with Cancel Button
+        const buttons = [];
+        if (result.orderId) {
+            buttons.push([Markup.button.callback('❌ Cancel Order', `cancel_order_${result.orderId}`)]);
+        }
 
         await ctx.reply(
             `✅ <b>Order Successful!</b>
@@ -734,7 +788,8 @@ async function executeTrade(ctx: BotContext, state: TradingState) {
 Type: ${mode} ${side}
 Qty: ${quantity} ${symbol}
 Status: ${result.status}
-ID: <code>${result.orderId}</code>`, { parse_mode: 'HTML' }
+ID: <code>${result.orderId}</code>`, 
+            { parse_mode: 'HTML', ...Markup.inlineKeyboard(buttons) }
         );
 
         // Clear TP/SL after trade
@@ -744,6 +799,7 @@ ID: <code>${result.orderId}</code>`, { parse_mode: 'HTML' }
         await refreshTradingView(ctx);
 
     } catch (error: any) {
+        console.error('[Trade] Execution Failed:', error);
         await ctx.reply(`❌ Order Failed: ${error.message}`);
     }
 }
