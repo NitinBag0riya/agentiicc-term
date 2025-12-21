@@ -38,6 +38,18 @@ tradingScene.enter(async (ctx) => {
 
   // Clear temp state on entry
   state.step = undefined;
+
+  // Check if we have a full intent from NLP (Side + Mode + Amount/Price)
+  // Default to MARKET if type is missing but amount is present
+  if (!state.mode && state.amount) {
+      state.mode = 'MARKET';
+  }
+
+  if (state.side && state.mode && (state.amount || state.price)) {
+      await executeTrade(ctx, state); 
+      return; 
+  }
+
   await refreshTradingView(ctx);
 });
 

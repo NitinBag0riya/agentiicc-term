@@ -159,7 +159,35 @@ citadelScene.on('text', async (ctx) => {
     return; 
   }
 
-  // Basic validation
+  // Check for Natural Language Trade Command
+  const { parseTradeCommand } = await import('../utils/parser');
+  const tradeIntent = parseTradeCommand(ctx.message.text);
+
+  if (tradeIntent) {
+      // Handle explicit exchange switch
+      if (tradeIntent.exchange && tradeIntent.exchange !== ctx.session.activeExchange) {
+        const { getLinkedExchanges } = await import('../../db/users');
+        const linked = await getLinkedExchanges(ctx.session.userId!);
+        
+        if (linked.includes(tradeIntent.exchange)) {
+            ctx.session.activeExchange = tradeIntent.exchange;
+            await ctx.reply(`🔄 Switched to ${tradeIntent.exchange.toUpperCase()}`);
+        } else {
+             await ctx.reply(`⚠️ You are not linked to ${tradeIntent.exchange.toUpperCase()}. Using ${ctx.session.activeExchange?.toUpperCase()}.`);
+        }
+      }
+
+      await ctx.scene.enter('trading', { 
+          symbol: tradeIntent.symbol,
+          side: tradeIntent.side,
+          mode: tradeIntent.type,
+          amount: tradeIntent.amount,
+          price: tradeIntent.price
+      });
+      return;
+  }
+
+  // Basic validation for Search (only if not a command)
   if (query.length < 2 || query.length > 10) {
     await ctx.reply('⚠️ Invalid symbol. Please try again (e.g. "BTC")');
     return;
