@@ -51,10 +51,13 @@ universalCitadelScene.enter(async (ctx) => {
           asterPnl = `uPnL: ${totalUpnl >= 0 ? '+' : ''}$${totalUpnl.toFixed(2)}`;
           asterPositions = `${asterData.positions?.length || 0} Positions`;
         }
-      } catch (e) {}
+      } catch (e) {
+        console.error('[Citadel] Aster connection check failed:', e);
+      }
       
       // Check Hyperliquid
       try {
+        console.log('[Citadel] Checking Hyperliquid connection for userId:', userId);
         const hlData = await UniversalApiService.getAccountSummary(userId, 'hyperliquid');
         if (hlData) {
           hyperliquidConnected = true;
@@ -74,7 +77,10 @@ universalCitadelScene.enter(async (ctx) => {
           hyperliquidPnl = `uPnL: ${totalUpnl >= 0 ? '+' : ''}$${totalUpnl.toFixed(2)}`;
           hyperliquidPositions = `${hlData.positions?.length || 0} Positions`;
         }
-      } catch (e) {}
+      } catch (e: any) {
+        console.error('[Citadel] Hyperliquid connection check failed:', e);
+        // If specific error "No credentials", we know why.
+      }
     }
   } catch (error) {
     console.error('Error fetching universal data:', error);

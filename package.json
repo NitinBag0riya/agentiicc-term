@@ -4,7 +4,7 @@
   "type": "module",
   "private": true,
   "scripts": {
-    "start": "bun src/index.ts",
+    "start": "./scripts/start-smart.sh",
     "start:live": "./scripts/start-live.sh",
     "dev": "bun --watch src/index.ts",
     "server": "bun src/server-bun.ts",

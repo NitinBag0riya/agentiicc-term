@@ -28,11 +28,15 @@ exchangeSelectionHyperliquidScene.enter(async (ctx) => {
 
   const message = createBox('Hyperliquid', lines, 32);
 
+  const webAppUrl = process.env.WEBAPP_URL 
+      ? `${process.env.WEBAPP_URL}/webapp/index.html` 
+      : 'https://agentifi.com/webapp/index.html'; // Fallback
+
   await ctx.reply('```\n' + message + '\n```', {
     parse_mode: 'MarkdownV2',
     ...Markup.inlineKeyboard([
       [
-        Markup.button.callback('🔐 WalletConnect', 'wallet_connect_hyperliquid'),
+        Markup.button.webApp('🔐 WalletConnect', webAppUrl),
         Markup.button.callback('🔗 API Key', 'api_key_hyperliquid'),
         Markup.button.callback('🔙 Back', 'back_to_welcome'),
       ],
@@ -40,11 +44,9 @@ exchangeSelectionHyperliquidScene.enter(async (ctx) => {
   });
 });
 
-// CTA 1: WalletConnect → Screen 6 (Mini App Auth Hyperliquid)
-exchangeSelectionHyperliquidScene.action('wallet_connect_hyperliquid', async (ctx) => {
-  await ctx.answerCbQuery();
-  await ctx.scene.enter('mini_app_auth_hyperliquid');
-});
+// CTA 1: WalletConnect - Handled by WebApp
+// exchangeSelectionHyperliquidScene.action('wallet_connect_hyperliquid') -> Removed as WebApp button opens directly
+
 
 // CTA 2: API Key → Screen 7 (Link Wizard Hyperliquid)
 exchangeSelectionHyperliquidScene.action('api_key_hyperliquid', async (ctx) => {
