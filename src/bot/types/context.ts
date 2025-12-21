@@ -11,6 +11,7 @@ export interface SessionData extends Scenes.WizardSessionData {
   isLinked?: boolean;
   waitingForInput?: string;
   tempData?: any;
+  [key: string]: any; // Allow dynamic keys for simple UI state (like last leverage)
 }
 
 export interface BotContext extends Context {

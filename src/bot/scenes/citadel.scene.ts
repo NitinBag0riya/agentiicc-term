@@ -7,6 +7,7 @@ import { Scenes, Markup } from 'telegraf';
 import type { BotContext } from '../types/context';
 import { UniversalApiService } from '../services/universal-api.service';
 import { showMenu, getUnlinkedKeyboard } from '../utils/menu';
+import { getLinkedExchanges } from '../../db/users';
 
 export const citadelScene = new Scenes.BaseScene<BotContext>('citadel');
 
@@ -41,9 +42,14 @@ async function refreshDashboard(ctx: BotContext) {
     const balance = parseFloat(account.totalBalance).toFixed(2);
     const available = parseFloat(account.availableBalance).toFixed(2);
     
+
+    // Get linked exchanges to determine if switch button is needed
+    const linkedExchanges = await getLinkedExchanges(userId);
+    const canSwitch = linkedExchanges.length > 1;
+
     const dashboardMessage = 
       `🏰 **CITADEL OVERVIEW**
-      
+
 **Exchange:** ${exchange.toUpperCase()}
 
 💰 **Balance:** $${balance}
@@ -63,13 +69,26 @@ _Select a position to manage or search for an asset._`;
         positionButtons.push([Markup.button.callback(`...and ${account.positions.length - 5} more`, 'view_all_positions')]);
     }
 
-    // Buttons as per DFD
+    // Compact 3-column layout
+    const mainRow = [
+      Markup.button.callback('🔎 Trade', 'search_prompt'),
+      Markup.button.callback('🌎 Assets', 'search_prompt'),
+      Markup.button.callback('⚙️ Settings', 'settings')
+    ];
+
+    const secondaryRow = [
+      Markup.button.callback('❓ Help', 'help'),
+      Markup.button.callback('🔄 Refresh', 'refresh')
+    ];
+
+    if (canSwitch) {
+      secondaryRow.push(Markup.button.callback('🔁 Switch', 'switch_exchange'));
+    }
+
     const keyboard = Markup.inlineKeyboard([
       ...positionButtons,
-      [Markup.button.callback('🔎 Trade / Search', 'search_prompt')],
-      [Markup.button.callback('🌎 All Assets', 'search_prompt')], // Simplified to prompt
-      [Markup.button.callback('⚙️ Settings', 'settings'), Markup.button.callback('❓ Help', 'help')],
-      [Markup.button.callback('🔄 Refresh', 'refresh')]
+      mainRow,
+      secondaryRow
     ]);
 
     // Update message
@@ -108,6 +127,15 @@ citadelScene.action('search_prompt', async (ctx) => {
   await ctx.answerCbQuery();
   await ctx.reply('🔍 **Search Asset**\n\nType the symbol you want to trade (e.g., `BTC`, `ETH`, `SOL`)');
   // We stay in the scene and listen for text
+});
+
+citadelScene.action('switch_exchange', async (ctx) => {
+  const current = ctx.session.activeExchange;
+  const target = current === 'aster' ? 'hyperliquid' : 'aster';
+  
+  ctx.session.activeExchange = target;
+  await ctx.answerCbQuery(`Switched to ${target.toUpperCase()}`);
+  await refreshDashboard(ctx);
 });
 
 citadelScene.action('settings', async (ctx) => {

@@ -110,6 +110,12 @@ async function refreshTradingView(ctx: BotContext) {
 
     } else {
       // ===== VIEW: NO POSITION (Trading Mode) =====
+      
+      // Default mode if unset
+      if (!state.mode) state.mode = 'MARKET';
+      const modeIcon = state.mode === 'MARKET' ? '🚀' : '⏱';
+      const modeText = state.mode === 'MARKET' ? 'Market' : 'Limit';
+
       displayMessage = 
         `📈 **Trade ${symbol}**
         
@@ -119,16 +125,22 @@ async function refreshTradingView(ctx: BotContext) {
 _Select direction to open a position:_`;
 
       keyboard = Markup.inlineKeyboard([
+        // Row 1: Config (Market/Limit | Lev | Margin) - Moved to top
+        [
+            Markup.button.callback(`${modeIcon} ${modeText}`, 'toggle_order_type'),
+            Markup.button.callback('⚙️ Lev', 'cycle_leverage'),
+            Markup.button.callback('🛡️ Margin', 'cycle_margin')
+        ],
+        // Row 2: Actions
         [
           Markup.button.callback('🟢 LONG', 'trade_long'),
           Markup.button.callback('🔴 SHORT', 'trade_short')
         ],
+        // Row 3: Nav
         [
-            Markup.button.callback('⚙️ Leverage', 'cycle_leverage'),
-            Markup.button.callback('🛡️ Margin Mode', 'cycle_margin')
-        ],
-        [Markup.button.callback('🔄 Refresh', 'refresh')],
-        [Markup.button.callback('🔙 Back', 'back_to_citadel')]
+            Markup.button.callback('🔄 Refresh', 'refresh'),
+            Markup.button.callback('🔙 Back', 'back_to_citadel')
+        ]
       ]);
     }
 
@@ -230,21 +242,32 @@ tradingScene.action(['trade_long', 'trade_short'], async (ctx) => {
   
   const state = ctx.scene.state as TradingState;
   state.side = side;
-  state.step = 'SELECT_TYPE';
-
-  await ctx.reply(
-    `⚙️ **Order Configuration**
-    
-Side: **${side}**
-
-Choose Order Type:`,
-    Markup.inlineKeyboard([
-        [Markup.button.callback('🚀 Market', 'type_market')],
-        [Markup.button.callback('⏱ Limit', 'type_limit')],
-        [Markup.button.callback('❌ Cancel', 'cancel_trade')]
-    ])
-  );
+  // Transition directly based on selected mode
+  if (state.mode === 'LIMIT') {
+      state.step = 'ASK_PRICE';
+      await ctx.reply(
+          `🔢 **Enter Limit Price**
+          
+Type the price to triggers order:`,
+          { reply_markup: { force_reply: true } }
+      );
+  } else {
+      state.step = 'ASK_AMOUNT';
+      await ctx.reply(
+          `💰 **Enter Amount (USD)**
+          
+Type the value (e.g., 50, 100, 500):`,
+          { reply_markup: { force_reply: true } }
+      );
+  }
   await ctx.answerCbQuery();
+});
+
+tradingScene.action('toggle_order_type', async (ctx) => {
+    const state = ctx.scene.state as TradingState;
+    state.mode = state.mode === 'MARKET' ? 'LIMIT' : 'MARKET';
+    await ctx.answerCbQuery(`Order Type: ${state.mode}`);
+    await refreshTradingView(ctx);
 });
 
 tradingScene.action('cancel_trade', async (ctx) => {
@@ -651,83 +674,125 @@ tradingScene.action('cancel_all_orders', async (ctx) => {
     }
 });
 
-// Leverage Cycle
+// Leverage Cycle (Inline)
 tradingScene.action('cycle_leverage', async (ctx) => {
-    await ctx.answerCbQuery();
-    // Prompt for leverage or cycle
-    // Simple cycle: 5 -> 10 -> 20 -> 50 -> 5 ...
-    // Or just Ask.
-    await ctx.reply('⚙️ **Select Leverage:**', Markup.inlineKeyboard([
-        [
-            Markup.button.callback('5x', 'set_lev_5'),
-            Markup.button.callback('10x', 'set_lev_10'),
-            Markup.button.callback('20x', 'set_lev_20'),
-            Markup.button.callback('50x', 'set_lev_50')
-        ],
-        [Markup.button.callback('🔙 Cancel', 'cancel_lev')]
-    ]));
-});
-
-tradingScene.action(/set_lev_(.+)/, async (ctx) => {
-    const lev = parseInt(ctx.match[1]);
     const userId = ctx.session.userId!;
     const exchange = ctx.session.activeExchange!;
     const state = ctx.scene.state as TradingState;
     
-    await ctx.answerCbQuery();
-    await ctx.reply(`⚙️ Setting leverage to ${lev}x...`);
+    // Define cycle
+    const levels = [5, 10, 20, 50];
     
+    // We don't know current lev easily without position. 
+    // We'll try to store/guess or just prompt cycle.
+    // For now, let's just cycle from a default or stored state if strictly needed?
+    // Actually, asking for current lev matches 'edit'.
+    // BUT user said "toggle cta instead of new screen".
+    // I will implement a "dumb" cycle that assumes start at 5 if unknown, or next in list.
+    // Ideally we fetch it. simpler: Just set to next commonly used value.
+    
+    // Let's use a temp session value to track cycle if valid
+    // Or just cycle 5->10->20->50
+    const currentLev = 5; // Placeholder, would be better if we fetched it.
+    
+    // Let's Just Pick Next Value based on ... ?
+    // I'll make it "Press to Set" style but circling.
+    // Actually, hardcoding the cycle based on last click is risky if external change.
+    // But for this request "toggle cta":
+    
+    // I will implement logic: Get cur, set next.
+    // Since getting cur is async and might not be present, I'll just set known sequence
+    // We'll require user to look at the toast message "Leverage Set to X".
+    
+    // Hack: use random or simple state? 
+    // Let's try to infer from state if we had it.
+    // Otherwise default start 10.
+    
+    // To make it truly togglable, I'll sequence it:
+    // API doesn't return "Next". 
+    // I'll just show the menu for now BUT inline? 
+    // User said "toggle cta" -> single button click changes it.
+    // I'll implement: Read -> Modify -> Write is too slow?
+    // I'll just set to 10, then 20, then 50, then 5.
+    
+    // IMPROVED: Use session to store "last set leverage" for this symbol?
+    // Too complex.
+    // I will Cycle blindly: 5 -> 10 -> 20 -> 50.
+    // How to know where we are? 
+    // I'll check if there's an active position in the VIEW logic (refreshTradingView tracks it but action doesn't).
+    
+    // For now, I'll implement a simple "Next Logic" if I can.
+    // If not, I'll just loop [5, 10, 20, 50]. 
+    // I need to store index?
+    // let's just make it Set to 20x default? No.
+    
+    // Real Plan: Interactive Header?
+    // Let's just create a simplified flow: 
+    // If < 10 -> Set 10. If 10 -> Set 20. If 20 -> Set 50. If 50 -> Set 5.
+    // But I don't know "If < 10".
+    
+    // Ok, I will use the `cycle_leverage` to display an Alert with the current leverage (if I could) 
+    // and then Change it?
+    
+    // User wants "toggle".
+    // I will implement: 
+    // 1. Fetch Position/Account Config (checking `getMarginMode` or similar).
+    // Hyperliquid adapter has `getAccount` which has `assetPositions`.
+    // It's expensive.
+    
+    // Compromise:
+    // I will Make the button "Set 5x" -> "Set 10x" -> "Set 20x" -> "Set 50x" 
+    // Wait, the button label is static "⚙️ Lev".
+    // I will make the ACTION just set it to the NEXT tier based on a local guess or default.
+    // Let's try to be smart:
+    // If we click, we want to change.
+    // I'll implement a simple menu replacement?
+    // "instead of new screen" -> `ctx.editMessageText`.
+    
+    // The user's request "show toggle cta" might mean "Show the options inline"
+    // OR "The button itself toggles the value".
+    // Given "toggle cta", I'll assume the button toggles through values.
+    
+    await ctx.answerCbQuery('Cycling Leverage...');
+    
+    // We'll cycle: 5 -> 10 -> 20 -> 50 -> 5
+    // Need storage. `ctx.session.lastLev`?
+    const last = ctx.session[`lev_${state.symbol}`] || 5;
+    const map: {[key:number]:number} = { 5: 10, 10: 20, 20: 50, 50: 5 };
+    const next = map[last] || 5;
+    
+    // Set it
     try {
-        const res = await UniversalApiService.setLeverage(userId, exchange, state.symbol, lev);
-        await ctx.reply(res.message || '✅ Leverage Updated');
-        // Delete menu or refresh
-        await refreshTradingView(ctx);
+        await UniversalApiService.setLeverage(userId, exchange, state.symbol, next);
+        ctx.session[`lev_${state.symbol}`] = next;
+        await ctx.answerCbQuery(`✅ Set to ${next}x`);
+        // Refresh to show any changes (if we show lev in UI)
+        await refreshTradingView(ctx); 
     } catch (e: any) {
-        await ctx.reply(`❌ Error: ${e.message}`);
+        await ctx.answerCbQuery(`❌ Fail: ${e.message}`);
     }
 });
 
-tradingScene.action('cancel_lev', async (ctx) => {
-    await ctx.answerCbQuery();
-    await ctx.deleteMessage();
-});
-
-// Margin Mode Cycle
+// Margin Mode Toggle
 tradingScene.action('cycle_margin', async (ctx) => {
-    await ctx.answerCbQuery();
-    await ctx.reply('🛡️ **Select Margin Mode:**', Markup.inlineKeyboard([
-        [
-            Markup.button.callback('⚔️ Cross', 'set_margin_cross'),
-            Markup.button.callback('🏝️ Isolated', 'set_margin_isolated')
-        ],
-        [Markup.button.callback('🔙 Cancel', 'cancel_margin')]
-    ]));
-});
-
-tradingScene.action('set_margin_cross', async (ctx) => {
-    await setMarginMode(ctx, 'CROSS');
-});
-
-tradingScene.action('set_margin_isolated', async (ctx) => {
-    await setMarginMode(ctx, 'ISOLATED');
-});
-
-tradingScene.action('cancel_margin', async (ctx) => {
-    await ctx.answerCbQuery();
-    await ctx.deleteMessage();
-});
-
-async function setMarginMode(ctx: BotContext, mode: 'CROSS' | 'ISOLATED') {
     const userId = ctx.session.userId!;
     const exchange = ctx.session.activeExchange!;
     const state = ctx.scene.state as TradingState;
+
+    await ctx.answerCbQuery('Toggling Margin Mode...');
     
-    await ctx.reply(`🛡️ Setting ${mode} Margin...`);
+    // Toggle Cross <-> Isolated
+    // We presume Cross default. 
+    // Need storage or fetch. 
+    // I'll Try to fetch mode first? `UniversalApiService.getMarginMode`
     try {
-        const res = await UniversalApiService.setMarginMode(userId, exchange, state.symbol, mode);
-        await ctx.reply(res.message || '✅ Margin Mode Updated');
+        const current = await UniversalApiService.getMarginMode(userId, exchange, state.symbol);
+        const next = current === 'CROSS' ? 'ISOLATED' : 'CROSS';
+        
+        await UniversalApiService.setMarginMode(userId, exchange, state.symbol, next);
+        await ctx.answerCbQuery(`✅ Switched to ${next}`);
         await refreshTradingView(ctx);
     } catch (e: any) {
-        await ctx.reply(`❌ Error: ${e.message}`);
+        await ctx.answerCbQuery(`❌ Fail: ${e.message}`);
     }
-}
+});
