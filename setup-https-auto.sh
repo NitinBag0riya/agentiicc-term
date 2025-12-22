@@ -252,16 +252,19 @@ WEBHOOK_URL="https://$DOMAIN"
 # Backup .env
 cp .env .env.backup.$(date +%Y%m%d_%H%M%S)
 
+# Escape special characters for sed
+ESCAPED_WEBHOOK=$(echo "$WEBHOOK_URL" | sed 's/[\/&]/\\&/g')
+
 # Update WEBHOOK_URL
 if grep -q "^WEBHOOK_URL=" .env; then
-    sed -i.bak "s|^WEBHOOK_URL=.*|WEBHOOK_URL=$WEBHOOK_URL|" .env
+    sed -i.bak "s|^WEBHOOK_URL=.*|WEBHOOK_URL=$ESCAPED_WEBHOOK|" .env
 else
     echo "WEBHOOK_URL=$WEBHOOK_URL" >> .env
 fi
 
 # Update WEBAPP_URL if exists
 if grep -q "^WEBAPP_URL=" .env; then
-    sed -i.bak "s|^WEBAPP_URL=.*|WEBAPP_URL=$WEBHOOK_URL|" .env
+    sed -i.bak "s|^WEBAPP_URL=.*|WEBAPP_URL=$ESCAPED_WEBHOOK|" .env
 fi
 
 # Update PORT if needed

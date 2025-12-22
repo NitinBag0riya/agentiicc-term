@@ -197,9 +197,11 @@ if [ "$IS_AWS" = true ]; then
                 # Backup .env
                 cp .env .env.backup.$(date +%Y%m%d_%H%M%S)
                 
-                # Update .env
+                # Update .env - escape special characters for sed
+                ESCAPED_WEBHOOK=$(echo "$NEW_WEBHOOK" | sed 's/[\/&]/\\&/g')
+                
                 if grep -q "^WEBHOOK_URL=" .env; then
-                    sed -i.bak "s|^WEBHOOK_URL=.*|WEBHOOK_URL=$NEW_WEBHOOK|" .env
+                    sed -i.bak "s|^WEBHOOK_URL=.*|WEBHOOK_URL=$ESCAPED_WEBHOOK|" .env
                 else
                     echo "WEBHOOK_URL=$NEW_WEBHOOK" >> .env
                 fi
