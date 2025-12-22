@@ -135,12 +135,15 @@ else
 fi
 
 echo ""
-echo "🌐 Starting ngrok on port 3742..."
-            ngrok http $PORT &
-            NGROK_PID=$!
+echo ""
+echo "🌐 Starting ngrok on port $PORT via PM2..."
             
-            echo "⏳ Waiting for ngrok to start..."
-            sleep 3
+            # Start ngrok via PM2 to keep it alive
+            pm2 delete agentifi-ngrok 2>/dev/null || true
+            pm2 start "ngrok http $PORT" --name agentifi-ngrok
+            
+            echo "⏳ Waiting for ngrok to initialize..."
+            sleep 5
             
             # Get ngrok URL
             NGROK_URL=$(curl -s http://localhost:4040/api/tunnels | grep -o 'https://[^"]*\.ngrok-free\.app' | head -1)
