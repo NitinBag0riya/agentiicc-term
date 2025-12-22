@@ -139,8 +139,11 @@ echo ""
 echo "🌐 Starting ngrok on port $PORT via PM2..."
             
             # Start ngrok via PM2 to keep it alive
+            # Use absolute path for CWD to ensure consistency
+            APP_DIR="$(pwd)"
+            
             pm2 delete agentifi-ngrok 2>/dev/null || true
-            pm2 start "ngrok http $PORT" --name agentifi-ngrok
+            pm2 start "ngrok http $PORT" --name agentifi-ngrok --cwd "$APP_DIR"
             
             echo "⏳ Waiting for ngrok to initialize..."
             sleep 5
@@ -193,6 +196,9 @@ echo ""
 # Start webapp server in background
 if [ -d "src/webapp" ]; then
     echo "📱 Starting webapp server on port 5173..."
+    # Kill existing if any
+    pkill -f "python3 -m http.server 5173" || true
+    
     cd src/webapp && python3 -m http.server 5173 > /dev/null 2>&1 &
     WEBAPP_PID=$!
     cd ../..
@@ -227,9 +233,12 @@ echo ""
 echo "🤖 Starting bot with PM2..."
 echo ""
 
+APP_DIR="$(pwd)"
+echo "   - Working Dir: $APP_DIR"
+
 # Start the bot via npm to ensure environment is loaded correctly
 pm2 delete agentifi-bot 2>/dev/null || true
-pm2 start npm --name "agentifi-bot" -- run start
+pm2 start npm --name "agentifi-bot" --cwd "$APP_DIR" -- run start
 pm2 save
 pm2 startup | grep "sudo" | bash 2>/dev/null || true
 
