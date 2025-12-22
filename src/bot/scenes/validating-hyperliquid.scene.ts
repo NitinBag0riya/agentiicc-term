@@ -1,5 +1,6 @@
 import { Scenes } from 'telegraf';
 import type { BotContext } from '../types/context';
+import { HyperliquidAdapter } from '../../adapters/hyperliquid.adapter';
 
 export const validatingHyperliquidScene = new Scenes.BaseScene<BotContext>('validating_hyperliquid');
 
@@ -25,24 +26,44 @@ validatingHyperliquidScene.enter(async (ctx) => {
 
   await ctx.reply('```\n' + message + '\n```', { parse_mode: 'MarkdownV2' });
   
-  // Simulate validation delay
-  await new Promise(resolve => setTimeout(resolve, 1500));
-  
   // Check if we have temp credentials
   const walletAddress = ctx.session.tempWalletAddress;
-  const apiKey = ctx.session.tempApiKey;
+  const privateKey = ctx.session.tempApiKey;
   
-  if (!walletAddress || !apiKey) {
+  if (!walletAddress || !privateKey) {
+    await ctx.reply('❌ Missing wallet address or private key');
     await ctx.scene.enter('auth_error_hyperliquid');
     return;
   }
   
-  // Encrypt credentials (API Key = Private Key, Secret = Wallet Address for Hyperliquid mapping)
+  // === REAL VALIDATION: Test the API credentials ===
+  try {
+    // Hyperliquid adapter takes (walletAddress, privateKey)
+    const adapter = new HyperliquidAdapter(walletAddress, privateKey);
+    const account = await adapter.getAccount();
+    
+    // If we get here, credentials are valid
+    console.log(`[Hyperliquid Validation] Success - Balance: ${account.totalBalance}`);
+    
+  } catch (error: any) {
+    console.error('[Hyperliquid Validation] Failed:', error.message);
+    await ctx.reply(`❌ Invalid credentials: ${error.message}`);
+    
+    // Clear temp data
+    delete ctx.session.tempWalletAddress;
+    delete ctx.session.tempApiKey;
+    
+    await ctx.scene.enter('auth_error_hyperliquid');
+    return;
+  }
+  
+  // Credentials are valid - now encrypt and store
   const { encrypt } = require('../../utils/encryption');
   const { storeApiCredentials, getOrCreateUser } = require('../../db/users');
   
-  const encKey = encrypt(apiKey); // Private Key
-  const encSecret = encrypt(walletAddress); // Wallet Address
+  // Store: api_key = Private Key, api_secret = Wallet Address (for adapter factory mapping)
+  const encKey = encrypt(privateKey);
+  const encSecret = encrypt(walletAddress);
   
   // Store in database
   const telegramId = ctx.from?.id;
@@ -58,6 +79,7 @@ validatingHyperliquidScene.enter(async (ctx) => {
   ctx.session.linkExchange = 'hyperliquid';
   ctx.session.isLinked = true;
   ctx.session.activeExchange = 'hyperliquid';
+  ctx.session.walletAddress = walletAddress;
   
   // Clear temp session data
   delete ctx.session.tempWalletAddress;

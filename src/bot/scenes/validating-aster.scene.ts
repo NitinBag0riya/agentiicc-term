@@ -1,5 +1,6 @@
 import { Scenes } from 'telegraf';
 import type { BotContext } from '../types/context';
+import { AsterAdapter } from '../../adapters/aster.adapter';
 
 export const validatingAsterScene = new Scenes.BaseScene<BotContext>('validating_aster');
 
@@ -25,19 +26,37 @@ validatingAsterScene.enter(async (ctx) => {
 
   await ctx.reply('```\n' + message + '\n```', { parse_mode: 'MarkdownV2' });
   
-  // Simulate validation delay
-  await new Promise(resolve => setTimeout(resolve, 1500));
-  
   // Check if we have temp credentials (API Key + Secret)
   const apiKey = ctx.session.tempApiKey;
   const apiSecret = ctx.session.tempApiSecret;
   
   if (!apiKey || !apiSecret) {
+    await ctx.reply('❌ Missing API credentials');
     await ctx.scene.enter('auth_error_aster');
     return;
   }
   
-  // Encrypt credentials
+  // === REAL VALIDATION: Test the API credentials ===
+  try {
+    const adapter = new AsterAdapter(apiKey, apiSecret);
+    const account = await adapter.getAccount();
+    
+    // If we get here, credentials are valid
+    console.log(`[Aster Validation] Success - Balance: ${account.totalBalance}`);
+    
+  } catch (error: any) {
+    console.error('[Aster Validation] Failed:', error.message);
+    await ctx.reply(`❌ Invalid API credentials: ${error.message}`);
+    
+    // Clear temp data
+    delete ctx.session.tempApiKey;
+    delete ctx.session.tempApiSecret;
+    
+    await ctx.scene.enter('auth_error_aster');
+    return;
+  }
+  
+  // Credentials are valid - now encrypt and store
   const { encrypt } = require('../../utils/encryption');
   const { storeApiCredentials, getOrCreateUser } = require('../../db/users');
   
@@ -51,7 +70,7 @@ validatingAsterScene.enter(async (ctx) => {
      if (user && user.id) {
         await storeApiCredentials(user.id, 'aster', encKey, encSecret);
         
-        // Update session with internal ID just in case
+        // Update session with internal ID
         ctx.session.userId = user.id;
      }
   }
