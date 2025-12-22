@@ -96,7 +96,46 @@ if ! grep -q "^WEBHOOK_URL=http" .env; then
         echo ""
         if [[ $REPLY =~ ^[Yy]$ ]]; then
             PORT=$(grep "^PORT=" .env | cut -d '=' -f2 || echo "3000")
-            echo "🌐 Starting ngrok on port $PORT..."
+            echo ""
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "  🔑 ngrok Authentication Required"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo ""
+echo "ngrok requires a free account and auth token."
+echo ""
+echo "Steps:"
+echo "1. Sign up: https://dashboard.ngrok.com/signup"
+echo "2. Get token: https://dashboard.ngrok.com/get-started/your-authtoken"
+echo ""
+
+# Check if ngrok is already authenticated
+if ngrok config check &> /dev/null 2>&1; then
+    echo "✅ ngrok already authenticated"
+else
+    read -p "Enter your ngrok auth token: " NGROK_TOKEN
+    
+    if [ -z "$NGROK_TOKEN" ]; then
+        echo "❌ Auth token required to use ngrok"
+        echo ""
+        echo "Options:"
+        echo "1. Get token from: https://dashboard.ngrok.com/get-started/your-authtoken"
+        echo "2. Run manually later: ngrok config add-authtoken YOUR_TOKEN"
+        echo "3. Skip ngrok and set WEBHOOK_URL manually in .env"
+        exit 1
+    fi
+    
+    # Configure ngrok with token
+    if ngrok config add-authtoken "$NGROK_TOKEN" 2>&1; then
+        echo "✅ ngrok authenticated successfully"
+    else
+        echo "❌ Failed to authenticate ngrok"
+        echo "Please run manually: ngrok config add-authtoken YOUR_TOKEN"
+        exit 1
+    fi
+fi
+
+echo ""
+echo "🌐 Starting ngrok on port 3742..."
             ngrok http $PORT &
             NGROK_PID=$!
             
