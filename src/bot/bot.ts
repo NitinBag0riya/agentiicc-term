@@ -212,6 +212,7 @@ Share your code to invite friends!
 
 **🔧 Commands:**
 /menu - Open main menu
+/trade - Quick trade: /trade btc long 50
 /referral - Get your referral code
 /help - Show this help`;
 
@@ -246,6 +247,144 @@ ${shareLink}
     } catch (error) {
       console.error('Error fetching referral code:', error);
       await ctx.reply('❌ Error fetching referral code. Please try again.');
+    }
+  });
+
+  // ==================== /trade Quick Command ====================
+  // Format: /trade [exchange] symbol side amount
+  // Examples: /trade aster btc long 20
+  //           /trade btc long 20 (uses active exchange)
+  //           /trade sol short 50
+  bot.command('trade', async ctx => {
+    const telegramId = ctx.from.id;
+    const args = ctx.message.text.split(/\s+/).slice(1); // Remove /trade
+    
+    if (args.length < 3) {
+      await ctx.reply(
+        `📖 **Quick Trade Usage**
+
+\`/trade [exchange] symbol side amount\`
+
+**Examples:**
+• \`/trade aster btc long 20\` - Long BTC $20 on Aster
+• \`/trade btc long 50\` - Long BTC $50 on active exchange
+• \`/trade sol short 100\` - Short SOL $100
+
+**Parameters:**
+• exchange: \`aster\` or \`hyperliquid\` (optional)
+• symbol: \`btc\`, \`eth\`, \`sol\`, etc.
+• side: \`long\` or \`short\`
+• amount: USD value (e.g. \`50\`)
+
+**Uses your settings:**
+• Leverage: ${ctx.session.leverage || 10}x
+• Order Type: ${ctx.session.orderType || 'Market'}`,
+        { parse_mode: 'Markdown' }
+      );
+      return;
+    }
+
+    try {
+      const user = await getOrCreateUser(telegramId, ctx.from.username || undefined);
+      
+      // Parse arguments
+      let exchange: string;
+      let symbolArg: string;
+      let sideArg: string;
+      let amountArg: string;
+
+      // Check if first arg is exchange
+      if (['aster', 'hyperliquid', 'hl'].includes(args[0].toLowerCase())) {
+        exchange = args[0].toLowerCase() === 'hl' ? 'hyperliquid' : args[0].toLowerCase();
+        symbolArg = args[1];
+        sideArg = args[2];
+        amountArg = args[3];
+      } else {
+        // Use active exchange from session
+        exchange = ctx.session.activeExchange || 'aster';
+        symbolArg = args[0];
+        sideArg = args[1];
+        amountArg = args[2];
+      }
+
+      // Validate side
+      const side = sideArg.toLowerCase();
+      if (!['long', 'short', 'buy', 'sell'].includes(side)) {
+        await ctx.reply('❌ Invalid side. Use `long` or `short`', { parse_mode: 'Markdown' });
+        return;
+      }
+
+      // Normalize symbol
+      let symbol = symbolArg.toUpperCase();
+      if (!symbol.includes('USDT') && !symbol.includes('USD')) {
+        symbol = `${symbol}USDT`;
+      }
+
+      // Parse amount
+      const amount = parseFloat(amountArg);
+      if (isNaN(amount) || amount <= 0) {
+        await ctx.reply('❌ Invalid amount. Enter a positive number.');
+        return;
+      }
+
+      // Get settings from session
+      const leverage = ctx.session.leverage || 10;
+      const orderType = ctx.session.orderType || 'Market';
+
+      // Send "processing" message
+      const processingMsg = await ctx.reply(
+        `⏳ Executing: **${side.toUpperCase()} ${symbol}** $${amount} @ ${leverage}x on ${exchange.toUpperCase()}...`,
+        { parse_mode: 'Markdown' }
+      );
+
+      // Import UniversalApiService
+      const { UniversalApiService } = require('./services/universal-api.service');
+
+      // Get price for quantity calculation
+      const ticker = await UniversalApiService.getMarketPrice(exchange, symbol);
+      const price = parseFloat(ticker.price);
+
+      // Calculate quantity
+      const notional = amount * leverage;
+      const assetInfo = await UniversalApiService.getAsset(exchange, symbol);
+      const stepSize = parseFloat(assetInfo?.stepSize || '0.001');
+      const rawQuantity = notional / price;
+      const quantity = Math.floor(rawQuantity / stepSize) * stepSize;
+
+      if (quantity <= 0) {
+        await ctx.reply(`❌ Order too small. Minimum ~$${(stepSize * price).toFixed(2)}`);
+        return;
+      }
+
+      // Execute order
+      const orderSide = ['long', 'buy'].includes(side) ? 'BUY' : 'SELL';
+      const result = await UniversalApiService.placeOrder(user.id, exchange, {
+        symbol,
+        side: orderSide,
+        type: orderType.toUpperCase(),
+        quantity: quantity.toFixed(6),
+        leverage,
+      });
+
+      if (result && result.orderId) {
+        await ctx.reply(
+          `✅ **Order Executed!**
+
+📊 ${side.toUpperCase()} ${symbol}
+💰 Amount: $${amount}
+📦 Qty: ${quantity.toFixed(6)}
+⚡ Leverage: ${leverage}x
+🏦 Exchange: ${exchange.toUpperCase()}
+🆔 Order: \`${result.orderId}\``,
+          { parse_mode: 'Markdown' }
+        );
+      } else {
+        await ctx.reply('❌ Order failed - no order ID returned');
+      }
+
+    } catch (error: any) {
+      console.error('Quick trade error:', error);
+      await ctx.reply(`❌ Trade failed: ${error.message}`);
     }
   });
 

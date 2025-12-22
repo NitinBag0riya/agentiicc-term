@@ -43,6 +43,7 @@ async function startApp() {
     // 4. Set bot commands
     await bot.telegram.setMyCommands([
       { command: 'menu', description: 'Open main menu' },
+      { command: 'trade', description: 'Quick trade: /trade btc long 50' },
       { command: 'referral', description: 'Get your referral code' },
       { command: 'help', description: 'Get help' },
     ]);
