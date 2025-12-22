@@ -95,7 +95,7 @@ if [ ! -f "$PROJECT_ROOT/package.json" ]; then
 fi
 
 echo ""
-echo "📝 Generating ecosystem.config.js..."
+echo "📝 Generating ecosystem.config.cjs..."
 
 # Determine WebApp script
 WEBAPP_SCRIPT=""
@@ -110,7 +110,7 @@ if [ -d "$PROJECT_ROOT/src/webapp" ]; then
     },"
 fi
 
-cat > "$PROJECT_ROOT/ecosystem.config.js" <<EOF
+cat > "$PROJECT_ROOT/ecosystem.config.cjs" <<EOF
 module.exports = {
   apps: [
     {
@@ -151,7 +151,7 @@ if ! command -v pm2 &> /dev/null; then
 fi
 
 # Start/Restart from ecosystem file ensuring fresh config
-pm2 start "$PROJECT_ROOT/ecosystem.config.js"
+pm2 start "$PROJECT_ROOT/ecosystem.config.cjs"
 pm2 save --force
 pm2 startup | grep "sudo" | bash 2>/dev/null || true
 
