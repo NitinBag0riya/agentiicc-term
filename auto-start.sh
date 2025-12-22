@@ -62,17 +62,54 @@ else
     log_info "Bun $(bun -v) installed"
 fi
 
-# Check ngrok (only needed for local)
-if [ "$IS_AWS" = false ]; then
-    if ! command -v ngrok &> /dev/null; then
-        if [ -f "/opt/homebrew/bin/ngrok" ]; then
-            export PATH="/opt/homebrew/bin:$PATH"
-            log_info "ngrok found at /opt/homebrew/bin"
+# Check ngrok (install if not found on Ubuntu)
+NGROK_AVAILABLE=false
+if command -v ngrok &> /dev/null; then
+    NGROK_AVAILABLE=true
+    log_info "ngrok available"
+elif [ -f "/opt/homebrew/bin/ngrok" ]; then
+    export PATH="/opt/homebrew/bin:$PATH"
+    NGROK_AVAILABLE=true
+    log_info "ngrok found at /opt/homebrew/bin"
+elif [ -f "/usr/local/bin/ngrok" ]; then
+    export PATH="/usr/local/bin:$PATH"
+    NGROK_AVAILABLE=true
+    log_info "ngrok found at /usr/local/bin"
+else
+    # Try to install ngrok on Ubuntu
+    if [ -f /etc/os-release ]; then
+        . /etc/os-release
+        if [[ "$ID" == "ubuntu" ]] || [[ "$ID_LIKE" == *"ubuntu"* ]] || [[ "$ID" == "debian" ]] || [[ "$ID_LIKE" == *"debian"* ]]; then
+            log_warn "ngrok not found - installing for Ubuntu x64..."
+            
+            # Install ngrok
+            if curl -s https://ngrok-agent.s3.amazonaws.com/ngrok.asc | sudo tee /etc/apt/trusted.gpg.d/ngrok.asc >/dev/null 2>&1 && \
+               echo "deb https://ngrok-agent.s3.amazonaws.com buster main" | sudo tee /etc/apt/sources.list.d/ngrok.list >/dev/null 2>&1 && \
+               sudo apt update -qq 2>&1 && \
+               sudo apt install -y ngrok 2>&1; then
+                log_info "ngrok installed successfully"
+                NGROK_AVAILABLE=true
+                
+                # Prompt for auth token
+                echo ""
+                echo "ngrok requires an auth token from https://dashboard.ngrok.com/get-started/your-authtoken"
+                read -p "Enter your ngrok auth token (or press Enter to skip): " NGROK_TOKEN
+                if [ ! -z "$NGROK_TOKEN" ]; then
+                    ngrok config add-authtoken "$NGROK_TOKEN" 2>&1
+                    log_info "ngrok auth token configured"
+                else
+                    log_warn "Skipped ngrok auth token - you'll need to set it later"
+                    log_warn "Run: ngrok config add-authtoken YOUR_TOKEN"
+                fi
+            else
+                log_warn "Failed to install ngrok automatically"
+                NGROK_AVAILABLE=false
+            fi
         else
-            log_warn "ngrok not found - will use .env WEBHOOK_URL"
+            log_warn "ngrok not found - will use .env WEBHOOK_URL if available"
         fi
     else
-        log_info "ngrok available"
+        log_warn "ngrok not found - will use .env WEBHOOK_URL if available"
     fi
 fi
 
@@ -235,7 +272,7 @@ if [ "$IS_AWS" = true ]; then
     
 else
     # Local: Try ngrok
-    if command -v ngrok &> /dev/null; then
+    if [ "$NGROK_AVAILABLE" = true ]; then
         log_info "Starting ngrok tunnel..."
         
         PORT=${PORT:-3742}
@@ -257,6 +294,25 @@ else
         if [ ! -z "$NGROK_URL" ]; then
             export WEBHOOK_URL="$NGROK_URL"
             log_info "ngrok tunnel active: $WEBHOOK_URL"
+            
+            # Auto-update .env with latest ngrok URL
+            log_info "Updating .env with latest ngrok URL..."
+            
+            # Backup .env
+            cp .env .env.backup.$(date +%Y%m%d_%H%M%S) 2>/dev/null || true
+            
+            # Escape special characters for sed
+            ESCAPED_WEBHOOK=$(echo "$NGROK_URL" | sed 's/[\/&]/\\&/g')
+            
+            # Update or add WEBHOOK_URL
+            if grep -q "^WEBHOOK_URL=" .env 2>/dev/null; then
+                sed -i.bak "s|^WEBHOOK_URL=.*|WEBHOOK_URL=$ESCAPED_WEBHOOK|" .env
+            else
+                echo "WEBHOOK_URL=$NGROK_URL" >> .env
+            fi
+            rm -f .env.bak
+            
+            log_info ".env updated with WEBHOOK_URL=$NGROK_URL"
             WEBHOOK_URL_CONFIGURED=true
         else
             log_warn "Failed to get ngrok URL"
