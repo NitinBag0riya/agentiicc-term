@@ -107,15 +107,10 @@ leverageMenuScene.action(/lev_(\d+)/, async (ctx) => {
       const result = await UniversalApiService.setLeverage(user.id, exchange, symbol, newLeverage);
       
       if (result.success) {
-        // Verify by fetching back
-        const verify = await UniversalApiService.getLeverage(user.id, exchange, symbol);
-        if (verify.leverage === newLeverage) {
-          ctx.session.leverage = newLeverage;
-          await ctx.reply(`✅ Leverage set to ${newLeverage}x`);
-        } else {
-           await ctx.reply(`⚠️ Leverage set to ${verify.leverage}x (Exchange limit)`);
-           ctx.session.leverage = verify.leverage;
-        }
+        // Trust the setLeverage response - verification via getLeverage is unreliable
+        // when there's no open position (returns default 1x, not the configured leverage)
+        ctx.session.leverage = newLeverage;
+        await ctx.reply(`✅ Leverage set to ${newLeverage}x`);
       } else {
         await ctx.reply(`❌ Failed to set leverage: ${result.message}`);
       }
