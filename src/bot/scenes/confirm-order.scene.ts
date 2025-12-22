@@ -11,23 +11,9 @@ confirmOrderScene.enter(async (ctx) => {
   const amount = ctx.session.orderAmount || 50;
   const orderType = ctx.session.orderType || 'Market';
   
-  // Sync leverage before confirmation
-  try {
-    const userId = ctx.from?.id?.toString();
-    const exchange = ctx.session.activeExchange || 'aster';
-    if (userId) {
-       const { getOrCreateUser } = require('../../db/users');
-       // @ts-ignore
-       const user = await getOrCreateUser(parseInt(userId), ctx.from?.username);
-       const leverageInfo = await UniversalApiService.getLeverage(user.id, exchange, symbol);
-       if (leverageInfo && leverageInfo.leverage) {
-         ctx.session.leverage = leverageInfo.leverage;
-       }
-    }
-  } catch (error) {
-    console.error('Error syncing leverage in confirm:', error);
-  }
-
+  // Use session leverage as-is - don't sync from exchange here
+  // because getLeverage returns 1x when there's no position,
+  // which would overwrite the user's intentional leverage setting
   const leverage = ctx.session.leverage || 10;
   const marginMode = ctx.session.marginMode || 'Cross';
   

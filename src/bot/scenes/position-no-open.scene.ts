@@ -53,22 +53,15 @@ positionNoOpenScene.enter(async (ctx) => {
       const orders = await UniversalApiService.getOpenOrders(uid, exchange, symbol);
       openOrders = orders?.length || 0;
       
-      // Fetch current leverage from exchange to sync
-      try {
-        const leverageInfo = await UniversalApiService.getLeverage(uid, exchange, symbol);
-        if (leverageInfo && leverageInfo.leverage) {
-          ctx.session.leverage = leverageInfo.leverage;
-          console.log(`[Leverage Sync] Fetched ${leverageInfo.leverage}x from ${exchange}`);
-        }
-      } catch (error) {
-        console.error('Error fetching leverage:', error);
-      }
+      // NOTE: Do NOT sync leverage from exchange here
+      // getLeverage() returns 1x when there's no position,
+      // which would overwrite the user's intentional leverage setting
     }
   } catch (error) {
     console.error('Error fetching ticker:', error);
   }
   
-  // Use session leverage (now synced)
+  // Use session leverage (user-controlled value)
   const leverage = ctx.session.leverage || 10;
   
   const { createBox } = require('../utils/format');
