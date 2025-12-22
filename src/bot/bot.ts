@@ -212,9 +212,41 @@ Share your code to invite friends!
 
 **🔧 Commands:**
 /menu - Open main menu
+/referral - Get your referral code
 /help - Show this help`;
 
     await ctx.reply(helpMessage, { parse_mode: 'Markdown' });
+  });
+
+  // ==================== /referral Command ====================
+  bot.command('referral', async ctx => {
+    const telegramId = ctx.from.id;
+    const botInfo = await ctx.telegram.getMe();
+    
+    try {
+      const user = await getOrCreateUser(telegramId, ctx.from.username || undefined);
+      
+      if (user && user.referral_code) {
+        const shareLink = `https://t.me/${botInfo.username}?start=${user.referral_code}`;
+        
+        await ctx.reply(
+          `🎁 **Your Referral Code**
+
+📋 Code: \`${user.referral_code}\`
+
+🔗 Share Link:
+${shareLink}
+
+💡 Share this link with friends to invite them!`,
+          { parse_mode: 'Markdown' }
+        );
+      } else {
+        await ctx.reply('❌ Referral code not found. Please contact support.');
+      }
+    } catch (error) {
+      console.error('Error fetching referral code:', error);
+      await ctx.reply('❌ Error fetching referral code. Please try again.');
+    }
   });
 
   // ==================== Button Handlers ====================

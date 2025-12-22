@@ -4,6 +4,7 @@ export interface User {
   id: number;
   telegram_id: number;
   username?: string;
+  referral_code?: string;
 }
 
 export interface ApiCredentials {
