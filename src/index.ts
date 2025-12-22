@@ -61,17 +61,20 @@ async function startApp() {
       
       // Set webhook if WEBHOOK_URL is provided
       const webhookUrl = process.env.WEBHOOK_URL;
-      if (webhookUrl) {
+      if (webhookUrl && webhookUrl.trim() !== '') {
         try {
           await bot.telegram.setWebhook(`${webhookUrl}/webhook`, {
             secret_token: process.env.WEBHOOK_SECRET,
           });
           console.log(`🔗 Webhook set: ${webhookUrl}/webhook`);
-        } catch (error) {
-          console.error('⚠️  Failed to set webhook:', error);
+        } catch (error: any) {
+          console.error('⚠️  Failed to set webhook:', error.message || error);
+          console.error('   Make sure WEBHOOK_URL is a valid HTTPS URL');
+          console.error('   Current value:', webhookUrl);
         }
       } else {
         console.log('⚠️  WEBHOOK_URL not set - bot will not receive updates');
+        console.log('   To enable webhook, set WEBHOOK_URL in .env to your HTTPS domain');
       }
       
       console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');

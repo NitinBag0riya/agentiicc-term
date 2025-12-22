@@ -167,30 +167,69 @@ log_step "Configuring webhook..."
 WEBHOOK_URL_CONFIGURED=false
 
 if [ "$IS_AWS" = true ]; then
-    # AWS: Use public IP
-    if [ -z "$WEBHOOK_URL" ] || [[ "$WEBHOOK_URL" == *"ngrok"* ]]; then
-        PORT=${PORT:-3742}
-        NEW_WEBHOOK="https://${AWS_IP}:${PORT}"
+    # AWS: Need domain with SSL or skip webhook
+    if [ -z "$WEBHOOK_URL" ] || [[ "$WEBHOOK_URL" == *"ngrok"* ]] || [[ "$WEBHOOK_URL" == *"$AWS_IP"* ]]; then
+        log_warn "Webhook configuration needed for AWS"
+        echo ""
+        echo "Telegram requires HTTPS for webhooks. You have 3 options:"
+        echo ""
+        echo "1. Use a domain with SSL (recommended)"
+        echo "   Example: https://yourdomain.com"
+        echo ""
+        echo "2. Skip webhook (bot won't receive updates)"
+        echo "   You can set it up later"
+        echo ""
+        echo "3. Use ngrok on AWS (temporary testing only)"
+        echo ""
         
-        log_warn "Updating WEBHOOK_URL to AWS public IP..."
-        
-        # Backup .env
-        cp .env .env.backup.$(date +%Y%m%d_%H%M%S)
-        
-        # Update .env
-        if grep -q "^WEBHOOK_URL=" .env; then
-            sed -i.bak "s|^WEBHOOK_URL=.*|WEBHOOK_URL=$NEW_WEBHOOK|" .env
+        # Check if running interactively
+        if [ -t 0 ]; then
+            read -p "Enter your domain with HTTPS (or press Enter to skip): " USER_DOMAIN
+            
+            if [ ! -z "$USER_DOMAIN" ]; then
+                # Validate it starts with https://
+                if [[ "$USER_DOMAIN" == https://* ]]; then
+                    NEW_WEBHOOK="$USER_DOMAIN"
+                else
+                    NEW_WEBHOOK="https://$USER_DOMAIN"
+                fi
+                
+                # Backup .env
+                cp .env .env.backup.$(date +%Y%m%d_%H%M%S)
+                
+                # Update .env
+                if grep -q "^WEBHOOK_URL=" .env; then
+                    sed -i.bak "s|^WEBHOOK_URL=.*|WEBHOOK_URL=$NEW_WEBHOOK|" .env
+                else
+                    echo "WEBHOOK_URL=$NEW_WEBHOOK" >> .env
+                fi
+                rm -f .env.bak
+                
+                export WEBHOOK_URL="$NEW_WEBHOOK"
+                log_info "Webhook set to: $WEBHOOK_URL"
+                WEBHOOK_URL_CONFIGURED=true
+            else
+                log_warn "Skipping webhook configuration"
+                log_warn "Bot will start but won't receive Telegram updates"
+                export WEBHOOK_URL=""
+                WEBHOOK_URL_CONFIGURED=false
+            fi
         else
-            echo "WEBHOOK_URL=$NEW_WEBHOOK" >> .env
+            # Non-interactive (systemd) - check if valid webhook exists
+            if [ ! -z "$WEBHOOK_URL" ] && [[ "$WEBHOOK_URL" == https://* ]]; then
+                log_info "Using configured webhook: $WEBHOOK_URL"
+                WEBHOOK_URL_CONFIGURED=true
+            else
+                log_warn "No valid HTTPS webhook configured"
+                log_warn "Bot will start but won't receive updates"
+                export WEBHOOK_URL=""
+                WEBHOOK_URL_CONFIGURED=false
+            fi
         fi
-        rm -f .env.bak
-        
-        export WEBHOOK_URL="$NEW_WEBHOOK"
-        log_info "Webhook set to: $WEBHOOK_URL"
     else
         log_info "Using configured webhook: $WEBHOOK_URL"
+        WEBHOOK_URL_CONFIGURED=true
     fi
-    WEBHOOK_URL_CONFIGURED=true
     
 else
     # Local: Try ngrok
