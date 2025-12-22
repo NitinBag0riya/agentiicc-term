@@ -94,6 +94,23 @@ if [ ! -f "$PROJECT_ROOT/package.json" ]; then
     exit 1
 fi
 
+# Extract PORT from .env (default to 3000)
+PORT=$(grep "^PORT=" "$PROJECT_ROOT/.env" | cut -d '=' -f2 | tr -d '[:space:]')
+if [ -z "$PORT" ]; then
+    PORT="3000"
+fi
+echo "   - API Port: $PORT"
+
+echo ""
+echo "🧹 Cleaning up existing processes..."
+
+# Kill existing PM2 processes
+pm2 delete all 2>/dev/null || true
+
+# Kill any existing processes on required ports
+fuser -k 5173/tcp 2>/dev/null || true
+fuser -k $PORT/tcp 2>/dev/null || true
+
 echo ""
 echo "📝 Generating ecosystem.config.cjs..."
 
@@ -150,7 +167,7 @@ if ! command -v pm2 &> /dev/null; then
     fi
 fi
 
-# Start/Restart from ecosystem file ensuring fresh config
+# Start from ecosystem file
 pm2 start "$PROJECT_ROOT/ecosystem.config.cjs"
 pm2 save --force
 pm2 startup | grep "sudo" | bash 2>/dev/null || true
