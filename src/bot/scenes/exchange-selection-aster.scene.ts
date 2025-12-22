@@ -28,11 +28,15 @@ exchangeSelectionAsterScene.enter(async (ctx) => {
 
   const message = createBox('Aster DEX', lines, 32);
 
-  await ctx.reply('```\n' + message + '\n```', {
+  const webAppUrl = process.env.WEBAPP_URL
+      ? `${process.env.WEBAPP_URL}/webapp/index.html`
+      : 'https://agentifi.com/webapp/index.html'; // Fallback
+
+  await ctx.reply('```\\n' + message + '\\n```', {
     parse_mode: 'MarkdownV2',
     ...Markup.inlineKeyboard([
       [
-        Markup.button.callback('🔐 WalletConnect', 'wallet_connect_aster'),
+        Markup.button.webApp('🔐 WalletConnect', webAppUrl),
         Markup.button.callback('🔗 API Key', 'api_key_aster'),
         Markup.button.callback('🔙 Back', 'back_to_welcome'),
       ],
@@ -40,11 +44,8 @@ exchangeSelectionAsterScene.enter(async (ctx) => {
   });
 });
 
-// CTA 1: WalletConnect → Screen 4 (Mini App Auth Aster)
-exchangeSelectionAsterScene.action('wallet_connect_aster', async (ctx) => {
-  await ctx.answerCbQuery();
-  await ctx.scene.enter('mini_app_auth_aster');
-});
+// CTA 1: WalletConnect - Handled by WebApp
+// exchangeSelectionAsterScene.action('wallet_connect_aster') -> Removed as WebApp button opens directly
 
 // CTA 2: API Key → Screen 5 (Link Wizard Aster)
 exchangeSelectionAsterScene.action('api_key_aster', async (ctx) => {

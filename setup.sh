@@ -184,9 +184,22 @@ echo ""
 echo "================================"
 echo "✅ Setup complete!"
 echo ""
-echo "🚀 Starting the bot now..."
+echo "🚀 Starting services..."
 echo ""
 
-# Start the bot automatically
+# Start webapp server in background
+if [ -d "src/webapp" ]; then
+    echo "📱 Starting webapp server on port 5173..."
+    cd src/webapp && python3 -m http.server 5173 > /dev/null 2>&1 &
+    WEBAPP_PID=$!
+    cd ../..
+    echo "✅ Webapp running at http://localhost:5173"
+    echo ""
+fi
+
+echo "🤖 Starting bot..."
+echo ""
+
+# Start the bot
 exec bun src/index.ts
 
