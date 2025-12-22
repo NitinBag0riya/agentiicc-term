@@ -154,8 +154,8 @@ async function refreshTradingView(ctx: BotContext) {
         // Row 1: Config (Toggle | Lev | Margin)
         [
             Markup.button.callback(`${modeIcon} ${modeText}`, 'toggle_order_type'),
-            Markup.button.callback('❓ 10x', 'cycle_leverage'), // Placeholder 10x or dynamic
-            Markup.button.callback('❓ Cross', 'cycle_margin')   // Placeholder
+            Markup.button.callback(`🔟 ${ctx.session.leverage || 10}x`, 'cycle_leverage'),
+            Markup.button.callback(`🛡️ ${ctx.session.marginMode || 'Cross'}`, 'cycle_margin')
         ],
         // Row 2: Quick Long
         [

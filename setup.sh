@@ -200,6 +200,38 @@ fi
 echo "🤖 Starting bot..."
 echo ""
 
+# Check for PM2
+if ! command -v pm2 &> /dev/null; then
+    echo "⚠️  PM2 is not installed."
+    echo ""
+    echo "📦 Installing PM2..."
+    
+    if command -v npm &> /dev/null; then
+        npm install -g pm2
+    else
+        bun add -g pm2
+    fi
+    
+    if command -v pm2 &> /dev/null; then
+        echo "✅ PM2 installed successfully!"
+    else
+        echo "❌ Failed to install PM2. Please install it manually: npm install -g pm2"
+        exit 1
+    fi
+fi
+
+echo ""
+echo "🤖 Starting bot with PM2..."
+echo ""
+
 # Start the bot
-exec bun src/index.ts
+pm2 delete agentifi-bot 2>/dev/null || true
+pm2 start bun --name "agentifi-bot" -- src/index.ts
+pm2 save
+pm2 startup | grep "sudo" | bash 2>/dev/null || true
+
+echo ""
+echo "✅ Bot started in background via PM2!"
+echo "   View logs: pm2 logs agentifi-bot"
+echo "   Monitor:   pm2 monit"
 

@@ -1,5 +1,6 @@
 import { Scenes, Markup } from 'telegraf';
 import type { BotContext } from '../types/context';
+import { UniversalApiService } from '../services/universal-api.service';
 
 export const allAssetsUniversalScene = new Scenes.BaseScene<BotContext>('all_assets_universal');
 
@@ -7,10 +8,43 @@ export const allAssetsUniversalScene = new Scenes.BaseScene<BotContext>('all_ass
 allAssetsUniversalScene.enter(async (ctx) => {
   const { createBox } = require('../utils/format');
 
-  // Placeholder values - in a real implementation these should be fetched dynamically
-  const asterTotal = '$5,234.50';
-  const hyperliquidTotal = '$3,456.72';
-  const combinedTotal = '$8,691.22';
+  let asterTotal = '$0.00';
+  let hyperliquidTotal = '$0.00';
+  let combinedTotal = '$0.00';
+
+  try {
+    const userId = ctx.from?.id?.toString();
+    if (userId) {
+       const { getOrCreateUser } = require('../../db/users');
+       // @ts-ignore
+       const user = await getOrCreateUser(parseInt(userId), ctx.from?.username);
+
+       // Parallel fetch
+       const [asterAcct, hlAcct] = await Promise.all([
+          UniversalApiService.getAccountSummary(user.id, 'aster').catch(e => null),
+          UniversalApiService.getAccountSummary(user.id, 'hyperliquid').catch(e => null)
+       ]);
+
+       let asterVal = 0;
+       let hlVal = 0;
+
+       if (asterAcct) {
+          // @ts-ignore
+          asterVal = parseFloat(asterAcct.totalBalance || '0');
+          asterTotal = `$${asterVal.toFixed(2)}`;
+       }
+
+       if (hlAcct) {
+          // @ts-ignore
+          hlVal = parseFloat(hlAcct.totalBalance || '0');
+          hyperliquidTotal = `$${hlVal.toFixed(2)}`;
+       }
+
+       combinedTotal = `$${(asterVal + hlVal).toFixed(2)}`;
+    }
+  } catch (error) {
+     console.error('Error fetching universal assets:', error);
+  }
 
   const lines = [
     '📊 Universal Assets',

@@ -22,6 +22,10 @@ export class AdapterFactory {
     const apiKey = decrypt(credentials.api_key_encrypted); // Private Key
     const apiSecret = decrypt(credentials.api_secret_encrypted); // Wallet Address
 
+    // Debug Decryption (Safe log)
+    console.log(`[Factory] Decrypted ${exchangeId}: KeyLen=${apiKey.length}, SecretLen=${apiSecret.length}`);
+    console.log(`[Factory] KeyStart=${apiKey.substring(0,4)}, SecretStart=${apiSecret.substring(0,4)}`);
+
     // Create appropriate adapter
     if (exchangeId === 'aster') {
       return new AsterAdapter(apiKey, apiSecret);
