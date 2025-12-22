@@ -134,6 +134,14 @@ export class UniversalApiService {
     return await adapter.setLeverage(symbol, leverage);
   }
 
+
+  /**
+   * Get Leverage
+   */
+  static async getLeverage(userId: number, exchangeId: string, symbol: string): Promise<{ leverage: number; mode: string }> {
+    const adapter = await this.getAdapter(userId, exchangeId);
+    return await adapter.getLeverage(symbol);
+  }
   /**
    * Set Margin Mode
    */

@@ -435,6 +435,29 @@ export class HyperliquidAdapter implements ExchangeAdapter {
   }
 
   /**
+   * Get current leverage for a symbol
+   */
+  async getLeverage(symbol: string): Promise<{ leverage: number; mode: string }> {
+    try {
+      const cleanSymbol = this.fromExchangeSymbol(this.toExchangeSymbol(symbol));
+      const positions = await this.getPositions(cleanSymbol);
+      
+      if (positions.length > 0 && positions[0].leverage) {
+        return {
+          leverage: positions[0].leverage,
+          mode: 'cross'
+        };
+      }
+      
+      // Default to 1x if no position
+      return { leverage: 1, mode: 'cross' };
+    } catch (error) {
+      console.error('Get leverage failed:', error);
+      return { leverage: 1, mode: 'cross' };
+    }
+  }
+
+  /**
    * Set margin mode (CROSS or ISOLATED)
    * Note: Hyperliquid primarily uses cross margin
    */
