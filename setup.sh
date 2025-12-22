@@ -136,14 +136,24 @@ fi
 
 echo ""
 echo ""
+# Resolve absolute path to the script's directory to act as project root
+# This ensures it works even if called from another directory
+PROJECT_ROOT="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
+
+# Verify we are in the right place
+if [ ! -f "$PROJECT_ROOT/package.json" ]; then
+    echo "❌ Error: package.json not found in $PROJECT_ROOT"
+    echo "Please ensure you run this script from the project root."
+    exit 1
+fi
+
+echo ""
 echo "🌐 Starting ngrok on port $PORT via PM2..."
             
             # Start ngrok via PM2 to keep it alive
             # Use absolute path for CWD to ensure consistency
-            APP_DIR="$(pwd)"
-            
             pm2 delete agentifi-ngrok 2>/dev/null || true
-            pm2 start "ngrok http $PORT" --name agentifi-ngrok --cwd "$APP_DIR"
+            pm2 start "ngrok http $PORT" --name agentifi-ngrok --cwd "$PROJECT_ROOT"
             
             echo "⏳ Waiting for ngrok to initialize..."
             sleep 5
@@ -233,12 +243,11 @@ echo ""
 echo "🤖 Starting bot with PM2..."
 echo ""
 
-APP_DIR="$(pwd)"
-echo "   - Working Dir: $APP_DIR"
+echo "   - Working Dir: $PROJECT_ROOT"
 
 # Start the bot via npm to ensure environment is loaded correctly
 pm2 delete agentifi-bot 2>/dev/null || true
-pm2 start npm --name "agentifi-bot" --cwd "$APP_DIR" -- run start
+pm2 start npm --name "agentifi-bot" --cwd "$PROJECT_ROOT" -- run start
 pm2 save
 pm2 startup | grep "sudo" | bash 2>/dev/null || true
 
