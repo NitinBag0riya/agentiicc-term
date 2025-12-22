@@ -184,15 +184,9 @@ echo ""
 echo "================================"
 echo "✅ Setup complete!"
 echo ""
-echo "To start the bot:"
-echo "  bun run src/index.ts"
+echo "🚀 Starting the bot now..."
 echo ""
-echo "Or use the npm script:"
-echo "  bun start"
-echo ""
-echo "To test the API:"
-echo "  curl http://localhost:3000/health"
-echo ""
-echo "To test the bot:"
-echo "  Open Telegram and send /start to your bot"
-echo ""
+
+# Start the bot automatically
+exec bun src/index.ts
+
