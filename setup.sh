@@ -84,60 +84,7 @@ echo "✅ All required environment variables are set!"
 echo ""
 echo "🔄 Checking if ngrok is needed for webhook..."
 
-# Check if WEBHOOK_URL is set
-if ! grep -q "^WEBHOOK_URL=http" .env; then
-    echo "⚠️  WEBHOOK_URL not set. You'll need ngrok for local development."
-    echo ""
-    
-    if command -v ngrok &> /dev/null; then
-        echo "✅ ngrok is installed"
-        echo ""
-        read -p "Start ngrok tunnel? (y/n) " -n 1 -r
-        echo ""
-        if [[ $REPLY =~ ^[Yy]$ ]]; then
-            PORT=$(grep "^PORT=" .env | cut -d '=' -f2 || echo "3000")
-            echo ""
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "  🔑 ngrok Authentication Required"
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo ""
-echo "ngrok requires a free account and auth token."
-echo ""
-echo "Steps:"
-echo "1. Sign up: https://dashboard.ngrok.com/signup"
-echo "2. Get token: https://dashboard.ngrok.com/get-started/your-authtoken"
-echo ""
-
-# Check if ngrok is already authenticated
-if ngrok config check &> /dev/null 2>&1; then
-    echo "✅ ngrok already authenticated"
-else
-    read -p "Enter your ngrok auth token: " NGROK_TOKEN
-    
-    if [ -z "$NGROK_TOKEN" ]; then
-        echo "❌ Auth token required to use ngrok"
-        echo ""
-        echo "Options:"
-        echo "1. Get token from: https://dashboard.ngrok.com/get-started/your-authtoken"
-        echo "2. Run manually later: ngrok config add-authtoken YOUR_TOKEN"
-        echo "3. Skip ngrok and set WEBHOOK_URL manually in .env"
-        exit 1
-    fi
-    
-    # Configure ngrok with token
-    if ngrok config add-authtoken "$NGROK_TOKEN" 2>&1; then
-        echo "✅ ngrok authenticated successfully"
-    else
-        echo "❌ Failed to authenticate ngrok"
-        echo "Please run manually: ngrok config add-authtoken YOUR_TOKEN"
-        exit 1
-    fi
-fi
-
-echo ""
-echo ""
 # Resolve absolute path to the script's directory to act as project root
-# This ensures it works even if called from another directory
 PROJECT_ROOT="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 
 # Verify we are in the right place
@@ -148,8 +95,21 @@ if [ ! -f "$PROJECT_ROOT/package.json" ]; then
 fi
 
 echo ""
-# Generate ecosystem.config.js for robust process management
 echo "📝 Generating ecosystem.config.js..."
+
+# Determine WebApp script
+WEBAPP_SCRIPT=""
+if [ -d "$PROJECT_ROOT/src/webapp" ]; then
+    WEBAPP_SCRIPT="
+    {
+      name: \"agentifi-webapp\",
+      script: \"python3\",
+      args: \"-m http.server 5173\",
+      cwd: \"$PROJECT_ROOT/src/webapp\",
+      autorestart: true
+    },"
+fi
+
 cat > "$PROJECT_ROOT/ecosystem.config.js" <<EOF
 module.exports = {
   apps: [
@@ -160,7 +120,10 @@ module.exports = {
       cwd: "$PROJECT_ROOT",
       autorestart: true,
       watch: false,
-      max_memory_restart: '1G'
+      max_memory_restart: '1G',
+      env: {
+        NODE_ENV: "production"
+      }
     },
     {
       name: "agentifi-ngrok",
@@ -168,15 +131,24 @@ module.exports = {
       args: "http $PORT",
       cwd: "$PROJECT_ROOT",
       autorestart: true
-    }
+    },$WEBAPP_SCRIPT
   ]
 };
 EOF
 
 echo "✅ Generated PM2 config."
 echo ""
-echo "🤖 Starting services via PM2..."
+echo "🚀 Starting services via PM2..."
 echo ""
+
+# Check for PM2
+if ! command -v pm2 &> /dev/null; then
+    if command -v npm &> /dev/null; then
+        npm install -g pm2
+    else
+        bun add -g pm2
+    fi
+fi
 
 # Start/Restart from ecosystem file ensuring fresh config
 pm2 start "$PROJECT_ROOT/ecosystem.config.js"
@@ -184,7 +156,14 @@ pm2 save --force
 pm2 startup | grep "sudo" | bash 2>/dev/null || true
 
 echo ""
-echo "✅ Bot & Ngrok started correctly!"
-echo "   View logs: pm2 logs"
-echo "   Monitor:   pm2 monit"
-
+echo "✅ Deployment Successful!"
+echo "   - Bot: Online"
+echo "   - Ngrok: Online"
+if [ -n "$WEBAPP_SCRIPT" ]; then
+    echo "   - WebApp: http://localhost:5173"
+fi
+echo ""
+echo "📊 Monitoring commands:"
+echo "   pm2 logs      # View logs"
+echo "   pm2 monit     # Monitor processes"
+echo "   pm2 status    # Check status"
