@@ -1,5 +1,6 @@
 import { Scenes, Markup } from 'telegraf';
 import type { BotContext } from '../types/context';
+import { UniversalApiService } from '../services/universal-api.service';
 
 export const confirmOrderScene = new Scenes.BaseScene<BotContext>('confirm_order');
 
@@ -9,6 +10,24 @@ confirmOrderScene.enter(async (ctx) => {
   const side = ctx.session.orderSide || 'LONG';
   const amount = ctx.session.orderAmount || 50;
   const orderType = ctx.session.orderType || 'Market';
+  
+  // Sync leverage before confirmation
+  try {
+    const userId = ctx.from?.id?.toString();
+    const exchange = ctx.session.activeExchange || 'aster';
+    if (userId) {
+       const { getOrCreateUser } = require('../../db/users');
+       // @ts-ignore
+       const user = await getOrCreateUser(parseInt(userId), ctx.from?.username);
+       const leverageInfo = await UniversalApiService.getLeverage(user.id, exchange, symbol);
+       if (leverageInfo && leverageInfo.leverage) {
+         ctx.session.leverage = leverageInfo.leverage;
+       }
+    }
+  } catch (error) {
+    console.error('Error syncing leverage in confirm:', error);
+  }
+
   const leverage = ctx.session.leverage || 10;
   const marginMode = ctx.session.marginMode || 'Cross';
   

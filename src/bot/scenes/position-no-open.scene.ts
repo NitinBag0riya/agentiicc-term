@@ -19,7 +19,7 @@ positionNoOpenScene.enter(async (ctx) => {
   let volume = '0.0M USDT';
   let openOrders = 0;
   const orderType = ctx.session.orderType || 'Market';
-  const leverage = ctx.session.leverage || 10;
+  // Leverage defined later after sync
   const marginMode = ctx.session.marginMode || 'Cross';
   
   // Fetch market data
@@ -52,10 +52,24 @@ positionNoOpenScene.enter(async (ctx) => {
       // Get open orders count
       const orders = await UniversalApiService.getOpenOrders(uid, exchange, symbol);
       openOrders = orders?.length || 0;
+      
+      // Fetch current leverage from exchange to sync
+      try {
+        const leverageInfo = await UniversalApiService.getLeverage(uid, exchange, symbol);
+        if (leverageInfo && leverageInfo.leverage) {
+          ctx.session.leverage = leverageInfo.leverage;
+          console.log(`[Leverage Sync] Fetched ${leverageInfo.leverage}x from ${exchange}`);
+        }
+      } catch (error) {
+        console.error('Error fetching leverage:', error);
+      }
     }
   } catch (error) {
     console.error('Error fetching ticker:', error);
   }
+  
+  // Use session leverage (now synced)
+  const leverage = ctx.session.leverage || 10;
   
   const { createBox } = require('../utils/format');
 
