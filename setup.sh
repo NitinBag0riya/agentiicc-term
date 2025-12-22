@@ -148,111 +148,43 @@ if [ ! -f "$PROJECT_ROOT/package.json" ]; then
 fi
 
 echo ""
-echo "🌐 Starting ngrok on port $PORT via PM2..."
-            
-            # Start ngrok via PM2 to keep it alive
-            # Use absolute path for CWD to ensure consistency
-            pm2 delete agentifi-ngrok 2>/dev/null || true
-            pm2 start "ngrok http $PORT" --name agentifi-ngrok --cwd "$PROJECT_ROOT"
-            
-            echo "⏳ Waiting for ngrok to initialize..."
-            sleep 5
-            
-            # Get ngrok URL
-            NGROK_URL=$(curl -s http://localhost:4040/api/tunnels | grep -o 'https://[^"]*\.ngrok-free\.app' | head -1)
-            
-            if [ -n "$NGROK_URL" ]; then
-                echo "✅ Ngrok URL: $NGROK_URL"
-                echo ""
-                echo "📝 Updating .env with WEBHOOK_URL..."
-                
-                # Update .env
-                if grep -q "^WEBHOOK_URL=" .env; then
-                    sed -i.bak "s|^WEBHOOK_URL=.*|WEBHOOK_URL=$NGROK_URL|" .env
-                else
-                    echo "WEBHOOK_URL=$NGROK_URL" >> .env
-                fi
-                
-                # Set webhook secret if not set
-                if ! grep -q "^WEBHOOK_SECRET=" .env || grep -q "^WEBHOOK_SECRET=$" .env; then
-                    SECRET=$(openssl rand -hex 32)
-                    echo "WEBHOOK_SECRET=$SECRET" >> .env
-                    echo "✅ Generated WEBHOOK_SECRET"
-                fi
-                
-                echo "✅ .env updated with ngrok URL"
-            else
-                echo "❌ Could not get ngrok URL. Please check ngrok manually."
-            fi
-        fi
-    else
-        echo "⚠️  ngrok is not installed."
-        echo ""
-        echo "Install ngrok:"
-        echo "  brew install ngrok  # macOS"
-        echo "  Or download from: https://ngrok.com/download"
-        echo ""
-        exit 1
-    fi
-fi
+# Generate ecosystem.config.js for robust process management
+echo "📝 Generating ecosystem.config.js..."
+cat > "$PROJECT_ROOT/ecosystem.config.js" <<EOF
+module.exports = {
+  apps: [
+    {
+      name: "agentifi-bot",
+      script: "npm",
+      args: "run start",
+      cwd: "$PROJECT_ROOT",
+      autorestart: true,
+      watch: false,
+      max_memory_restart: '1G'
+    },
+    {
+      name: "agentifi-ngrok",
+      script: "ngrok",
+      args: "http $PORT",
+      cwd: "$PROJECT_ROOT",
+      autorestart: true
+    }
+  ]
+};
+EOF
 
+echo "✅ Generated PM2 config."
 echo ""
-echo "================================"
-echo "✅ Setup complete!"
-echo ""
-echo "🚀 Starting services..."
+echo "🤖 Starting services via PM2..."
 echo ""
 
-# Start webapp server in background
-if [ -d "src/webapp" ]; then
-    echo "📱 Starting webapp server on port 5173..."
-    # Kill existing if any
-    pkill -f "python3 -m http.server 5173" || true
-    
-    cd src/webapp && python3 -m http.server 5173 > /dev/null 2>&1 &
-    WEBAPP_PID=$!
-    cd ../..
-    echo "✅ Webapp running at http://localhost:5173"
-    echo ""
-fi
-
-echo "🤖 Starting bot..."
-echo ""
-
-# Check for PM2
-if ! command -v pm2 &> /dev/null; then
-    echo "⚠️  PM2 is not installed."
-    echo ""
-    echo "📦 Installing PM2..."
-    
-    if command -v npm &> /dev/null; then
-        npm install -g pm2
-    else
-        bun add -g pm2
-    fi
-    
-    if command -v pm2 &> /dev/null; then
-        echo "✅ PM2 installed successfully!"
-    else
-        echo "❌ Failed to install PM2. Please install it manually: npm install -g pm2"
-        exit 1
-    fi
-fi
-
-echo ""
-echo "🤖 Starting bot with PM2..."
-echo ""
-
-echo "   - Working Dir: $PROJECT_ROOT"
-
-# Start the bot via npm to ensure environment is loaded correctly
-pm2 delete agentifi-bot 2>/dev/null || true
-pm2 start npm --name "agentifi-bot" --cwd "$PROJECT_ROOT" -- run start
-pm2 save
+# Start/Restart from ecosystem file ensuring fresh config
+pm2 start "$PROJECT_ROOT/ecosystem.config.js"
+pm2 save --force
 pm2 startup | grep "sudo" | bash 2>/dev/null || true
 
 echo ""
-echo "✅ Bot started in background via PM2!"
-echo "   View logs: pm2 logs agentifi-bot"
+echo "✅ Bot & Ngrok started correctly!"
+echo "   View logs: pm2 logs"
 echo "   Monitor:   pm2 monit"
 
