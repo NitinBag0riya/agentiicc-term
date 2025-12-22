@@ -22,6 +22,7 @@ export interface ExchangeAdapter {
   
   // Margin & Leverage operations
   setLeverage(symbol: string, leverage: number): Promise<{ success: boolean; message?: string }>;
+  getLeverage(symbol: string): Promise<{ leverage: number; mode: string }>;
   setMarginMode(symbol: string, mode: 'CROSS' | 'ISOLATED'): Promise<{ success: boolean; message?: string }>;
   getMarginMode(symbol: string): Promise<'CROSS' | 'ISOLATED'>;
 

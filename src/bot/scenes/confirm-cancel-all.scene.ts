@@ -55,12 +55,16 @@ confirmCancelAllScene.action('confirm', async (ctx) => {
         const user = await getOrCreateUser(parseInt(userId), ctx.from?.username);
         const uid = user.id;
 
-        // Pass 'undefined' for symbol if 'All', or specific symbol if set
+        // Pass undefined for symbol if 'All', or specific symbol if set
         const targetSymbol = (!symbol || symbol === 'All') ? undefined : symbol;
         
-        await UniversalApiService.cancelAllOrders(uid, exchange, targetSymbol || ''); // Adapter requires string, handle empty
+        const result = await UniversalApiService.cancelAllOrders(uid, exchange, targetSymbol);
         
-        await ctx.reply('✅ All orders cancelled successfully!');
+        if (result.success) {
+          await ctx.reply(`✅ Successfully cancelled ${result.canceledCount} order(s)!`);
+        } else {
+          await ctx.reply(`⚠️ ${result.message}`);
+        }
     }
   } catch (error: any) {
     console.error('Cancel all failed:', error);
