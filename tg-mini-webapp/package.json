@@ -1,0 +1,23 @@
+{
+  "name": "aster-tg-mini-app",
+  "version": "1.0.0",
+  "description": "Telegram Mini App for Aster DEX wallet linking",
+  "scripts": {
+    "dev": "wrangler pages dev . --port 8788",
+    "deploy:dev": "cp wrangler.dev.toml wrangler.toml && wrangler pages deploy . --project-name=xk7p-static-cdn-v2-prod --commit-dirty=true && rm wrangler.toml",
+    "deploy:prod": "cp wrangler.prod.toml wrangler.toml && wrangler pages deploy . --project-name=zr9m-asset-delivery-v4-prod --commit-dirty=true && rm wrangler.toml",
+    "tail": "wrangler pages deployment tail"
+  },
+  "keywords": [
+    "telegram",
+    "mini-app",
+    "cloudflare",
+    "aster-dex"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20241127.0",
+    "wrangler": "^3.86.1"
+  }
+}
