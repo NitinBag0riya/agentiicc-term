@@ -169,6 +169,34 @@ fi
 
 # Start from ecosystem file
 pm2 start "$PROJECT_ROOT/ecosystem.config.cjs"
+
+# Wait for ngrok to start and get the URL
+echo ""
+echo "⏳ Waiting for ngrok tunnel..."
+sleep 5
+
+NGROK_URL=$(curl -s http://localhost:4040/api/tunnels | grep -o 'https://[^"]*\.ngrok-free\.app' | head -1)
+
+if [ -n "$NGROK_URL" ]; then
+    echo "✅ Ngrok URL: $NGROK_URL"
+    
+    # Update WEBHOOK_URL in .env (base URL without /webhook - code adds it)
+    if grep -q "^WEBHOOK_URL=" "$PROJECT_ROOT/.env"; then
+        sed -i.bak "s|^WEBHOOK_URL=.*|WEBHOOK_URL=$NGROK_URL|" "$PROJECT_ROOT/.env"
+    else
+        echo "WEBHOOK_URL=$NGROK_URL" >> "$PROJECT_ROOT/.env"
+    fi
+    
+    echo "✅ Updated WEBHOOK_URL in .env"
+    
+    # Restart bot to pick up new webhook URL
+    echo "🔄 Restarting bot with new webhook..."
+    pm2 restart agentifi-bot
+else
+    echo "⚠️  Could not get ngrok URL - webhook may not work"
+    echo "   Check: curl http://localhost:4040/api/tunnels"
+fi
+
 pm2 save --force
 pm2 startup | grep "sudo" | bash 2>/dev/null || true
 
@@ -178,6 +206,9 @@ echo "   - Bot: Online"
 echo "   - Ngrok: Online"
 if [ -n "$WEBAPP_SCRIPT" ]; then
     echo "   - WebApp: http://localhost:5173"
+fi
+if [ -n "$NGROK_URL" ]; then
+    echo "   - Webhook: $NGROK_URL/webhook"
 fi
 echo ""
 echo "📊 Monitoring commands:"
