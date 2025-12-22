@@ -224,9 +224,16 @@ echo ""
 echo "🤖 Starting bot with PM2..."
 echo ""
 
+# Get absolute path to bun
+BUN_PATH=$(which bun)
+APP_PATH="$(pwd)/src/index.ts"
+
+echo "   - Interpreter: $BUN_PATH"
+echo "   - Script: $APP_PATH"
+
 # Start the bot
 pm2 delete agentifi-bot 2>/dev/null || true
-pm2 start bun --name "agentifi-bot" -- src/index.ts
+pm2 start "$APP_PATH" --name "agentifi-bot" --interpreter "$BUN_PATH"
 pm2 save
 pm2 startup | grep "sudo" | bash 2>/dev/null || true
 
