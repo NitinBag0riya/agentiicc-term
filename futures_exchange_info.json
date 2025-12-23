@@ -1,6 +1,6 @@
 {
   "timezone": "UTC",
-  "serverTime": 1766413800526,
+  "serverTime": 1766484016873,
   "futuresType": "U_MARGINED",
   "rateLimits": [
     {
@@ -11347,7 +11347,7 @@
         "STOCK"
       ],
       "symbolType": 1,
-      "tradingMode": 0,
+      "tradingMode": 1,
       "name": "Apple Inc.",
       "channel": "nasdaq",
       "sequenceNo": 0,
@@ -11436,7 +11436,7 @@
         "STOCK"
       ],
       "symbolType": 1,
-      "tradingMode": 0,
+      "tradingMode": 1,
       "name": "Tesla Inc.",
       "channel": "nasdaq",
       "sequenceNo": 0,
@@ -11525,7 +11525,7 @@
         "STOCK"
       ],
       "symbolType": 1,
-      "tradingMode": 0,
+      "tradingMode": 1,
       "name": "NVIDIA Corporation",
       "channel": "nasdaq",
       "sequenceNo": 0,
@@ -11614,7 +11614,7 @@
         "STOCK"
       ],
       "symbolType": 1,
-      "tradingMode": 0,
+      "tradingMode": 1,
       "name": "Amazon.com Inc.",
       "channel": "nasdaq",
       "sequenceNo": 0,
@@ -11703,7 +11703,7 @@
         "STOCK"
       ],
       "symbolType": 1,
-      "tradingMode": 0,
+      "tradingMode": 1,
       "name": "Meta Platforms Inc.",
       "channel": "nasdaq",
       "sequenceNo": 0,
@@ -11792,7 +11792,7 @@
         "STOCK"
       ],
       "symbolType": 1,
-      "tradingMode": 0,
+      "tradingMode": 1,
       "name": "Alphabet Inc.",
       "channel": "nasdaq",
       "sequenceNo": 0,
@@ -11881,7 +11881,7 @@
         "STOCK"
       ],
       "symbolType": 1,
-      "tradingMode": 0,
+      "tradingMode": 1,
       "name": "Microsoft Corporation",
       "channel": "nasdaq",
       "sequenceNo": 0,
@@ -12057,7 +12057,7 @@
         "STOCK"
       ],
       "symbolType": 1,
-      "tradingMode": 0,
+      "tradingMode": 1,
       "name": "Sharplink Gaming Inc.",
       "channel": "nasdaq",
       "sequenceNo": 0,
@@ -14843,7 +14843,7 @@
         "STOCK"
       ],
       "symbolType": 1,
-      "tradingMode": 0,
+      "tradingMode": 1,
       "name": "Invesco QQQ Trust",
       "channel": "nasdaq",
       "sequenceNo": 0,
@@ -22512,7 +22512,7 @@
       "triggerProtect": "0.1000",
       "liquidationFee": "0.025000",
       "marketTakeBound": "0.20",
-      "createTime": 1766312791659,
+      "createTime": 1766312791658,
       "filters": [
         {
           "minPrice": "0.0001000",
@@ -22708,6 +22708,180 @@
         },
         {
           "limit": 0,
+          "filterType": "MAX_NUM_ORDERS"
+        },
+        {
+          "limit": 10,
+          "filterType": "MAX_NUM_ALGO_ORDERS"
+        },
+        {
+          "notional": "5",
+          "filterType": "MIN_NOTIONAL"
+        },
+        {
+          "multiplierDown": "0.8000",
+          "multiplierUp": "1.2000",
+          "ltMultiplierDown": "0.8000",
+          "multiplierDecimal": "4",
+          "filterType": "PERCENT_PRICE",
+          "ltMultiplierUp": "1.2000"
+        }
+      ],
+      "orderTypes": [
+        "LIMIT",
+        "MARKET",
+        "STOP",
+        "STOP_MARKET",
+        "TAKE_PROFIT",
+        "TAKE_PROFIT_MARKET",
+        "TRAILING_STOP_MARKET"
+      ],
+      "timeInForce": [
+        "GTC",
+        "IOC",
+        "FOK",
+        "GTX",
+        "RPI",
+        "HIDDEN"
+      ]
+    },
+    {
+      "symbol": "HUSDT",
+      "pair": "HUSDT",
+      "contractType": "",
+      "deliveryDate": 4133404800000,
+      "onboardDate": 1766491200000,
+      "status": "PENDING_TRADING",
+      "maintMarginPercent": "10.0000",
+      "requiredMarginPercent": "20.0000",
+      "baseAsset": "H",
+      "quoteAsset": "USDT",
+      "marginAsset": "USDT",
+      "pricePrecision": 7,
+      "quantityPrecision": 0,
+      "baseAssetPrecision": 8,
+      "quotePrecision": 8,
+      "underlyingType": "COIN",
+      "underlyingSubType": [],
+      "symbolType": 0,
+      "tradingMode": 0,
+      "name": "Humanity Protocol",
+      "channel": "",
+      "sequenceNo": 0,
+      "twapMinNotional": "",
+      "settlePlan": 0,
+      "triggerProtect": "0.1000",
+      "liquidationFee": "0.025000",
+      "marketTakeBound": "0.20",
+      "createTime": 1766482750550,
+      "filters": [
+        {
+          "minPrice": "0.0000100",
+          "maxPrice": "200",
+          "filterType": "PRICE_FILTER",
+          "tickSize": "0.0000100"
+        },
+        {
+          "stepSize": "1",
+          "filterType": "LOT_SIZE",
+          "maxQty": "1000000",
+          "minQty": "1"
+        },
+        {
+          "stepSize": "1",
+          "filterType": "MARKET_LOT_SIZE",
+          "maxQty": "10000",
+          "minQty": "1"
+        },
+        {
+          "limit": 200,
+          "filterType": "MAX_NUM_ORDERS"
+        },
+        {
+          "limit": 10,
+          "filterType": "MAX_NUM_ALGO_ORDERS"
+        },
+        {
+          "notional": "5",
+          "filterType": "MIN_NOTIONAL"
+        },
+        {
+          "multiplierDown": "0.8000",
+          "multiplierUp": "1.2000",
+          "ltMultiplierDown": "0.8000",
+          "multiplierDecimal": "4",
+          "filterType": "PERCENT_PRICE",
+          "ltMultiplierUp": "1.2000"
+        }
+      ],
+      "orderTypes": [
+        "LIMIT",
+        "MARKET",
+        "STOP",
+        "STOP_MARKET",
+        "TAKE_PROFIT",
+        "TAKE_PROFIT_MARKET",
+        "TRAILING_STOP_MARKET"
+      ],
+      "timeInForce": [
+        "GTC",
+        "IOC",
+        "FOK",
+        "GTX",
+        "RPI",
+        "HIDDEN"
+      ]
+    },
+    {
+      "symbol": "ANIMEUSDT",
+      "pair": "ANIMEUSDT",
+      "contractType": "",
+      "deliveryDate": 4133404800000,
+      "onboardDate": 1766491200000,
+      "status": "PENDING_TRADING",
+      "maintMarginPercent": "10.0000",
+      "requiredMarginPercent": "20.0000",
+      "baseAsset": "ANIME",
+      "quoteAsset": "USDT",
+      "marginAsset": "USDT",
+      "pricePrecision": 7,
+      "quantityPrecision": 0,
+      "baseAssetPrecision": 8,
+      "quotePrecision": 8,
+      "underlyingType": "COIN",
+      "underlyingSubType": [],
+      "symbolType": 0,
+      "tradingMode": 0,
+      "name": "Animecoin",
+      "channel": "",
+      "sequenceNo": 0,
+      "twapMinNotional": "",
+      "settlePlan": 0,
+      "triggerProtect": "0.1000",
+      "liquidationFee": "0.025000",
+      "marketTakeBound": "0.20",
+      "createTime": 1766482880936,
+      "filters": [
+        {
+          "minPrice": "0.0000010",
+          "maxPrice": "200",
+          "filterType": "PRICE_FILTER",
+          "tickSize": "0.0000010"
+        },
+        {
+          "stepSize": "1",
+          "filterType": "LOT_SIZE",
+          "maxQty": "1000000",
+          "minQty": "1"
+        },
+        {
+          "stepSize": "1",
+          "filterType": "MARKET_LOT_SIZE",
+          "maxQty": "10000",
+          "minQty": "1"
+        },
+        {
+          "limit": 200,
           "filterType": "MAX_NUM_ORDERS"
         },
         {

@@ -14,7 +14,7 @@ import { parseAmount } from '../utils/inputParser';
 import { showConfirmation } from '../utils/confirmDialog';
 import { getRedis } from '../db/redis';
 import { getPostgres } from '../db/postgres';
-import { getAsterClientForUser } from '../aster/helpers';
+import { UniversalApiClient } from '../services/universalApi';
 import type { AsterWriteOp } from '../aster/writeOps';
 import { showPositionManagement } from '../composers/futures-positions/interface';
 import { cleanupButtonMessages, trackButtonMessage } from '../utils/buttonCleanup';

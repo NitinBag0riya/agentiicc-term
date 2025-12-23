@@ -69,23 +69,27 @@ export async function getOrCreateUser(
 /**
  * Store API credentials (encrypted)
  */
+/**
+ * Store API credentials (encrypted)
+ */
 export async function storeApiCredentials(
   userId: number,
   apiKeyEncrypted: string,
   apiSecretEncrypted: string,
-  testnet = false
+  testnet = false,
+  exchangeId = 'aster'
 ): Promise<ApiCredentials> {
   const rows = await query<ApiCredentials>(
-    `INSERT INTO api_credentials (user_id, api_key_encrypted, api_secret_encrypted, testnet)
-     VALUES ($1, $2, $3, $4)
-     ON CONFLICT (user_id)
+    `INSERT INTO api_credentials (user_id, api_key_encrypted, api_secret_encrypted, testnet, exchange_id)
+     VALUES ($1, $2, $3, $4, $5)
+     ON CONFLICT (user_id, exchange_id)
      DO UPDATE SET
        api_key_encrypted = $2,
        api_secret_encrypted = $3,
        testnet = $4,
        updated_at = NOW()
      RETURNING *`,
-    [userId, apiKeyEncrypted, apiSecretEncrypted, testnet]
+    [userId, apiKeyEncrypted, apiSecretEncrypted, testnet, exchangeId]
   );
   return rows[0];
 }
@@ -94,11 +98,12 @@ export async function storeApiCredentials(
  * Get API credentials for user
  */
 export async function getApiCredentials(
-  userId: number
+  userId: number,
+  exchangeId = 'aster'
 ): Promise<ApiCredentials | null> {
   const rows = await query<ApiCredentials>(
-    'SELECT * FROM api_credentials WHERE user_id = $1',
-    [userId]
+    'SELECT * FROM api_credentials WHERE user_id = $1 AND exchange_id = $2',
+    [userId, exchangeId]
   );
   return rows[0] || null;
 }
@@ -106,6 +111,6 @@ export async function getApiCredentials(
 /**
  * Delete API credentials
  */
-export async function deleteApiCredentials(userId: number): Promise<void> {
-  await query('DELETE FROM api_credentials WHERE user_id = $1', [userId]);
+export async function deleteApiCredentials(userId: number, exchangeId = 'aster'): Promise<void> {
+  await query('DELETE FROM api_credentials WHERE user_id = $1 AND exchange_id = $2', [userId, exchangeId]);
 }

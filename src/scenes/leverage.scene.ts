@@ -7,7 +7,7 @@ import { Scenes, Markup } from 'telegraf';
 import { BotContext } from '../types/context';
 import { getRedis } from '../db/redis';
 import { getPostgres } from '../db/postgres';
-import { getAsterClientForUser } from '../aster/helpers';
+import { UniversalApiClient } from '../services/universalApi';
 import { showConfirmation } from '../utils/confirmDialog';
 import type { AsterWriteOp } from '../aster/writeOps';
 import { cleanupButtonMessages, trackButtonMessage } from '../utils/buttonCleanup';
@@ -42,8 +42,10 @@ export const leverageWizard = new Scenes.WizardScene<BotContext>(
 
     // If leverage is already set (preset button clicked), skip to confirmation
     if (state.leverage) {
+      if (!ctx.wizard) return;
       ctx.wizard.selectStep(1); // Move to step 2
-      return ctx.wizard.steps[1](ctx);
+      const step2 = (ctx.wizard as any).steps[1]; 
+      return step2(ctx);
     }
 
     // Otherwise, ask for input
@@ -109,7 +111,8 @@ export const leverageWizard = new Scenes.WizardScene<BotContext>(
 
     try {
       // Get client
-      const client = await getAsterClientForUser(ctx.session.userId, db, redis);
+      const client = new UniversalApiClient();
+      await client.initSession(ctx.session.userId);
 
       // Create SET_LEVERAGE operation
       const operation: AsterWriteOp = {
@@ -148,7 +151,10 @@ leverageWizard.action(/^lev_preset_(\d+)$/, async (ctx) => {
   state.leverage = leverage;
 
   // Move to confirmation step
-  return ctx.wizard.steps[ctx.wizard.cursor](ctx);
+  if (!ctx.wizard) return;
+  
+  ctx.wizard.selectStep(1);
+  return (ctx.wizard as any).steps[1](ctx);
 });
 
 // Handle cancel

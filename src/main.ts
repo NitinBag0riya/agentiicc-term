@@ -13,6 +13,9 @@ import { initEncryption } from './utils/encryption';
 import { createBot, setupBot } from './bot';
 import { startExchangeInfoService, stopExchangeInfoService } from './services/exchangeInfo.service';
 import { startPriceCacheService, stopPriceCacheService } from './services/priceCache.service';
+import { spawn } from 'child_process';
+// import { createProxyMiddleware } from 'http-proxy-middleware'; // Removed
+import axios from 'axios';
 import { setBotInfo } from './utils/botInfo';
 import tgmaRouter from './tgma';
 
@@ -107,6 +110,57 @@ async function main() {
 
     // Serve mini-app static files
     app.use('/mini-app', express.static('tg-mini-webapp'));
+
+    // --- START BACKEND INTEGRATION ---
+    const BACKEND_PORT = 3001;
+    console.log(`🚀 Spawning Backend Service on port ${BACKEND_PORT}...`);
+    
+    // Spawn Bun process for the backend
+    const backendProcess = spawn('bun', ['run', 'src/server-bun.ts'], {
+        cwd: './agentiicc-term',
+        env: { ...process.env, PORT: String(BACKEND_PORT) },
+        stdio: 'inherit' // Pipe output to main console
+    });
+
+    backendProcess.on('error', (err) => {
+        console.error('❌ Failed to start Backend Service:', err);
+    });
+
+    // Proxy API requests to Backend (Manual Implementation since npm install fails)
+
+
+    const apiProxy = async (req: express.Request, res: express.Response) => {
+        try {
+            const url = `http://localhost:${BACKEND_PORT}${req.originalUrl}`;
+            // console.log('[Proxy]', req.method, url);
+            
+            const response = await axios({
+                method: req.method,
+                url: url,
+                data: req.method !== 'GET' ? req.body : undefined,
+                params: req.query,
+                headers: { ...req.headers, host: `localhost:${BACKEND_PORT}` },
+                validateStatus: () => true // Pass all statuses back
+            });
+
+            res.status(response.status).set(response.headers).send(response.data);
+        } catch (error: any) {
+            console.error('[Proxy Error]', error.message);
+            res.status(502).json({ error: 'Backend API unavailable' });
+        }
+    };
+
+    const apiPaths = [
+        '/user', '/user/*', '/auth', '/auth/*', '/account', '/account/*',
+        '/order', '/order/*', '/orders', '/orders/*', 
+        '/positions', '/positions/*', '/ticker', '/ticker/*', 
+        '/assets', '/assets/*', '/fills', '/fills/*', 
+        '/ohlcv', '/ohlcv/*', '/orderbook', '/orderbook/*'
+    ];
+    
+    // Mount proxy handler
+    apiPaths.forEach(path => app.use(path, apiProxy));
+    // --- END BACKEND INTEGRATION ---
 
     if (!webhookUrl || webhookUrl === 'polling') {
       console.log('⚠️ WEBHOOK_URL not found. Starting in POLLING mode...');

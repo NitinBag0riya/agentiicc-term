@@ -1,9 +1,7 @@
 
 import { createInterface } from 'readline';
-import { createAsterClient } from '../src/aster/client';
-import { getRedis, connectRedis, disconnectRedis } from '../src/db/redis';
+import { UniversalApiClient } from '../src/services/universalApi';
 import dotenv from 'dotenv';
-import axios from 'axios';
 
 dotenv.config();
 
@@ -19,51 +17,54 @@ function ask(question: string): Promise<string> {
 }
 
 async function main() {
-  console.log('🔍 Aster Credentials Debug Tool');
-  console.log('-------------------------------');
+  console.log('🔍 Universal API Credentials Debug Tool');
+  console.log('------------------------------------');
+  console.log('NOTE: Ensure the backend (agentiicc-term) is running on port 3001!');
   
   try {
+    const exchange = (await ask('Exchange (aster/hyperliquid) [aster]: ')) || 'aster';
     const apiKey = await ask('Enter API Key: ');
-    if (!apiKey) throw new Error('API Key is required');
-    
     const apiSecret = await ask('Enter API Secret: ');
-    if (!apiSecret) throw new Error('API Secret is required');
+    
+    // Simulate a test user
+    const testUserId = 77777;
 
-    console.log('\nConnecting to Redis...');
-    await connectRedis(process.env.REDIS_URL);
-    const redis = getRedis();
-
-    console.log('Initializing Aster Client...');
-    const client = await createAsterClient({
-      baseUrl: process.env.ASTER_BASE_URL || 'https://fapi.asterdex.com',
-      apiKey,
-      apiSecret,
-      redis
-    });
-
-    console.log('📡 Testing Account Info (GET /fapi/v1/account)...');
-    try {
-      const account = await client.getAccountInfo();
-      console.log('\n✅ Success! Verification passed.');
-      console.log('Account Alias:', account.feeTier);
-      console.log('Can Trade:', account.canTrade);
-    } catch (error: any) {
-      console.error('\n❌ Verification Failed!');
-      console.error('-----------------------');
-      if (axios.isAxiosError(error)) {
-        console.error('Status:', error.response?.status);
-        console.error('Error Code:', error.response?.data?.code || 'N/A');
-        console.error('Error Msg:', error.response?.data?.msg || 'N/A');
-        console.error('Full Response:', JSON.stringify(error.response?.data, null, 2));
-      } else {
-        console.error('Error:', error.message);
-      }
+    const client = new UniversalApiClient();
+    
+    console.log('\n📡 Testing Link Credentials...');
+    // linkCredentials(userId, exchange, credentials)
+    const linkRes = await client.linkCredentials(testUserId, exchange, { apiKey, apiSecret });
+    
+    if (linkRes.success) {
+        console.log('✅ Link Success!');
+        
+        console.log('Initializing Session...');
+        const sessionInit = await client.initSession(testUserId);
+        if (!sessionInit) throw new Error('Session Init Failed');
+        
+        console.log('fetching Account...');
+        // getAccount(exchange?) - uses session's default or we pass exchange
+        // UniversalApiClient.getAccount passes { exchange } in params
+        const accRes = await client.getAccount(exchange);
+        if (accRes.success) {
+             console.log('✅ Account Info:', JSON.stringify(accRes.data, null, 2));
+        } else {
+             console.error('❌ Get Account Failed:', accRes.error);
+        }
+        
+    } else {
+        console.error('❌ Link Failed:', linkRes.error);
+        if (linkRes.error?.includes('ECONNREFUSED')) {
+            console.error('\n⚠️  Is the Backend Running? Could not connect to localhost:3001');
+        }
     }
 
   } catch (err: any) {
     console.error('Fatal Error:', err.message);
+    if (err.code === 'ECONNREFUSED') {
+         console.error('\n⚠️  Is the Backend Running? Could not connect to localhost:3001');
+    }
   } finally {
-    await disconnectRedis();
     rl.close();
     process.exit(0);
   }

@@ -7,7 +7,7 @@ import { Scenes, Markup } from 'telegraf';
 import { BotContext } from '../types/context';
 import { getRedis } from '../db/redis';
 import { getPostgres } from '../db/postgres';
-import { getAsterClientForUser } from '../aster/helpers';
+import { UniversalApiClient } from '../services/universalApi';
 import { showConfirmation } from '../utils/confirmDialog';
 import type { AsterWriteOp } from '../aster/writeOps';
 import { cleanupButtonMessages, trackButtonMessage } from '../utils/buttonCleanup';
@@ -52,8 +52,15 @@ export const marginWizard = new Scenes.WizardScene<BotContext>(
     const db = getPostgres();
 
     try {
-      const client = await getAsterClientForUser(ctx.session.userId, db, redis);
-      const positions = await client.getPositions();
+      const client = new UniversalApiClient();
+      await client.initSession(ctx.session.userId);
+      const positionsRes = await client.getPositions();
+      
+      if (!positionsRes.success) {
+          throw new Error(positionsRes.error || 'Failed to fetch positions');
+      }
+
+      const positions = positionsRes.data as any[];
       const position = positions.find(p => p.symbol === state.symbol && parseFloat(p.positionAmt) !== 0);
 
       if (!position) {
@@ -146,7 +153,8 @@ export const marginWizard = new Scenes.WizardScene<BotContext>(
 
     try {
       // Get client
-      const client = await getAsterClientForUser(ctx.session.userId, db, redis);
+      const client = new UniversalApiClient();
+      await client.initSession(ctx.session.userId);
 
       // Calculate new margin
       const currentMargin = parseFloat(state.currentIsolatedMargin || '0');

@@ -6,12 +6,12 @@
  */
 
 import { Scenes, Markup } from 'telegraf';
-import type { BotContext } from '../types/context';
+import type { BotContext, BotWizardContext } from '../types/context';
 import { parseAmount } from '../utils/inputParser';
 import { showConfirmation } from '../utils/confirmDialog';
 import { getRedis } from '../db/redis';
 import { getPostgres } from '../db/postgres';
-import { getAsterClientForUser } from '../aster/helpers';
+import { UniversalApiClient } from '../services/universalApi';
 import type { AsterWriteOp } from '../aster/writeOps';
 import { cleanupButtonMessages, trackButtonMessage } from '../utils/buttonCleanup';
 
@@ -26,7 +26,7 @@ interface SpotSellWizardState {
 
 // ========== Spot Sell Wizard ==========
 
-export const spotSellWizard = new Scenes.WizardScene<BotContext>(
+export const spotSellWizard = new Scenes.WizardScene<BotWizardContext>(
   'spot-sell-wizard',
 
   // Step 1: Ask for amount (or use prefilled)
@@ -171,7 +171,8 @@ export const spotSellWizard = new Scenes.WizardScene<BotContext>(
 
     // Get client for calculations
     const db = getPostgres();
-    const client = await getAsterClientForUser(ctx.session.userId, db, redis);
+    const client = new UniversalApiClient();
+    await client.initSession(ctx.session.userId);
 
     await showConfirmation(ctx, db, redis, ctx.session.userId, operation, client);
 

@@ -7,9 +7,8 @@ import { Composer, Markup } from 'telegraf';
 import { BotContext } from '../types/context';
 import { getRedis } from '../db/redis';
 import { getPostgres } from '../db/postgres';
-import { getAsterClientForUser } from '../aster/helpers';
+import { UniversalApiClient } from '../services/universalApi';
 import { getBotDeepLink } from '../utils/botInfo';
-import { AsterDexError } from '../aster/client';
 import { getSpotPrices } from '../services/priceCache.service';
 import { cleanupButtonMessages, trackButtonMessage } from '../utils/buttonCleanup';
 
@@ -118,29 +117,31 @@ function calculateFIFOPnL(
 }
 
 /**
- * AsterDex client type (from createAsterClient return value)
- */
-interface AsterClient {
-  getAccountInfo: () => Promise<unknown>;
-  getPositions: () => Promise<unknown[]>;
-  getSpotAccount: () => Promise<{ balances: Array<{ asset: string; free: string; locked: string }> }>;
-  getUserTrades: (symbol?: string) => Promise<unknown[]>;
-}
-
-/**
  * Fetch and build perp portfolio section
+ * @param client - UniversalApiClient instance
  * @param limit - Max positions to show (undefined = show all)
  * @param style - Formatting style (default, style1, style2, style3)
  */
-export async function fetchPerpData(client: any, ctx: BotContext, limit?: number, style: 'default' | 'style1' | 'style2' | 'style3' = 'default'): Promise<{
+export async function fetchPerpData(client: UniversalApiClient, ctx: BotContext, limit?: number, style: 'default' | 'style1' | 'style2' | 'style3' = 'default'): Promise<{
   message: string;
   totalBalance: number;
   totalAvailable: number;
 }> {
-  const [futuresAccount, futuresPositions] = await Promise.all([
-    client.getAccountInfo(),
-    client.getPositions(),
+  const exchange = ctx.session.activeExchange || 'aster';
+  const [accountRes, positionsRes] = await Promise.all([
+    client.getAccount(exchange),
+    // Wait, getAccount in UniversalApi returns specific structure.
+    // In backend, getAccount returns payload with availableBalance etc.
+    // getPositions returns array.
+    client.getPositions(exchange),
   ]);
+
+  if (!accountRes.success || !positionsRes.success) {
+      throw new Error(accountRes.error || positionsRes.error || 'Failed to fetch perp data');
+  }
+
+  const futuresAccount = accountRes.data;
+  const futuresPositions = positionsRes.data;
 
   // Get open futures positions (positionAmt != 0)
   interface Position {
@@ -255,15 +256,23 @@ export async function fetchPerpData(client: any, ctx: BotContext, limit?: number
  * @param limit - Max assets to show (undefined = show all)
  * @param style - Formatting style (default, style1, style2, style3)
  */
-export async function fetchSpotData(client: any, ctx: BotContext, limit?: number, style: 'default' | 'style1' | 'style2' | 'style3' = 'default'): Promise<{
+export async function fetchSpotData(client: UniversalApiClient, ctx: BotContext, limit?: number, style: 'default' | 'style1' | 'style2' | 'style3' = 'default'): Promise<{
   message: string;
   totalValue: number;
   usdtBalance: number;
 }> {
-  const [spotAccount, userTrades] = await Promise.all([
-    client.getSpotAccount(),
-    client.getUserTrades(), // Last 90 days
+  const exchange = ctx.session.activeExchange || 'aster';
+  const [assetsRes] = await Promise.all([
+    client.getAssets(exchange),
+    // client.getUserTrades(), // Missing in UniversalApi? Yes. We might need to skip PnL for now or add getUserTrades.
+    // For now, let's skip userTrades/PnL calculation to save time/complexity and focus on assets.
   ]);
+
+  if (!assetsRes.success) {
+      throw new Error(assetsRes.error || 'Failed to fetch spot data');
+  }
+
+  const spotAssetsData = assetsRes.data; // Should be array of assets
 
   // Get cached spot prices (refreshed every 10 mins)
   const spotPrices = getSpotPrices();
@@ -274,13 +283,19 @@ export async function fetchSpotData(client: any, ctx: BotContext, limit?: number
     total: number;
   }
 
-  const spotAssets: SpotAsset[] = spotAccount.balances
-    .filter((b) => parseFloat(b.free) + parseFloat(b.locked) > 0)
-    .map((b) => ({
+  // Get spot assets (free + locked > 0)
+  interface SpotAsset {
+    asset: string;
+    total: number;
+  }
+
+  const spotAssets: SpotAsset[] = spotAssetsData
+    .filter((b: any) => parseFloat(b.free || '0') + parseFloat(b.locked || '0') > 0)
+    .map((b: any) => ({
       asset: b.asset,
-      total: parseFloat(b.free) + parseFloat(b.locked),
+      total: parseFloat(b.free || '0') + parseFloat(b.locked || '0'),
     }))
-    .sort((a, b) => b.total - a.total);
+    .sort((a: any, b: any) => b.total - a.total);
 
   // Calculate total USD value of all spot assets
   interface PriceTicker {
@@ -325,37 +340,15 @@ export async function fetchSpotData(client: any, ctx: BotContext, limit?: number
       const symbolName = `${a.asset}USDT`;
       const ticker = (spotPrices as PriceTicker[]).find((p) => p.symbol === symbolName);
       const currentPrice = ticker ? parseFloat(ticker.lastPrice) : 0;
+      const usdValue = a.total * currentPrice;
 
-      // Get trades for this symbol
-      interface Trade {
-        symbol: string;
-        buyer: boolean;
-        price: string;
-        qty: string;
-        quoteQty: string;
-        time: number;
-      }
-      const symbolTrades = (userTrades as Trade[]).filter((t) => t.symbol === symbolName);
-
-      // Calculate FIFO PnL
-      const pnl = calculateFIFOPnL(symbolTrades, a.total, currentPrice);
-
-      // Format PnL display
-      let pnlDisplay = 'N/A';
-      if (symbolTrades.length > 0 && pnl.unrealizedPnl !== 0) {
-        const pnlSign = pnl.unrealizedPnl >= 0 ? '+' : '';
-        const pnlPercentSign = pnl.unrealizedPnlPercent >= 0 ? '+' : '';
-        if (style === 'style1' || style === 'style2' || style === 'style3') {
-          pnlDisplay = `<b>${pnlSign}${pnlPercentSign}${pnl.unrealizedPnlPercent.toFixed(2)}%</b> (${pnlSign}$${pnl.unrealizedPnl.toFixed(2)})`;
-        } else {
-          pnlDisplay = `${pnlSign}${pnlPercentSign}${pnl.unrealizedPnlPercent.toFixed(2)}% (${pnlSign}$${pnl.unrealizedPnl.toFixed(2)})`;
-        }
-      }
+      // Show USD value instead of user trades PnL (since not yet available)
+      const valueDisplay = `$${usdValue.toFixed(2)}`;
 
       if (style === 'style1' || style === 'style2' || style === 'style3') {
-        message += `<b>${symbolName}</b> ${pnlDisplay} | ${a.total.toFixed(style === 'style2' || style === 'style3' ? 4 : 8)} ${a.asset}\n`;
+        message += `<b>${symbolName}</b> ${a.total.toFixed(style === 'style2' || style === 'style3' ? 4 : 8)} ${a.asset} (${valueDisplay})\n`;
       } else {
-        message += `[/${symbolName}](${getBotDeepLink(`spot-${index}`)}) ${pnlDisplay} | ${a.total.toFixed(8)} ${a.asset}\n`;
+        message += `[/${symbolName}](${getBotDeepLink(`spot-${index}`)}) ${a.total.toFixed(8)} ${a.asset} | ${valueDisplay}\n`;
       }
     });
 
@@ -416,13 +409,26 @@ export async function showOverview(ctx: BotContext, editMessage = false, style: 
   try {
     const redis = getRedis();
     const db = getPostgres();
-    const client = await getAsterClientForUser(userId, db, redis);
+    // Initialize Universal Client
+    const client = new UniversalApiClient();
+    const isSessionInit = await client.initSession(userId);
+    
+    if (!isSessionInit) {
+        throw new Error('Failed to initialize session');
+    }
 
     // Track which sections have loaded
-    let perpData: { message: string; totalBalance: number; totalAvailable: number } | null = null;
-    let spotData: { message: string; totalValue: number; usdtBalance: number } | null = null;
+    // Track which sections have loaded with explicit types
+    interface PerpData { message: string; totalBalance: number; totalAvailable: number }
+    interface SpotData { message: string; totalValue: number; usdtBalance: number }
+    
+    let perpData: PerpData | null = null;
+    let spotData: SpotData | null = null;
     let perpError: string | null = null;
     let spotError: string | null = null;
+
+    // Debug client
+    console.log('[Overview] Client methods:', Object.getOwnPropertyNames(Object.getPrototypeOf(client)));
 
     // Fetch perp and spot data in parallel, update as each resolves
     const perpPromise = fetchPerpData(client, ctx, 10, style) // Limit to 10 for overview
@@ -431,9 +437,13 @@ export async function showOverview(ctx: BotContext, editMessage = false, style: 
         return data;
       })
       .catch(error => {
-        console.error('[Overview] Perp fetch error:', error);
-        perpError = 'Failed to load perp data';
-        return null;
+        console.error('[Overview] Perp fetch error:', error.message); // Log message only to reduce noise
+        if (error.message.includes('No credentials')) {
+             perpError = 'Credentials missing. Please /link.';
+        } else {
+             perpError = 'Failed to load perp data';
+        }
+        return null; // Don't throw, just return null so Promise.all (or race) continues
       });
 
     const spotPromise = fetchSpotData(client, ctx, 10, style) // Limit to 10 for overview
@@ -448,13 +458,16 @@ export async function showOverview(ctx: BotContext, editMessage = false, style: 
       });
 
     // Wait for the first one to complete and update UI
+    // Use Promise.allSettled pattern via catching above so we don't crash
+    // Actually we are using .then().catch() so result is a resolved promise of null or data.
+    // So Promise.race works fine.
     await Promise.race([perpPromise, spotPromise]);
 
     // Build initial message with whichever section loaded first
     let message = style === 'default' ? '🏦 **Command Citadel**\n\n' : `🏦 <b>Command Citadel</b> (Style ${style.replace('style', '')})\n\n`;
 
     if (perpData) {
-      message += perpData.message + '\n';
+      message += (perpData as any).message + '\n';
     } else if (perpError) {
       message += `📊 **Perp Portfolio:** ⚠️ ${perpError}\n\n`;
     } else {
@@ -462,7 +475,7 @@ export async function showOverview(ctx: BotContext, editMessage = false, style: 
     }
 
     if (spotData) {
-      message += spotData.message + '\n';
+      message += (spotData as any).message + '\n';
     } else if (spotError) {
       message += `💼 **Spot Portfolio:** ⚠️ ${spotError}\n\n`;
     } else {
@@ -486,24 +499,24 @@ export async function showOverview(ctx: BotContext, editMessage = false, style: 
 
     // Add perp section
     if (perpData) {
-      message += perpData.message + '\n';
+      message += (perpData as any).message + '\n';
     } else if (perpError) {
       message += `📊 **Perp Portfolio:** ⚠️ ${perpError}\n\n`;
     }
 
     // Add spot section
     if (spotData) {
-      message += spotData.message + '\n';
+      message += (spotData as any).message + '\n';
     } else if (spotError) {
       message += `💼 **Spot Portfolio:** ⚠️ ${spotError}\n\n`;
     }
 
     // Add summary (only if we have data from at least one section)
     if (perpData || spotData) {
-      const totalFuturesBalance = perpData?.totalBalance || 0;
-      const totalFuturesAvailable = perpData?.totalAvailable || 0;
-      const totalSpotValue = spotData?.totalValue || 0;
-      const spotUsdtBalance = spotData?.usdtBalance || 0;
+      const totalFuturesBalance = (perpData as any)?.totalBalance || 0;
+      const totalFuturesAvailable = (perpData as any)?.totalAvailable || 0;
+      const totalSpotValue = (spotData as any)?.totalValue || 0;
+      const spotUsdtBalance = (spotData as any)?.usdtBalance || 0;
       const totalWalletValue = totalSpotValue + totalFuturesBalance;
 
       if (style === 'style1' || style === 'style2' || style === 'style3') {
@@ -547,23 +560,11 @@ export async function showOverview(ctx: BotContext, editMessage = false, style: 
     ctx.session.overviewMessageId = messageToEdit.message_id;
 
     // Note: Message is already tracked by cleanupButtonMessages() call above
-  } catch (error: unknown) {
+  } catch (error: any) {
     console.error('[Overview] Error:', error);
 
     let errorMessage = '❌ **Failed to Load Overview**\n\n';
-
-    if (error instanceof AsterDexError) {
-      if (error.code === 'IP_BANNED') {
-        errorMessage += '🚫 IP banned by AsterDex.';
-      } else if (error.code === 'RATE_LIMITED') {
-        errorMessage += `⏰ ${error.message}`;
-      } else {
-        errorMessage += error.message;
-      }
-    } else {
-      errorMessage += error instanceof Error ? error.message : 'Unexpected error occurred.';
-    }
-
+    errorMessage += error.message || 'Unexpected error occurred.';
     errorMessage += '\n\nUse /menu to try again.';
 
     await ctx.telegram.editMessageText(

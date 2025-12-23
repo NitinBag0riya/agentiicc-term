@@ -149,14 +149,47 @@ export async function initSchema(): Promise<void> {
     CREATE TABLE IF NOT EXISTS api_credentials (
       id SERIAL PRIMARY KEY,
       user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+      exchange_id TEXT NOT NULL DEFAULT 'aster',
       api_key_encrypted TEXT NOT NULL,
       api_secret_encrypted TEXT NOT NULL,
       testnet BOOLEAN DEFAULT FALSE,
       created_at TIMESTAMP DEFAULT NOW(),
       updated_at TIMESTAMP DEFAULT NOW(),
-      UNIQUE(user_id)
+      UNIQUE(user_id, exchange_id)
     )
   `);
+
+  // MIGRATION: Ensure exchange_id exists and constraints are correct
+  try {
+      await query(`ALTER TABLE api_credentials ADD COLUMN IF NOT EXISTS exchange_id TEXT NOT NULL DEFAULT 'aster'`);
+      
+      // Drop old single-user constraint if it exists
+      await query(`
+        DO $$ 
+        BEGIN 
+            IF EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'api_credentials_user_id_key') THEN 
+                ALTER TABLE api_credentials DROP CONSTRAINT api_credentials_user_id_key; 
+            END IF; 
+        END $$;
+      `);
+
+      // Ensure new composite constraint exists (Postgres handles duplicates inside CREATE TABLE, but for existing tables we typically add it if missing. 
+      // The CREATE TABLE above handles fresh installs. This block handles migrations.)
+      // Note: We won't try to add the constraint validation here to avoid complexity if it already exists, 
+      // as CREATE TABLE IF NOT EXISTS defines it. But if table existed, we need to add it.
+      await query(`
+         DO $$ 
+         BEGIN 
+             IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'api_credentials_user_id_exchange_id_key') THEN 
+                 ALTER TABLE api_credentials ADD CONSTRAINT api_credentials_user_id_exchange_id_key UNIQUE(user_id, exchange_id); 
+             END IF; 
+         END $$;
+      `);
+
+  } catch (err) {
+      console.warn('[Postgres] Schema migration warning:', err);
+  }
+
 
   // Orders table (trade history + audit trail)
   await query(`

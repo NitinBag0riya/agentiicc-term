@@ -14,7 +14,9 @@ export interface SessionData {
   username?: string;
 
   // Link status
+  // Link status
   isLinked?: boolean;
+  activeExchange?: 'aster' | 'hyperliquid';
 
   // Deep link data (for clickable assets/positions)
   tempSpotAssets?: string[];
@@ -59,8 +61,13 @@ export interface BotContext extends Context {
   session: SessionData;
 
   // Scene support
-  scene: Scenes.SceneContextScene<BotContext>;
+  scene: Scenes.SceneContextScene<BotContext, Scenes.WizardSessionData>;
   wizard?: Scenes.WizardContextWizard<BotContext>;
+}
+
+export interface BotWizardContext extends BotContext {
+  wizard: Scenes.WizardContextWizard<BotWizardContext>;
+  scene: Scenes.SceneContextScene<BotWizardContext, Scenes.WizardSessionData>;
 }
 
 /**
@@ -79,5 +86,9 @@ export interface WizardState {
   price?: number;
 
   // Generic state
+  // Generic state
+  retryCount?: number;
+  step1MessageId?: number;
+  step2MessageId?: number;
   [key: string]: any;
 }

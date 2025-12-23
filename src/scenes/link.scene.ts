@@ -18,7 +18,7 @@ import { exitSceneToMenu } from '../utils/countdown';
 /**
  * Link API Scene
  */
-export const linkScene = new Scenes.WizardScene<BotContext>(
+export const linkScene = new Scenes.WizardScene<any>(
   'link',
 
   // ==================== STEP 1: Ask for API Key ====================
@@ -196,59 +196,49 @@ export const linkScene = new Scenes.WizardScene<BotContext>(
       }
     }
 
-    // Send validation message
-    await ctx.reply(
-      '✅ **API Secret received**\n\n' +
-      '⏳ Validating your credentials with AsterDex...',
-      { parse_mode: 'Markdown' }
-    );
-
     try {
-      // Validate credentials with AsterDex API
-      const redis = getRedis();
-      const validationResult = await testApiCredentials(apiKey, apiSecret, redis);
-
-      if (!validationResult.valid) {
-        // Validation failed
-        console.log(`[LinkScene] ❌ Validation failed`);
-
-        await exitSceneToMenu(
-          ctx,
-          `❌ **Credential Validation Failed**\n\n` +
-          `${validationResult.error || 'Invalid API credentials'}\n\n` +
-          'Try again with /link'
-        );
-
-        return ctx.scene.leave();
-      }
-
-      console.log(`[LinkScene] ✅ Credentials validated successfully`);
-
-      // Get or create user
+      // Get or create user (locally, to get ID)
       const user = await getOrCreateUser(
         ctx.from!.id,
         ctx.from!.username
       );
 
-      // Encrypt credentials
-      const encryptedKey = encrypt(apiKey);
-      const encryptedSecret = encrypt(apiSecret);
+      console.log(`[LinkScene] Linking credentials for user ${user.id} via Universal API...`);
+      
+      const { universalApi } = await import('../services/universalApi');
 
-      // Save to PostgreSQL
-      await storeApiCredentials(
-        user.id,
-        encryptedKey,
-        encryptedSecret,
-        false // testnet
-      );
+      // 1. Store credentials via Backend
+      const linkResult = await universalApi.linkCredentials(user.id, 'aster', {
+          apiKey,
+          apiSecret
+      });
 
-      console.log(`[LinkScene] ✅ Credentials saved for user ${user.id}`);
+      if (!linkResult.success) {
+          throw new Error(linkResult.error || 'Failed to store credentials');
+      }
+
+      // 2. Init Session (Authentication)
+      const sessionInit = await universalApi.initSession(user.id, 'aster');
+      if (!sessionInit) {
+           throw new Error('Failed to initialize API session');
+      }
+
+      // 3. Validate by fetching account
+      await ctx.reply('⏳ Validating with Aster Exchange...', { parse_mode: 'Markdown' });
+      const accountRes = await universalApi.getAccount('aster');
+
+      if (!accountRes.success) {
+          throw new Error('Validation Failed: ' + (accountRes.error || 'Could not fetch account'));
+      }
+
+      console.log(`[LinkScene] ✅ Validation success!`);
 
       // Update session
       ctx.session.userId = user.id;
       ctx.session.telegramId = ctx.from!.id;
       ctx.session.username = ctx.from!.username;
       ctx.session.isLinked = true;
+      ctx.session.activeExchange = 'aster';
 
       console.log(`[LinkScene] ✅ Success! Showing menu...`);
 
@@ -256,20 +246,18 @@ export const linkScene = new Scenes.WizardScene<BotContext>(
       await exitSceneToMenu(
         ctx,
         '✅ **API Successfully Linked!**\n\n' +
-        '🎉 Your Aster DEX account is now connected.\n\n' +
+        '🎉 Your Aster DEX account is now connected via Universal API.\n\n' +
         '**Summary:**\n' +
-        '• API credentials encrypted and stored\n' +
+        '• API credentials verified & stored\n' +
         '• Ready to trade on Aster DEX'
       );
 
       return ctx.scene.leave();
 
-    } catch (error: unknown) {
+    } catch (error: any) {
       console.error('[LinkScene] ❌ Error:', error);
+      const errorMessage = error.message || 'Unknown error';
 
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-
-      // Show error and menu
       await exitSceneToMenu(
         ctx,
         `❌ **Failed to link API**\n\n` +
@@ -314,10 +302,12 @@ linkScene.action('cancel_link', async (ctx) => {
 });
 
 // ==================== Leave Handler ====================
+// ==================== Leave Handler ====================
 linkScene.leave(async (ctx) => {
   console.log('[LinkScene] Exited');
-  // Clear wizard state
-  if (ctx.wizard) {
-    ctx.wizard.state = {};
+  // Clear wizard state safely
+  if (ctx.wizard && ctx.wizard.state) {
+    // Object.keys(ctx.wizard.state).forEach(key => delete ctx.wizard.state[key]); // Manual clear if needed
+    // But usually leaving scene is enough. The 'read-only' error was likely due to direct assignment.
   }
 });
