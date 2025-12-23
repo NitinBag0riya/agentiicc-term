@@ -27,6 +27,7 @@ import { handleConfirm, handleCancel, handleRecalc } from './utils/confirmDialog
 import { getRedis } from './db/redis';
 import { getPostgres } from './db/postgres';
 import { getBotDeepLink } from './utils/botInfo';
+import { normalizeSymbol } from './utils/inputParser';
 import type { AsterWriteOp } from './services/ops/types';
 
 /**
@@ -812,8 +813,10 @@ export function setupBot(bot: Telegraf<BotContext>): void {
   // Handle spot buy (e.g., "spot_buy:ASTER")
   bot.action(/^spot_buy:(.+)$/, async (ctx) => {
     await ctx.answerCbQuery();
-    const asset = ctx.match[1].toUpperCase();
-    const symbol = `${asset}USDT`;
+    const input = ctx.match[1].toUpperCase();
+    // Normalize: input might be full symbol (BTCUSDT) or just asset (BTC)
+    const symbol = input.endsWith('USDT') || input.endsWith('USD') ? input : `${input}USDT`;
+    const asset = symbol.replace(/USDT$|USD$/, '');
     const exchange = ctx.session.activeExchange || 'aster';
 
     // Aster is currently Futures-only in this integration
@@ -849,8 +852,10 @@ export function setupBot(bot: Telegraf<BotContext>): void {
   // Handle spot sell (e.g., "spot_sell:ASTER")
   bot.action(/^spot_sell:(.+)$/, async (ctx) => {
     await ctx.answerCbQuery();
-    const asset = ctx.match[1].toUpperCase();
-    const symbol = `${asset}USDT`;
+    const input = ctx.match[1].toUpperCase();
+    // Normalize: input might be full symbol (BTCUSDT) or just asset (BTC)
+    const symbol = input.endsWith('USDT') || input.endsWith('USD') ? input : `${input}USDT`;
+    const asset = symbol.replace(/USDT$|USD$/, '');
     const exchange = ctx.session.activeExchange || 'aster';
 
     // Aster is currently Futures-only in this integration
@@ -886,9 +891,11 @@ export function setupBot(bot: Telegraf<BotContext>): void {
   // Handle spot buy percentage (e.g., "spot_buy_pct:ASTER:50")
   bot.action(/^spot_buy_pct:(.+):(\d+)$/, async (ctx) => {
     await ctx.answerCbQuery();
-    const asset = ctx.match[1].toUpperCase();
+    const input = ctx.match[1].toUpperCase();
     const percentage = ctx.match[2];
-    const symbol = `${asset}USDT`;
+    // Normalize: input might be full symbol or just asset
+    const symbol = input.endsWith('USDT') || input.endsWith('USD') ? input : `${input}USDT`;
+    const asset = symbol.replace(/USDT$|USD$/, '');
     const exchange = ctx.session.activeExchange || 'aster';
 
     if (exchange === 'aster') {
@@ -916,8 +923,10 @@ export function setupBot(bot: Telegraf<BotContext>): void {
   // Handle spot buy custom amount
   bot.action(/^spot_buy_custom:(.+)$/, async (ctx) => {
     await ctx.answerCbQuery();
-    const asset = ctx.match[1].toUpperCase();
-    const symbol = `${asset}USDT`;
+    const input = ctx.match[1].toUpperCase();
+    // Normalize: input might be full symbol or just asset
+    const symbol = input.endsWith('USDT') || input.endsWith('USD') ? input : `${input}USDT`;
+    const asset = symbol.replace(/USDT$|USD$/, '');
     const exchange = ctx.session.activeExchange || 'aster';
 
     if (exchange === 'aster') {
@@ -943,9 +952,11 @@ export function setupBot(bot: Telegraf<BotContext>): void {
   // Handle spot sell percentage (e.g., "spot_sell_pct:ASTER:50")
   bot.action(/^spot_sell_pct:(.+):(\d+)$/, async (ctx) => {
     await ctx.answerCbQuery();
-    const asset = ctx.match[1].toUpperCase();
+    const input = ctx.match[1].toUpperCase();
     const percentage = ctx.match[2];
-    const symbol = `${asset}USDT`;
+    // Normalize: input might be full symbol or just asset
+    const symbol = input.endsWith('USDT') || input.endsWith('USD') ? input : `${input}USDT`;
+    const asset = symbol.replace(/USDT$|USD$/, '');
     const exchange = ctx.session.activeExchange || 'aster';
 
     if (exchange === 'aster') {
@@ -973,8 +984,10 @@ export function setupBot(bot: Telegraf<BotContext>): void {
   // Handle spot sell custom amount
   bot.action(/^spot_sell_custom:(.+)$/, async (ctx) => {
     await ctx.answerCbQuery();
-    const asset = ctx.match[1].toUpperCase();
-    const symbol = `${asset}USDT`;
+    const input = ctx.match[1].toUpperCase();
+    // Normalize: input might be full symbol or just asset
+    const symbol = input.endsWith('USDT') || input.endsWith('USD') ? input : `${input}USDT`;
+    const asset = symbol.replace(/USDT$|USD$/, '');
     const exchange = ctx.session.activeExchange || 'aster';
 
     if (exchange === 'aster') {
@@ -1146,7 +1159,8 @@ export function setupBot(bot: Telegraf<BotContext>): void {
 
   // Handle return to position (from success/error/cancel messages)
   bot.action(/^return_position:(.+)$/, async (ctx) => {
-    const symbol = ctx.match[1];
+    // Normalize symbol to fix legacy corrupted symbols (e.g., BTCUSDTUSDT)
+    const symbol = normalizeSymbol(ctx.match[1]);
 
     try {
       await ctx.answerCbQuery();

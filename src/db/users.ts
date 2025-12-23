@@ -114,3 +114,15 @@ export async function getApiCredentials(
 export async function deleteApiCredentials(userId: number, exchangeId = 'aster'): Promise<void> {
   await query('DELETE FROM api_credentials WHERE user_id = $1 AND exchange_id = $2', [userId, exchangeId]);
 }
+
+/**
+ * Get all linked exchanges for a user
+ */
+export async function getLinkedExchanges(userId: number): Promise<string[]> {
+  const rows = await query<{ exchange_id: string }>(
+    'SELECT exchange_id FROM api_credentials WHERE user_id = $1',
+    [userId]
+  );
+  return rows.map(row => row.exchange_id);
+}
+

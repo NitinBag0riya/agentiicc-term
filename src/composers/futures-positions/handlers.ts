@@ -11,6 +11,7 @@ import { UniversalApiClient } from '../../services/universalApi';
 import { buildPositionInterface, showPositionManagement } from './interface';
 import { fetchPerpData } from '../overview-menu.composer';
 import { cleanupButtonMessages, trackButtonMessage } from '../../utils/buttonCleanup';
+import { normalizeSymbol } from '../../utils/inputParser';
 import type { AsterWriteOp } from '../../services/ops/types';
 
 /**
@@ -79,7 +80,7 @@ export function registerPositionsListHandler(composer: Composer<BotContext>) {
 export function registerToggleOrderTypeHandler(composer: Composer<BotContext>) {
   composer.action(/^pos_toggle_ordertype:(.+)$/, async (ctx) => {
     await ctx.answerCbQuery();
-    const symbol = ctx.match[1];
+    const symbol = normalizeSymbol(ctx.match[1]);
 
     // Toggle order type
     if (!ctx.session.tradingState) ctx.session.tradingState = {};
@@ -108,7 +109,7 @@ export function registerToggleOrderTypeHandler(composer: Composer<BotContext>) {
 export function registerToggleMarginHandler(composer: Composer<BotContext>) {
   composer.action(/^pos_toggle_margin:(.+)$/, async (ctx) => {
     await ctx.answerCbQuery();
-    const symbol = ctx.match[1];
+    const symbol = normalizeSymbol(ctx.match[1]);
 
     if (!ctx.session.userId) return;
 
@@ -209,7 +210,7 @@ export function registerToggleMarginHandler(composer: Composer<BotContext>) {
 export function registerLeverageMenuHandler(composer: Composer<BotContext>) {
   composer.action(/^pos_leverage_menu:(.+)$/, async (ctx) => {
     await ctx.answerCbQuery();
-    const symbol = ctx.match[1];
+    const symbol = normalizeSymbol(ctx.match[1]);
 
     const currentLeverage = ctx.session.tradingState?.[symbol]?.leverage || 5;
 
@@ -239,7 +240,7 @@ export function registerLeverageMenuHandler(composer: Composer<BotContext>) {
 export function registerSetLeverageHandler(composer: Composer<BotContext>) {
   composer.action(/^pos_set_leverage:(.+):(\d+)$/, async (ctx) => {
     await ctx.answerCbQuery();
-    const symbol = ctx.match[1];
+    const symbol = normalizeSymbol(ctx.match[1]);
     const leverage = parseInt(ctx.match[2]);
 
     if (!ctx.session.userId) return;
@@ -279,7 +280,7 @@ export function registerSetLeverageHandler(composer: Composer<BotContext>) {
 export function registerLeverageCustomHandler(composer: Composer<BotContext>) {
   composer.action(/^pos_leverage_custom:(.+)$/, async (ctx) => {
     await ctx.answerCbQuery('Enter leverage (1-125):');
-    const symbol = ctx.match[1];
+    const symbol = normalizeSymbol(ctx.match[1]);
 
     if (!ctx.session.userId) return;
 

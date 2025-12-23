@@ -569,7 +569,20 @@ export async function prepareForConfirmation(
       }
 
       if (price) {
-        const rawQuantity = parseFloat(op.params.quantityInUSD) / price;
+        // Apply leverage: $10 margin with 5x leverage = $50 position value
+        const leverage = op.metadata?.leverage || 1;
+        const positionValue = parseFloat(op.params.quantityInUSD) * leverage;
+        const rawQuantity = positionValue / price;
+        
+        console.log('[PrepareForConfirmation] Quantity calc:', {
+          quantityInUSD: op.params.quantityInUSD,
+          leverage,
+          positionValue,
+          price,
+          rawQuantity,
+          metadataLeverage: op.metadata?.leverage,
+        });
+        
         const baseAsset = op.params.symbol.replace('USDT', '');
 
         // Format quantity to match exchange stepSize requirements
@@ -615,78 +628,120 @@ export async function prepareForConfirmation(
       univClient = new UniversalApiClient();
       await univClient.initSession(userId);
 
-      // Calculate from available margin (not position size!)
-      const accountRes = await univClient.getAccount();
-      if (!accountRes.success || !accountRes.data) throw new Error('Failed to fetch account info');
-      
-      const accountInfo = accountRes.data;
-      const availableBalance = parseFloat(accountInfo.availableBalance || '0');
-      const percent = parseFloat(op.params.quantityAsPercent);
+      // Handle REDUCE_ONLY (Closing/Reducing Position)
+      if (op.params.reduceOnly === true || op.params.reduceOnly === 'true') {
+        // Fetch current position size
+        const positionsRes = await univClient.getPositions(op.params.symbol);
+        if (!positionsRes.success) throw new Error(positionsRes.error || 'Failed to fetch positions');
+        
+        const position = positionsRes.data.find(p => p.symbol === op.params.symbol);
+        const positionAmt = position ? parseFloat(position.size || position.positionAmt || '0') : 0;
+        const positionSize = Math.abs(positionAmt);
 
-      // Get price (limit price if LIMIT order, otherwise market price)
-      let price: number | null = null;
-      let priceSource = '';
-
-      if (op.params.type === 'LIMIT' && op.params.price) {
-        price = parseFloat(op.params.price);
-        priceSource = `$${price} (limit price)`;
-      } else {
-        const cachedPrice = getFuturesPrice(op.params.symbol);
-        if (cachedPrice) {
-          price = parseFloat(cachedPrice);
-          priceSource = `$${price} (current market)`;
+        if (positionSize === 0) {
+          throw new Error(`No open position found for ${op.params.symbol} to close.`);
         }
+
+        const percent = parseFloat(op.params.quantityAsPercent);
+        const rawQuantity = (positionSize * percent) / 100;
+        const baseAsset = op.params.symbol.replace('USDT', '');
+
+        // Format quantity
+        const formattedQuantity = formatQuantityForSymbol(op.params.symbol, rawQuantity);
+        if (!formattedQuantity) {
+          throw new Error(`Unable to format quantity for ${op.params.symbol}. Check exchange info is loaded.`);
+        }
+
+        const formattedQtyNum = parseFloat(formattedQuantity);
+         if (formattedQtyNum <= 0) {
+             throw new Error(`Calculated quantity is too small to close.`);
+         }
+
+        // Store original input in metadata for re-calc
+        if (!op.metadata) op.metadata = {};
+        op.metadata.originalInput = { type: 'PERCENT', value: op.params.quantityAsPercent };
+
+        // IMPORTANT: Replace quantityAsPercent with calculated & FORMATTED quantity
+        delete (op.params as any).quantityAsPercent;
+        op.params.quantity = formattedQuantity;
+
+        calculatedPreview = `Action: Close ${percent}% of Position\nQuantity: ≈ ${formattedQuantity} ${baseAsset}\nCurrent Size: ${positionSize} ${baseAsset}`;
+        needsRecalc = true;
+
+      } else {
+        // Open New Position (Calculate from available margin)
+        const accountRes = await univClient.getAccount();
+        if (!accountRes.success || !accountRes.data) throw new Error('Failed to fetch account info');
+        
+        const accountInfo = accountRes.data;
+        const availableBalance = parseFloat(accountInfo.availableBalance || '0');
+        const percent = parseFloat(op.params.quantityAsPercent);
+
+        // Get price (limit price if LIMIT order, otherwise market price)
+        let price: number | null = null;
+        let priceSource = '';
+
+        if (op.params.type === 'LIMIT' && op.params.price) {
+          price = parseFloat(op.params.price);
+          priceSource = `$${price} (limit price)`;
+        } else {
+          const cachedPrice = getFuturesPrice(op.params.symbol);
+          if (cachedPrice) {
+            price = parseFloat(cachedPrice);
+            priceSource = `$${price} (current market)`;
+          }
+        }
+
+        if (!price) {
+          throw new Error(`Price unavailable for ${op.params.symbol}. Cannot calculate quantity from percentage.`);
+        }
+
+        // Calculate margin to use
+        const marginToUse = (availableBalance * percent) / 100;
+
+        // Apply leverage to get position value
+        const leverage = op.metadata?.leverage || 1;
+        const positionValue = marginToUse * leverage;
+
+        // Convert to quantity
+        const rawQuantity = positionValue / price;
+        const baseAsset = op.params.symbol.replace('USDT', '');
+
+        // Format quantity to match exchange stepSize requirements
+        const formattedQuantity = formatQuantityForSymbol(op.params.symbol, rawQuantity);
+        if (!formattedQuantity) {
+          throw new Error(`Unable to format quantity for ${op.params.symbol}. Check exchange info is loaded.`);
+        }
+
+        // Check if formatted quantity is zero or too small
+        const formattedQtyNum = parseFloat(formattedQuantity);
+        const lotSizeFilter = getLotSizeFilter(op.params.symbol);
+
+        if (formattedQtyNum <= 0 || (lotSizeFilter && formattedQtyNum < parseFloat(lotSizeFilter.minQty))) {
+          // Calculate minimum USD value
+          const minQty = lotSizeFilter?.minQty || '0';
+          const minQtyUSD = (parseFloat(minQty) * price).toFixed(2);
+
+          throw new QuantityTooSmallError(
+            op.params.symbol,
+            formattedQuantity,
+            minQty,
+            minQtyUSD,
+            baseAsset
+          );
+        }
+
+        // Store original input in metadata for re-calc
+        if (!op.metadata) op.metadata = {};
+        op.metadata.originalInput = { type: 'PERCENT', value: op.params.quantityAsPercent };
+
+        // IMPORTANT: Replace quantityAsPercent with calculated & FORMATTED quantity
+        delete (op.params as any).quantityAsPercent;
+        op.params.quantity = formattedQuantity;
+
+        calculatedPreview = `Quantity: ≈ ${formattedQuantity} ${baseAsset}\nMargin: $${marginToUse.toFixed(2)} (${percent}% of $${availableBalance.toFixed(2)})\nPosition Value: $${positionValue.toFixed(2)} (${leverage}x leverage)\nPrice: ${priceSource}`;
+        needsRecalc = true; // Show re-calc button
       }
-
-      if (!price) {
-        throw new Error(`Price unavailable for ${op.params.symbol}. Cannot calculate quantity from percentage.`);
-      }
-
-      // Calculate margin to use
-      const marginToUse = (availableBalance * percent) / 100;
-
-      // Apply leverage to get position value
-      const leverage = op.metadata?.leverage || 1;
-      const positionValue = marginToUse * leverage;
-
-      // Convert to quantity
-      const rawQuantity = positionValue / price;
-      const baseAsset = op.params.symbol.replace('USDT', '');
-
-      // Format quantity to match exchange stepSize requirements
-      const formattedQuantity = formatQuantityForSymbol(op.params.symbol, rawQuantity);
-      if (!formattedQuantity) {
-        throw new Error(`Unable to format quantity for ${op.params.symbol}. Check exchange info is loaded.`);
-      }
-
-      // Check if formatted quantity is zero or too small
-      const formattedQtyNum = parseFloat(formattedQuantity);
-      const lotSizeFilter = getLotSizeFilter(op.params.symbol);
-
-      if (formattedQtyNum <= 0 || (lotSizeFilter && formattedQtyNum < parseFloat(lotSizeFilter.minQty))) {
-        // Calculate minimum USD value
-        const minQty = lotSizeFilter?.minQty || '0';
-        const minQtyUSD = (parseFloat(minQty) * price).toFixed(2);
-
-        throw new QuantityTooSmallError(
-          op.params.symbol,
-          formattedQuantity,
-          minQty,
-          minQtyUSD,
-          baseAsset
-        );
-      }
-
-      // Store original input in metadata for re-calc
-      if (!op.metadata) op.metadata = {};
-      op.metadata.originalInput = { type: 'PERCENT', value: op.params.quantityAsPercent };
-
-      // IMPORTANT: Replace quantityAsPercent with calculated & FORMATTED quantity
-      delete (op.params as any).quantityAsPercent;
-      op.params.quantity = formattedQuantity;
-
-      calculatedPreview = `Quantity: ≈ ${formattedQuantity} ${baseAsset}\nMargin: $${marginToUse.toFixed(2)} (${percent}% of $${availableBalance.toFixed(2)})\nPosition Value: $${positionValue.toFixed(2)} (${leverage}x leverage)\nPrice: ${priceSource}`;
-      needsRecalc = true; // Show re-calc button
     }
   }
 

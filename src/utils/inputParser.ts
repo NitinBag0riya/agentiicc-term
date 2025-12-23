@@ -22,6 +22,28 @@ function getBaseAsset(symbol: string): string {
 }
 
 /**
+ * Normalize a potentially corrupted symbol
+ * Fixes issues like BTCUSDTUSDT → BTCUSDT, ETHUSDT → ETHUSDT
+ */
+export function normalizeSymbol(symbol: string): string {
+  if (!symbol) return symbol;
+  
+  const upper = symbol.toUpperCase();
+  
+  // Handle double USDT suffix (e.g., BTCUSDTUSDT)
+  if (upper.endsWith('USDTUSDT')) {
+    return upper.replace(/USDT$/, '');
+  }
+  
+  // Handle double USD suffix (e.g., BTCUSDUSD)
+  if (upper.endsWith('USDUSD')) {
+    return upper.replace(/USD$/, '');
+  }
+  
+  return upper;
+}
+
+/**
  * Parse trading amount input with intelligent detection
  *
  * @param input - User input string

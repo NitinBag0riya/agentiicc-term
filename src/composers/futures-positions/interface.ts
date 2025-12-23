@@ -81,8 +81,11 @@ export async function buildPositionInterface(ctx: BotContext, symbol: string, us
 
     if (positionInfo) {
       // Sync session state with exchange state
-      state.leverage = parseInt(positionInfo.leverage);
-      state.marginType = positionInfo.marginType.toLowerCase() as 'cross' | 'isolated';
+      state.leverage = parseInt(positionInfo.leverage) || state.leverage;
+      // marginType may not be returned by all exchanges (e.g., Hyperliquid defaults to cross)
+      state.marginType = positionInfo.marginType 
+        ? positionInfo.marginType.toLowerCase() as 'cross' | 'isolated'
+        : 'cross'; // Default to cross if not provided
     }
   }
 
@@ -200,7 +203,7 @@ export async function buildPositionInterface(ctx: BotContext, symbol: string, us
 
   let message = `⚡ **Manage ${symbol} Position**\n\n`;
   const positionValueUsdt = Math.abs(positionAmt) * markPrice;
-  message += `**Current:** $${positionValueUsdt.toFixed(2)} (${Math.abs(positionAmt).toFixed(2)} ${baseAsset}) @ $${entryPrice.toFixed(4)} ${side}\n`;
+  message += `**Current:** $${positionValueUsdt.toFixed(2)} (${Math.abs(positionAmt).toFixed(4)} ${baseAsset}) @ $${entryPrice.toFixed(4)} ${side}\n`;
   message += `**PnL:** ${pnlSign}$${unrealizedPnl.toFixed(2)} (${roeSign}${roe.toFixed(2)}%)\n`;
   message += `**Mark Price:** $${markPrice.toFixed(4)}\n`;
 

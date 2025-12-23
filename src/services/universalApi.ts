@@ -17,13 +17,8 @@ export class UniversalApiClient {
   private userId: number | null = null;
 
   public constructor() {
-    // The backend runs on port 3000 by default (proxied via main process port usually)
-    // But since backend is spawned on 3001, and main is 3000...
-    // Wait, main process calls UniversalApi. Main is on 3000? No main spawns backend on 3001.
-    // Bot runs in Main. So Bot should talk to localhost:3001 directly?
-    // OR talk to localhost:3000/api via proxy?
-    // Using 3001 is faster/direct.
-    this.baseUrl = process.env.BACKEND_API_URL || 'http://localhost:3001';
+    // Backend API is now integrated directly into the main server on port 3000
+    this.baseUrl = process.env.BACKEND_API_URL || 'http://localhost:3000';
     this.client = axios.create({
       baseURL: this.baseUrl,
       validateStatus: () => true, // Handle all status codes
