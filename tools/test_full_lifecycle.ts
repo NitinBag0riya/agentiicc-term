@@ -2,7 +2,7 @@
 import { UniversalApiClient } from '../src/services/universalApi';
 import { getPostgres, connectPostgres, disconnectPostgres } from '../src/db/postgres';
 import dotenv from 'dotenv';
-import { AsterWriteOpSchema } from '../src/aster/writeOps';
+
 
 dotenv.config();
 
@@ -136,7 +136,7 @@ async function main() {
             console.error('   ❌ MARKET Order Failed:', marketRes.error);
         } else {
             console.log('   ✅ MARKET Order Filled. ID:', marketRes.data.orderId);
-            await sleep(2000);
+            await sleep(5000);
 
             // 5. Test Conditional Orders (TP/SL)
             console.log('\n3️⃣  Testing Conditional Orders (TP/SL)...');

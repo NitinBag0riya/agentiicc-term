@@ -1,6 +1,6 @@
 {
   "timezone": "UTC",
-  "serverTime": 1766484016873,
+  "serverTime": 1766487172583,
   "futuresType": "U_MARGINED",
   "rateLimits": [
     {
@@ -21485,7 +21485,7 @@
         {
           "stepSize": "1",
           "filterType": "MARKET_LOT_SIZE",
-          "maxQty": "30000",
+          "maxQty": "4000",
           "minQty": "1"
         },
         {
@@ -22512,7 +22512,7 @@
       "triggerProtect": "0.1000",
       "liquidationFee": "0.025000",
       "marketTakeBound": "0.20",
-      "createTime": 1766312791658,
+      "createTime": 1766312791659,
       "filters": [
         {
           "minPrice": "0.0001000",
@@ -22599,7 +22599,7 @@
       "triggerProtect": "0.1000",
       "liquidationFee": "0.025000",
       "marketTakeBound": "0.20",
-      "createTime": 1766312852871,
+      "createTime": 1766312852872,
       "filters": [
         {
           "minPrice": "0.0000100",
@@ -22748,10 +22748,10 @@
     {
       "symbol": "HUSDT",
       "pair": "HUSDT",
-      "contractType": "",
+      "contractType": "PERPETUAL",
       "deliveryDate": 4133404800000,
       "onboardDate": 1766491200000,
-      "status": "PENDING_TRADING",
+      "status": "TRADING",
       "maintMarginPercent": "10.0000",
       "requiredMarginPercent": "20.0000",
       "baseAsset": "H",
@@ -22835,10 +22835,10 @@
     {
       "symbol": "ANIMEUSDT",
       "pair": "ANIMEUSDT",
-      "contractType": "",
+      "contractType": "PERPETUAL",
       "deliveryDate": 4133404800000,
       "onboardDate": 1766491200000,
-      "status": "PENDING_TRADING",
+      "status": "TRADING",
       "maintMarginPercent": "10.0000",
       "requiredMarginPercent": "20.0000",
       "baseAsset": "ANIME",
@@ -22860,7 +22860,7 @@
       "triggerProtect": "0.1000",
       "liquidationFee": "0.025000",
       "marketTakeBound": "0.20",
-      "createTime": 1766482880936,
+      "createTime": 1766482880937,
       "filters": [
         {
           "minPrice": "0.0000010",
@@ -22871,7 +22871,7 @@
         {
           "stepSize": "1",
           "filterType": "LOT_SIZE",
-          "maxQty": "1000000",
+          "maxQty": "10000000",
           "minQty": "1"
         },
         {

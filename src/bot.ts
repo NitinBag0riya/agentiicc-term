@@ -1,6 +1,7 @@
 /**
  * Main bot setup - Functional style
  */
+import { UniversalApiClient } from './services/universalApi';
 import { Telegraf, Scenes, Markup } from 'telegraf';
 import { BotContext } from './types/context';
 import { createSessionMiddleware } from './middleware/session';
@@ -26,8 +27,7 @@ import { handleConfirm, handleCancel, handleRecalc } from './utils/confirmDialog
 import { getRedis } from './db/redis';
 import { getPostgres } from './db/postgres';
 import { getBotDeepLink } from './utils/botInfo';
-import { getAsterClientForUser } from './aster/helpers';
-import type { AsterWriteOp } from './aster/writeOps';
+import type { AsterWriteOp } from './services/ops/types';
 
 /**
  * Create bot instance
@@ -53,7 +53,7 @@ export function createBot(token: string): Telegraf<BotContext> {
     marginWizard,
     spotBuyWizard,
     spotSellWizard,
-  ]);
+  ] as any);
   bot.use(stage.middleware());
 
   // Composers
@@ -638,8 +638,12 @@ export function setupBot(bot: Telegraf<BotContext>): void {
     try {
       const db = getPostgres();
       const redis = getRedis();
-      const client = await getAsterClientForUser(ctx.session.userId, db, redis);
-      const assetMode = await client.getMultiAssetsMargin();
+      const client = new UniversalApiClient();
+      await client.initSession(ctx.session.userId);
+      const assetModeRes = await client.getMultiAssetsMargin();
+      
+      if (!assetModeRes.success) throw new Error(assetModeRes.error);
+      const assetMode = assetModeRes.data;
 
       const isMultiAsset = assetMode.multiAssetsMargin;
       const currentMode = isMultiAsset ? 'Multi-Asset Mode' : 'Single-Asset Mode';
@@ -696,8 +700,12 @@ export function setupBot(bot: Telegraf<BotContext>): void {
     try {
       const db = getPostgres();
       const redis = getRedis();
-      const client = await getAsterClientForUser(ctx.session.userId, db, redis);
-      const assetMode = await client.getMultiAssetsMargin();
+      const client = new UniversalApiClient();
+      await client.initSession(ctx.session.userId);
+      const assetModeRes = await client.getMultiAssetsMargin();
+      
+      if (!assetModeRes.success) throw new Error(assetModeRes.error);
+      const assetMode = assetModeRes.data;
 
       const isMultiAsset = assetMode.multiAssetsMargin;
       const newMultiAssetsMargin = isMultiAsset ? 'false' : 'true';
@@ -705,8 +713,11 @@ export function setupBot(bot: Telegraf<BotContext>): void {
 
       // If switching TO Multi-Asset, check for isolated positions
       if (!isMultiAsset && newMultiAssetsMargin === 'true') {
-        const positions = await client.getPositions();
-        const isolatedPositions = positions.filter(p =>
+        const positionsRes = await client.getPositions();
+        if (!positionsRes.success) throw new Error(positionsRes.error);
+        const positions = positionsRes.data;
+        
+        const isolatedPositions = positions.filter((p: any) =>
           p.marginType?.toLowerCase() === 'isolated' || p.marginType?.toUpperCase() === 'ISOLATED'
         );
 
@@ -718,9 +729,9 @@ export function setupBot(bot: Telegraf<BotContext>): void {
           errorMessage += `The following symbols are set to **Isolated** margin:\n\n`;
 
           // Store symbols in session for deep links
-          ctx.session.tempIsolatedPositions = isolatedPositions.map(p => p.symbol);
+          ctx.session.tempIsolatedPositions = isolatedPositions.map((p: any) => p.symbol);
 
-          isolatedPositions.forEach((pos, index) => {
+          isolatedPositions.forEach((pos: any, index: any) => {
             errorMessage += `• [${pos.symbol}](${getBotDeepLink(`position-iso-${index}`)})\n`;
           });
 
@@ -751,7 +762,7 @@ export function setupBot(bot: Telegraf<BotContext>): void {
 
       // Show confirmation
       const { showConfirmation } = await import('./utils/confirmDialog');
-      const operationId = await showConfirmation(ctx, db, redis, ctx.session.userId, operation, client);
+      const operationId = await showConfirmation(ctx, db, redis, ctx.session.userId, operation);
 
       if (!operationId) {
         // Error was already handled in showConfirmation
@@ -801,9 +812,21 @@ export function setupBot(bot: Telegraf<BotContext>): void {
   // Handle spot buy (e.g., "spot_buy:ASTER")
   bot.action(/^spot_buy:(.+)$/, async (ctx) => {
     await ctx.answerCbQuery();
-    const asset = ctx.match[1];
+    const asset = ctx.match[1].toUpperCase();
+    const symbol = `${asset}USDT`;
+    const exchange = ctx.session.activeExchange || 'aster';
 
-    await ctx.editMessageText(
+    // Aster is currently Futures-only in this integration
+    if (exchange === 'aster') {
+       await ctx.reply('⚠️ Aster Spot trading is not supported. Switching to Futures Long...');
+       return ctx.scene.enter('market-order-wizard', {
+           symbol,
+           side: 'BUY',
+           retryCount: 0
+       });
+    }
+
+    return ctx.editMessageText(
       `📈 **Buy ${asset}**\n\nSelect amount or enter custom:`,
       {
         parse_mode: 'Markdown',
@@ -826,9 +849,21 @@ export function setupBot(bot: Telegraf<BotContext>): void {
   // Handle spot sell (e.g., "spot_sell:ASTER")
   bot.action(/^spot_sell:(.+)$/, async (ctx) => {
     await ctx.answerCbQuery();
-    const asset = ctx.match[1];
+    const asset = ctx.match[1].toUpperCase();
+    const symbol = `${asset}USDT`;
+    const exchange = ctx.session.activeExchange || 'aster';
 
-    await ctx.editMessageText(
+    // Aster is currently Futures-only in this integration
+    if (exchange === 'aster') {
+       await ctx.reply('⚠️ Aster Spot trading is not supported. Switching to Futures Short...');
+       return ctx.scene.enter('market-order-wizard', {
+           symbol,
+           side: 'SELL',
+           retryCount: 0
+       });
+    }
+
+    return ctx.editMessageText(
       `📉 **Sell ${asset}**\n\nSelect amount or enter custom:`,
       {
         parse_mode: 'Markdown',
@@ -851,9 +886,20 @@ export function setupBot(bot: Telegraf<BotContext>): void {
   // Handle spot buy percentage (e.g., "spot_buy_pct:ASTER:50")
   bot.action(/^spot_buy_pct:(.+):(\d+)$/, async (ctx) => {
     await ctx.answerCbQuery();
-    const asset = ctx.match[1];
+    const asset = ctx.match[1].toUpperCase();
     const percentage = ctx.match[2];
     const symbol = `${asset}USDT`;
+    const exchange = ctx.session.activeExchange || 'aster';
+
+    if (exchange === 'aster') {
+         await ctx.reply(`⚠️ Aster Spot trading is not supported. Switching to Futures Long (${percentage}%)...`);
+         return ctx.scene.enter('market-order-wizard', {
+             symbol,
+             side: 'BUY',
+             prefilledAmount: `${percentage}%`,
+             retryCount: 0
+         });
+    }
 
     // Remove buttons from current message
     await removeButtonsFromCallback(ctx);
@@ -870,8 +916,18 @@ export function setupBot(bot: Telegraf<BotContext>): void {
   // Handle spot buy custom amount
   bot.action(/^spot_buy_custom:(.+)$/, async (ctx) => {
     await ctx.answerCbQuery();
-    const asset = ctx.match[1];
+    const asset = ctx.match[1].toUpperCase();
     const symbol = `${asset}USDT`;
+    const exchange = ctx.session.activeExchange || 'aster';
+
+    if (exchange === 'aster') {
+         await ctx.reply('⚠️ Aster Spot trading is not supported. Switching to Futures Long...');
+         return ctx.scene.enter('market-order-wizard', {
+             symbol,
+             side: 'BUY',
+             retryCount: 0
+         });
+    }
 
     // Remove buttons from current message
     await removeButtonsFromCallback(ctx);
@@ -887,9 +943,20 @@ export function setupBot(bot: Telegraf<BotContext>): void {
   // Handle spot sell percentage (e.g., "spot_sell_pct:ASTER:50")
   bot.action(/^spot_sell_pct:(.+):(\d+)$/, async (ctx) => {
     await ctx.answerCbQuery();
-    const asset = ctx.match[1];
+    const asset = ctx.match[1].toUpperCase();
     const percentage = ctx.match[2];
     const symbol = `${asset}USDT`;
+    const exchange = ctx.session.activeExchange || 'aster';
+
+    if (exchange === 'aster') {
+         await ctx.reply(`⚠️ Aster Spot trading is not supported. Switching to Futures Short (${percentage}%)...`);
+         return ctx.scene.enter('market-order-wizard', {
+             symbol,
+             side: 'SELL',
+             prefilledAmount: `${percentage}%`,
+             retryCount: 0
+         });
+    }
 
     // Remove buttons from current message
     await removeButtonsFromCallback(ctx);
@@ -906,8 +973,18 @@ export function setupBot(bot: Telegraf<BotContext>): void {
   // Handle spot sell custom amount
   bot.action(/^spot_sell_custom:(.+)$/, async (ctx) => {
     await ctx.answerCbQuery();
-    const asset = ctx.match[1];
+    const asset = ctx.match[1].toUpperCase();
     const symbol = `${asset}USDT`;
+    const exchange = ctx.session.activeExchange || 'aster';
+
+    if (exchange === 'aster') {
+         await ctx.reply('⚠️ Aster Spot trading is not supported. Switching to Futures Short...');
+         return ctx.scene.enter('market-order-wizard', {
+             symbol,
+             side: 'SELL',
+             retryCount: 0
+         });
+    }
 
     // Remove buttons from current message
     await removeButtonsFromCallback(ctx);

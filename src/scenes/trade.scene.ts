@@ -15,7 +15,7 @@ import { showConfirmation } from '../utils/confirmDialog';
 import { getRedis } from '../db/redis';
 import { getPostgres } from '../db/postgres';
 import { UniversalApiClient } from '../services/universalApi';
-import type { AsterWriteOp } from '../aster/writeOps';
+import type { AsterWriteOp } from '../services/ops/types';
 import { showPositionManagement } from '../composers/futures-positions/interface';
 import { cleanupButtonMessages, trackButtonMessage } from '../utils/buttonCleanup';
 
@@ -200,11 +200,11 @@ export const marketOrderScene = new Scenes.WizardScene<BotContext>(
       return ctx.scene.leave();
     }
 
-    // Get client for percentage/USD calculations
+    // Client is optional in showConfirmation (it instantiates UniversalApi internally if needed)
     const db = getPostgres();
-    const client = await getAsterClientForUser(ctx.session.userId, db, redis);
+    // const client = await getAsterClientForUser(ctx.session.userId, db, redis);
 
-    const operationId = await showConfirmation(ctx, db, redis, ctx.session.userId, operation, client);
+    const operationId = await showConfirmation(ctx, db, redis, ctx.session.userId, operation);
 
     // Leave wizard (confirmation takes over, or error was already shown)
     return ctx.scene.leave();
@@ -424,11 +424,11 @@ export const limitOrderScene = new Scenes.WizardScene<BotContext>(
       return ctx.scene.leave();
     }
 
-    // Get client for percentage/USD calculations
+    // Client is optional in showConfirmation (it instantiates UniversalApi internally if needed)
     const db = getPostgres();
-    const client = await getAsterClientForUser(ctx.session.userId, db, redis);
+    // const client = await getAsterClientForUser(ctx.session.userId, db, redis);
 
-    const operationId = await showConfirmation(ctx, db, redis, ctx.session.userId, operation, client);
+    const operationId = await showConfirmation(ctx, db, redis, ctx.session.userId, operation);
 
     // Leave wizard (confirmation takes over, or error was already shown)
     return ctx.scene.leave();

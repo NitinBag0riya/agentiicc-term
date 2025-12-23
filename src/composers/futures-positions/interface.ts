@@ -8,8 +8,7 @@ import { InlineKeyboardButton } from 'telegraf/types';
 import { BotContext } from '../../types/context';
 import { getRedis } from '../../db/redis';
 import { getPostgres } from '../../db/postgres';
-import { getAsterClientForUser } from '../../aster/helpers';
-import { AsterDexError } from '../../aster/client';
+import { UniversalApiClient } from '../../services/universalApi';
 import { cleanupButtonMessages, trackButtonMessage } from '../../utils/buttonCleanup';
 import { getFuturesTicker } from '../../services/priceCache.service';
 
@@ -18,7 +17,9 @@ import { getFuturesTicker } from '../../services/priceCache.service';
  */
 async function getOpenOrdersInfo(client: any, symbol: string) {
   try {
-    const openOrders = await client.getOpenOrders(symbol);
+    const ordersRes = await client.getOpenOrders(symbol);
+    if (!ordersRes.success) throw new Error(ordersRes.error);
+    const openOrders = ordersRes.data;
 
     // TP/SL orders are identified by closePosition=true OR reduceOnly=true
     const tpOrder = openOrders.find((o: any) =>
@@ -50,7 +51,8 @@ async function getOpenOrdersInfo(client: any, symbol: string) {
 export async function buildPositionInterface(ctx: BotContext, symbol: string, usePlaceholders = false) {
   const redis = getRedis();
   const db = getPostgres();
-  const client = await getAsterClientForUser(ctx.session.userId!, db, redis);
+  const client = new UniversalApiClient();
+  await client.initSession(ctx.session.userId!);
 
   // Get or initialize trading state with placeholders
   if (!ctx.session.tradingState) {
@@ -72,8 +74,10 @@ export async function buildPositionInterface(ctx: BotContext, symbol: string, us
     state.marginType = 'unknown' as any; // Signal to show (??) placeholder
   } else {
     // Fetch actual values from exchange
-    const positions = await client.getPositions();
-    const positionInfo = positions.find(p => p.symbol === symbol);
+    const positionsRes = await client.getPositions();
+    if (!positionsRes.success) throw new Error(positionsRes.error);
+    const positions = positionsRes.data;
+    const positionInfo = positions.find((p: any) => p.symbol === symbol);
 
     if (positionInfo) {
       // Sync session state with exchange state
@@ -82,7 +86,9 @@ export async function buildPositionInterface(ctx: BotContext, symbol: string, us
     }
   }
 
-  const position = usePlaceholders ? null : (await client.getPositions()).find(p => p.symbol === symbol && parseFloat(p.positionAmt) !== 0);
+  const positionsRes2 = await client.getPositions();
+  if (!positionsRes2.success) throw new Error(positionsRes2.error);
+  const position = usePlaceholders ? null : positionsRes2.data.find((p: any) => p.symbol === symbol && parseFloat(p.positionAmt) !== 0);
   const baseAsset = symbol.replace(/USDT$|USD$|BTC$|ETH$/, '');
 
   // Fetch orders once (used by both new and existing position views)
@@ -129,7 +135,7 @@ export async function buildPositionInterface(ctx: BotContext, symbol: string, us
 
     // First row: Order type, Leverage, and Margin type (if no open orders)
     const leverageLabel = state.leverage === -1 ? '(?x)' : `${state.leverage}x`;
-    const marginLabel = state.marginType === 'unknown'
+    const marginLabel = (state.marginType as any) === 'unknown'
       ? '(??)'
       : `🔄 ${state.marginType === 'cross' ? 'Cross' : 'Isolated'}`;
 
@@ -223,14 +229,14 @@ export async function buildPositionInterface(ctx: BotContext, symbol: string, us
   if (otherOrders.length > 0) {
     message += '\n━━━━━━━━━━━━━━━━━━━━━━\n';
     message += `📋 **Open Orders (${otherOrders.length})**\n\n`;
-    otherOrders.slice(0, 3).forEach((order, idx) => {
+    otherOrders.slice(0, 3).forEach((order: any, idx: number) => {
         const sideText = order.side === 'BUY' ? 'Buy' : 'Sell';
 
         // Format order type for readability
         // Note: "STOP" in Binance is actually "Stop-Limit" (has both trigger and execution price)
         let typeFormatted = order.type
           .split('_')
-          .map(word => word.charAt(0) + word.slice(1).toLowerCase())
+          .map((word: string) => word.charAt(0) + word.slice(1).toLowerCase())
           .join(' ');
 
         // Fix "Stop" to "Stop Limit" since it has an execution price
@@ -359,11 +365,15 @@ export async function buildPositionInterface(ctx: BotContext, symbol: string, us
 export async function buildTPSLButtons(ctx: BotContext, symbol: string): Promise<InlineKeyboardButton[][]> {
   const redis = getRedis();
   const db = getPostgres();
-  const client = await getAsterClientForUser(ctx.session.userId!, db, redis);
+  const client = new UniversalApiClient();
+  await client.initSession(ctx.session.userId!);
 
-  const openOrders = await client.getOpenOrders(symbol);
-  const tpOrder = openOrders.find(o => o.type === 'TAKE_PROFIT_MARKET');
-  const slOrder = openOrders.find(o => o.type === 'STOP_MARKET');
+  const ordersRes = await client.getOpenOrders(symbol);
+  if (!ordersRes.success) throw new Error(ordersRes.error);
+  const openOrders = ordersRes.data;
+
+  const tpOrder = openOrders.find((o: any) => o.type === 'TAKE_PROFIT_MARKET');
+  const slOrder = openOrders.find((o: any) => o.type === 'STOP_MARKET');
 
   const buttons = [];
 
@@ -445,16 +455,24 @@ export async function showPositionManagement(ctx: BotContext, symbol: string, ed
 
     if (edit && existingMessageId) {
       // Edit existing message with placeholders
-      await ctx.telegram.editMessageText(
-        ctx.chat!.id,
-        existingMessageId,
-        undefined,
-        placeholderMessage,
-        {
-          parse_mode: 'Markdown',
-          ...Markup.inlineKeyboard(placeholderButtons),
+      try {
+        await ctx.telegram.editMessageText(
+          ctx.chat!.id,
+          existingMessageId,
+          undefined,
+          placeholderMessage,
+          {
+            parse_mode: 'Markdown',
+            ...Markup.inlineKeyboard(placeholderButtons),
+          }
+        );
+      } catch (e: any) {
+        // Ignore "message is not modified" error
+        if (!e.description?.includes('message is not modified')) {
+          console.warn('[Position Management] Placeholder edit failed:', e.message);
+          // If message not found, we might need to send a new one, but for now just log
         }
-      );
+      }
       messageId = existingMessageId;
     } else {
       // Clean up old button messages first
@@ -487,22 +505,34 @@ export async function showPositionManagement(ctx: BotContext, symbol: string, ed
     const { message: actualMessage, buttons: actualButtons } = await buildPositionInterface(ctx, symbol, false);
 
     // Step 3: Update with actual data
-    await ctx.telegram.editMessageText(
-      ctx.chat!.id,
-      messageId,
-      undefined,
-      actualMessage,
-      {
-        parse_mode: 'Markdown',
-        ...Markup.inlineKeyboard(actualButtons),
-      }
-    );
+    try {
+        await ctx.telegram.editMessageText(
+        ctx.chat!.id,
+        messageId,
+        undefined,
+        actualMessage,
+        {
+            parse_mode: 'Markdown',
+            ...Markup.inlineKeyboard(actualButtons),
+        }
+        );
+    } catch (e: any) {
+         // Ignore "message is not modified" error
+        if (!e.description?.includes('message is not modified')) {
+             throw e; // Re-throw real errors
+        }
+    }
 
   } catch (error: unknown) {
     console.error('[Position Management] Error:', error);
 
+    // Check if error is "message is not modified" (if it bubbled up)
+    if (error instanceof Error && error.message.includes('message is not modified')) {
+        return; // Ignore
+    }
+
     let errorMessage = '❌ **Failed to Load Position**\n\n';
-    if (error instanceof AsterDexError) {
+    if (error instanceof Error) {
       errorMessage += error.message;
     } else {
       errorMessage += 'Unexpected error occurred.';

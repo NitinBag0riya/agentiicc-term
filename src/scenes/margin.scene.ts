@@ -9,7 +9,7 @@ import { getRedis } from '../db/redis';
 import { getPostgres } from '../db/postgres';
 import { UniversalApiClient } from '../services/universalApi';
 import { showConfirmation } from '../utils/confirmDialog';
-import type { AsterWriteOp } from '../aster/writeOps';
+import type { AsterWriteOp } from '../services/ops/types';
 import { cleanupButtonMessages, trackButtonMessage } from '../utils/buttonCleanup';
 import { showPositionManagement } from '../composers/futures-positions';
 

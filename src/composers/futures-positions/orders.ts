@@ -7,10 +7,9 @@ import { Composer, Markup } from 'telegraf';
 import { BotContext } from '../../types/context';
 import { getRedis } from '../../db/redis';
 import { getPostgres } from '../../db/postgres';
-import { getAsterClientForUser } from '../../aster/helpers';
-import { AsterDexError } from '../../aster/client';
+import { UniversalApiClient } from '../../services/universalApi';
 import { showConfirmation } from '../../utils/confirmDialog';
-import type { AsterWriteOp } from '../../aster/writeOps';
+import type { AsterWriteOp } from '../../services/ops/types';
 import { cleanupButtonMessages, trackButtonMessage } from '../../utils/buttonCleanup';
 
 /**
@@ -26,10 +25,13 @@ export function registerManageOrdersHandler(composer: Composer<BotContext>) {
     try {
       const redis = getRedis();
       const db = getPostgres();
-      const client = await getAsterClientForUser(ctx.session.userId, db, redis);
+      const client = new UniversalApiClient();
+      await client.initSession(ctx.session.userId);
 
       // Fetch open orders for this symbol
-      const openOrders = await client.getOpenOrders(symbol);
+      const ordersRes = await client.getOpenOrders(symbol);
+      if (!ordersRes.success) throw new Error(ordersRes.error);
+      const openOrders = ordersRes.data;
 
       // Store orders in session for index-based cancellation
       if (!ctx.session.tradingState) ctx.session.tradingState = {};
@@ -89,9 +91,14 @@ export function registerCancelAllOrdersHandler(composer: Composer<BotContext>) {
       const redis = getRedis();
 
       // Get current open orders count for metadata
+      // Get current open orders count for metadata
       const db = getPostgres();
-      const client = await getAsterClientForUser(ctx.session.userId, db, redis);
-      const openOrders = await client.getOpenOrders(symbol);
+      const client = new UniversalApiClient();
+      await client.initSession(ctx.session.userId);
+      
+      const ordersRes = await client.getOpenOrders(symbol);
+      if (!ordersRes.success) throw new Error(ordersRes.error);
+      const openOrders = ordersRes.data;
 
       // Build write operation
       const operation: AsterWriteOp = {
@@ -110,7 +117,7 @@ export function registerCancelAllOrdersHandler(composer: Composer<BotContext>) {
       console.error('[Cancel All Orders] Error:', error);
 
       let errorMessage = '❌ Failed to prepare cancellation';
-      if (error instanceof AsterDexError) {
+      if (error instanceof Error) {
         errorMessage += `\n\n${error.message}`;
       }
 

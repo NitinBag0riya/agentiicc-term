@@ -60,6 +60,7 @@ async function main() {
         console.log(`[Ngrok] 📡 Detected dynamic ngrok URL: ${ngrokUrl}`);
         webhookUrl = ngrokUrl;
         process.env.WEBHOOK_URL = ngrokUrl; // For fallback logic in bot.ts
+        process.env.MINI_APP_URL = `${ngrokUrl}/mini-app/index.html`;
       }
     }
 
@@ -116,7 +117,7 @@ async function main() {
     console.log(`🚀 Spawning Backend Service on port ${BACKEND_PORT}...`);
     
     // Spawn Bun process for the backend
-    const backendProcess = spawn('bun', ['run', 'src/server-bun.ts'], {
+    const backendProcess = spawn(process.argv[0], ['run', 'src/server-bun.ts'], {
         cwd: './agentiicc-term',
         env: { ...process.env, PORT: String(BACKEND_PORT) },
         stdio: 'inherit' // Pipe output to main console

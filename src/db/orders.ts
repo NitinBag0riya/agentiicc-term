@@ -9,7 +9,7 @@
  */
 
 import { Pool } from 'pg';
-import type { AsterWriteOp } from '../aster/writeOps';
+import type { AsterWriteOp } from '../services/ops/types';
 
 // ========== Types ==========
 

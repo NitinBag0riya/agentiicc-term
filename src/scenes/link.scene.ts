@@ -9,10 +9,7 @@
  */
 import { Scenes, Markup } from 'telegraf';
 import { BotContext } from '../types/context';
-import { getOrCreateUser, storeApiCredentials } from '../db/users';
-import { encrypt } from '../utils/encryption';
-import { getRedis } from '../db/redis';
-import { testApiCredentials } from '../aster/helpers';
+import { getOrCreateUser } from '../db/users';
 import { exitSceneToMenu } from '../utils/countdown';
 
 /**
@@ -271,7 +268,7 @@ export const linkScene = new Scenes.WizardScene<any>(
 );
 
 // ==================== Cancel Handler ====================
-linkScene.action('cancel_link', async (ctx) => {
+linkScene.action('cancel_link', async (ctx: any) => {
   await ctx.answerCbQuery();
 
   console.log('[LinkScene] ❌ User cancelled');

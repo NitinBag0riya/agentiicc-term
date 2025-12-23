@@ -8,8 +8,7 @@ import { Composer, Markup } from 'telegraf';
 import { BotContext } from '../../types/context';
 import { getRedis } from '../../db/redis';
 import { getPostgres } from '../../db/postgres';
-import { getAsterClientForUser } from '../../aster/helpers';
-import { AsterDexError } from '../../aster/client';
+import { UniversalApiClient } from '../../services/universalApi';
 import { fetchSpotData } from '../overview-menu.composer';
 
 export const spotAssetsComposer = new Composer<BotContext>();
@@ -42,7 +41,8 @@ spotAssetsComposer.action('balance', async (ctx) => {
   try {
     const redis = getRedis();
     const db = getPostgres();
-    const client = await getAsterClientForUser(ctx.session.userId, db, redis);
+    const client = new UniversalApiClient();
+    await client.initSession(ctx.session.userId);
 
     // Use the EXACT same function as overview, but with no limit (shows ALL assets)
     const spotData = await fetchSpotData(client, ctx); // No limit = show all
@@ -60,14 +60,8 @@ spotAssetsComposer.action('balance', async (ctx) => {
 
     let errorMessage = '❌ **Failed to Load Spot Assets**\n\n';
 
-    if (error instanceof AsterDexError) {
-      if (error.code === 'IP_BANNED') {
-        errorMessage += '🚫 IP banned by AsterDex.';
-      } else if (error.code === 'RATE_LIMITED') {
-        errorMessage += `⏰ ${error.message}`;
-      } else {
-        errorMessage += error.message;
-      }
+    if (error instanceof Error) {
+      errorMessage += error.message;
     } else {
       errorMessage += 'Unexpected error occurred.';
     }

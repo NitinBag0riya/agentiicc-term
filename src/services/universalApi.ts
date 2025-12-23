@@ -148,6 +148,20 @@ export class UniversalApiClient {
   }
 
   /**
+   * Get Multi-Assets Margin
+   */
+  public async getMultiAssetsMargin(exchange?: string): Promise<ApiResponse> {
+      return (await this.client.get('/account/multiAssetsMargin', { params: { exchange } })).data;
+  }
+
+  /**
+   * Set Multi-Assets Margin
+   */
+  public async setMultiAssetsMargin(multiAssetsMargin: boolean, exchange?: string): Promise<ApiResponse> {
+      return (await this.client.post('/account/multiAssetsMargin', { multiAssetsMargin, exchange })).data;
+  }
+
+  /**
    * Modify Position Margin
    */
   public async modifyPositionMargin(symbol: string, amount: string, type: any, exchange?: string): Promise<ApiResponse> {

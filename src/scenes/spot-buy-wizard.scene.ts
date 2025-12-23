@@ -12,7 +12,7 @@ import { showConfirmation } from '../utils/confirmDialog';
 import { getRedis } from '../db/redis';
 import { getPostgres } from '../db/postgres';
 import { UniversalApiClient } from '../services/universalApi';
-import type { AsterWriteOp } from '../aster/writeOps';
+import type { AsterWriteOp } from '../services/ops/types';
 import { cleanupButtonMessages, trackButtonMessage } from '../utils/buttonCleanup';
 
 // ========== Scene State Type ==========

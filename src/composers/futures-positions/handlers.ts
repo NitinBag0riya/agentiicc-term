@@ -7,12 +7,11 @@ import { Composer, Markup } from 'telegraf';
 import { BotContext } from '../../types/context';
 import { getRedis } from '../../db/redis';
 import { getPostgres } from '../../db/postgres';
-import { getAsterClientForUser } from '../../aster/helpers';
-import { AsterDexError } from '../../aster/client';
+import { UniversalApiClient } from '../../services/universalApi';
 import { buildPositionInterface, showPositionManagement } from './interface';
 import { fetchPerpData } from '../overview-menu.composer';
 import { cleanupButtonMessages, trackButtonMessage } from '../../utils/buttonCleanup';
-import type { AsterWriteOp } from '../../aster/writeOps';
+import type { AsterWriteOp } from '../../services/ops/types';
 
 /**
  * Positions handler - Shows all futures positions
@@ -43,7 +42,8 @@ export function registerPositionsListHandler(composer: Composer<BotContext>) {
     try {
       const redis = getRedis();
       const db = getPostgres();
-      const client = await getAsterClientForUser(ctx.session.userId, db, redis);
+      const client = new UniversalApiClient();
+      await client.initSession(ctx.session.userId);
 
       // Use the EXACT same function as overview, but with no limit (shows ALL positions)
       const perpData = await fetchPerpData(client, ctx); // No limit = show all
@@ -56,22 +56,11 @@ export function registerPositionsListHandler(composer: Composer<BotContext>) {
           [Markup.button.callback('« Back', 'refresh_overview')],
         ]),
       });
-    } catch (error: unknown) {
+    } catch (error: any) {
       console.error('[PositionsComposer] Error:', error);
 
       let errorMessage = '❌ **Failed to Load Positions**\n\n';
-
-      if (error instanceof AsterDexError) {
-        if (error.code === 'IP_BANNED') {
-          errorMessage += '🚫 IP banned by AsterDex.';
-        } else if (error.code === 'RATE_LIMITED') {
-          errorMessage += `⏰ ${error.message}`;
-        } else {
-          errorMessage += error.message;
-        }
-      } else {
-        errorMessage += 'Unexpected error occurred.';
-      }
+      errorMessage += error.message || 'Unexpected error occurred.';
 
       await ctx.editMessageText(errorMessage, {
         parse_mode: 'Markdown',
@@ -128,9 +117,12 @@ export function registerToggleMarginHandler(composer: Composer<BotContext>) {
 
     try {
       // Get current margin type and asset mode from exchange
-      const client = await getAsterClientForUser(ctx.session.userId, db, redis);
-      const positions = await client.getPositions();
-      const positionInfo = positions.find(p => p.symbol === symbol);
+      const client = new UniversalApiClient();
+      await client.initSession(ctx.session.userId);
+      const positionsRes = await client.getPositions();
+      if (!positionsRes.success) throw new Error(positionsRes.error);
+      const positions = positionsRes.data;
+      const positionInfo = positions.find((p: any) => p.symbol === symbol);
 
       // API returns lowercase (cross/isolated) but expects uppercase (CROSSED/ISOLATED) for params
       const apiMarginType = positionInfo?.marginType || 'cross'; // Keep as-is from API
@@ -139,7 +131,9 @@ export function registerToggleMarginHandler(composer: Composer<BotContext>) {
 
       // Check asset mode if switching to isolated
       if (newMarginType === 'ISOLATED') {
-        const assetMode = await client.getMultiAssetsMargin();
+        const assetModeRes = await client.getMultiAssetsMargin();
+        if (!assetModeRes.success) throw new Error(assetModeRes.error);
+        const assetMode = assetModeRes.data;
         if (assetMode.multiAssetsMargin === true) {
           // Multi-Asset Mode is enabled - need Single-Asset Mode for isolated
           await cleanupButtonMessages(ctx);
@@ -178,7 +172,7 @@ export function registerToggleMarginHandler(composer: Composer<BotContext>) {
 
       // Show confirmation
       const { showConfirmation } = await import('../../utils/confirmDialog');
-      const operationId = await showConfirmation(ctx, db, redis, ctx.session.userId, operation, client);
+      const operationId = await showConfirmation(ctx, db, redis, ctx.session.userId, operation);
 
       if (!operationId) {
         // Error was already handled in showConfirmation
@@ -255,9 +249,12 @@ export function registerSetLeverageHandler(composer: Composer<BotContext>) {
 
     try {
       // Get current leverage from exchange
-      const client = await getAsterClientForUser(ctx.session.userId, db, redis);
-      const positions = await client.getPositions();
-      const positionInfo = positions.find(p => p.symbol === symbol);
+      const client = new UniversalApiClient();
+      await client.initSession(ctx.session.userId);
+      const positionsRes = await client.getPositions();
+      if (!positionsRes.success) throw new Error(positionsRes.error);
+      const positions = positionsRes.data;
+      const positionInfo = positions.find((p: any) => p.symbol === symbol);
       const currentLeverage = positionInfo ? parseInt(positionInfo.leverage) : 5;
       const hasOpenPosition = positionInfo && parseFloat(positionInfo.positionAmt) !== 0;
 
@@ -291,9 +288,12 @@ export function registerLeverageCustomHandler(composer: Composer<BotContext>) {
 
     try {
       // Get current leverage from exchange
-      const client = await getAsterClientForUser(ctx.session.userId, db, redis);
-      const positions = await client.getPositions();
-      const positionInfo = positions.find(p => p.symbol === symbol);
+      const client = new UniversalApiClient();
+      await client.initSession(ctx.session.userId);
+      const positionsRes = await client.getPositions();
+      if (!positionsRes.success) throw new Error(positionsRes.error);
+      const positions = positionsRes.data;
+      const positionInfo = positions.find((p: any) => p.symbol === symbol);
       const currentLeverage = positionInfo ? parseInt(positionInfo.leverage) : 5;
       const hasOpenPosition = positionInfo && parseFloat(positionInfo.positionAmt) !== 0;
 

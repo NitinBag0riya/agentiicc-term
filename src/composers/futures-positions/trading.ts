@@ -8,7 +8,7 @@ import { Composer } from 'telegraf';
 import { BotContext } from '../../types/context';
 import { getRedis } from '../../db/redis';
 import { getPostgres } from '../../db/postgres';
-import { getAsterClientForUser } from '../../aster/helpers';
+import { UniversalApiClient } from '../../services/universalApi';
 
 /**
  * Ape with fixed amount ($50, $200) - Launch wizard with prefilled amount
@@ -201,9 +201,12 @@ export function registerCloseHandler(composer: Composer<BotContext>) {
     // SHORT (negative) → BUY to close
     const redis = getRedis();
     const db = getPostgres();
-    const client = await getAsterClientForUser(ctx.session.userId, db, redis);
-    const positions = await client.getPositions();
-    const position = positions.find(p => p.symbol === symbol && parseFloat(p.positionAmt) !== 0);
+    const client = new UniversalApiClient();
+    await client.initSession(ctx.session.userId);
+    const positionsRes = await client.getPositions();
+    if (!positionsRes.success) throw new Error(positionsRes.error);
+    const positions = positionsRes.data;
+    const position = positions.find((p: any) => p.symbol === symbol && parseFloat(p.positionAmt) !== 0);
 
     const closeSide = position && parseFloat(position.positionAmt) < 0 ? 'BUY' : 'SELL';
 

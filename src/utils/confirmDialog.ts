@@ -20,7 +20,7 @@ import {
   CreateOrderUIParamsSchema,
   getOperationDescription,
   getOperationRiskLevel,
-} from '../aster/writeOps';
+} from '../services/ops/types';
 import type { z } from 'zod';
 
 type CreateOrderUIParams = z.infer<typeof CreateOrderUIParamsSchema>;
@@ -30,7 +30,7 @@ import {
   cancelPendingOperation,
   getPendingOperation,
   QuantityTooSmallError,
-} from '../aster/writeEngine';
+} from '../services/ops/engine';
 import { buildPositionInterface } from '../composers/futures-positions/interface';
 import { cleanupButtonMessages, trackButtonMessage } from './buttonCleanup';
 
@@ -197,7 +197,7 @@ function getRiskWarning(riskLevel: 'low' | 'medium' | 'high'): string {
  * @returns Operation ID for use in confirm/cancel callbacks
  */
 export async function showConfirmation(
-  ctx: BotContext,
+  ctx: any,
   db: Pool,
   redis: Redis,
   userId: number,
@@ -316,7 +316,7 @@ ${details}${calculatedSection}${riskWarning ? `\n${riskWarning}` : ''}`;
  * Call this when user clicks "✅ Confirm"
  */
 export async function handleConfirm(
-  ctx: BotContext,
+  ctx: any,
   db: Pool,
   redis: Redis,
   operationId: string
@@ -351,7 +351,8 @@ export async function handleConfirm(
 
       // Extract returnTo from operation metadata (if wizard set it)
       const returnTo = (stored.operation as any).metadata?.returnTo as { messageId: number; chatId: number } | undefined;
-      const symbol = (stored.operation as any).params?.symbol as string | undefined;
+      const params = stored.operation.params as any;
+      const symbol = params.symbol as string | undefined;
 
       if (result.success) {
         // Success message
@@ -404,7 +405,7 @@ export async function handleConfirm(
           errorMessage: result.error,
           errorCode: result.errorCode,
           operation: stored.operation.operation,
-          symbol: stored.operation.params?.symbol,
+          symbol: (stored.operation.params as any)?.symbol,
           params: stored.operation.params,
           metadata: stored.operation.metadata,
           userId: stored.userId,
@@ -457,7 +458,7 @@ export async function handleConfirm(
         }
       }
     } else {
-      // Placeholder mode - show that confirmation works
+      // Placeholder mode
       let message = '⏳ **Operation Confirmed**\n\n';
       message += `**Action:** ${stored.description}\n`;
       message += `**Risk Level:** ${stored.riskLevel.toUpperCase()}\n\n`;
@@ -482,7 +483,7 @@ export async function handleConfirm(
  * Call this when user clicks "❌ Cancel"
  */
 export async function handleCancel(
-  ctx: BotContext,
+  ctx: any,
   db: Pool,
   redis: Redis,
   operationId: string
@@ -495,7 +496,8 @@ export async function handleCancel(
     // Get operation to extract returnTo context
     const stored = await getPendingOperation(redis, telegramId, operationId);
     const returnTo = (stored?.operation as any)?.metadata?.returnTo as { messageId: number; chatId: number } | undefined;
-    const symbol = (stored?.operation as any)?.params?.symbol as string | undefined;
+    const params = (stored?.operation as any)?.params;
+    const symbol = params?.symbol as string | undefined;
 
     // NEW: Mark operation as cancelled in database
     const { markOperationCancelled } = await import('../db/orders');
@@ -537,7 +539,7 @@ export async function handleCancel(
  * If error: shows error + keeps old values + keeps re-calc button with OLD operationId
  */
 export async function handleRecalc(
-  ctx: BotContext,
+  ctx: any,
   db: Pool,
   redis: Redis,
   operationId: string,
@@ -727,7 +729,7 @@ You can retry or confirm with the old calculated quantity.`;
  * 4. Show result
  */
 export async function confirmAndExecute(
-  ctx: BotContext,
+  ctx: any,
   db: Pool,
   redis: Redis,
   userId: number,
@@ -742,7 +744,7 @@ export async function confirmAndExecute(
  * Shows simplified confirmation with fewer details
  */
 export async function quickConfirm(
-  ctx: BotContext,
+  ctx: any,
   db: Pool,
   redis: Redis,
   userId: number,

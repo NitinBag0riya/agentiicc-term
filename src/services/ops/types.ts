@@ -10,7 +10,7 @@
  */
 
 import { z } from 'zod';
-import { formatQuantityForSymbol, formatPriceForSymbol } from '../utils/quantityFormatter';
+import { formatQuantityForSymbol, formatPriceForSymbol } from '../../utils/quantityFormatter';
 
 // ========== Base Schemas ==========
 

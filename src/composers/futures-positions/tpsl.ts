@@ -7,7 +7,7 @@ import { Composer, Markup } from 'telegraf';
 import { BotContext } from '../../types/context';
 import { getRedis } from '../../db/redis';
 import { getPostgres } from '../../db/postgres';
-import { getAsterClientForUser } from '../../aster/helpers';
+import { UniversalApiClient } from '../../services/universalApi';
 import { cleanupButtonMessages, trackButtonMessage } from '../../utils/buttonCleanup';
 
 /**
@@ -134,9 +134,11 @@ export function registerRemoveTPHandler(composer: Composer<BotContext>) {
     try {
       const redis = getRedis();
       const db = getPostgres();
-      const client = await getAsterClientForUser(ctx.session.userId, db, redis);
+      const client = new UniversalApiClient();
+      await client.initSession(ctx.session.userId);
 
-      await client.cancelOrder(symbol, orderId);
+      const res = await client.cancelOrder(orderId.toString(), symbol);
+      if (!res.success) throw new Error(res.error);
 
       await cleanupButtonMessages(ctx);
       const sentMessage = await ctx.reply(`✅ **Take Profit Removed - ${symbol}**`, {
@@ -170,9 +172,11 @@ export function registerRemoveSLHandler(composer: Composer<BotContext>) {
     try {
       const redis = getRedis();
       const db = getPostgres();
-      const client = await getAsterClientForUser(ctx.session.userId, db, redis);
+      const client = new UniversalApiClient();
+      await client.initSession(ctx.session.userId);
 
-      await client.cancelOrder(symbol, orderId);
+      const res = await client.cancelOrder(orderId.toString(), symbol);
+      if (!res.success) throw new Error(res.error);
 
       await cleanupButtonMessages(ctx);
       const sentMessage = await ctx.reply(`✅ **Stop Loss Removed - ${symbol}**`, {

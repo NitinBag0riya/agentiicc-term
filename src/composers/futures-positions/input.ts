@@ -8,9 +8,9 @@ import { Composer, Markup } from 'telegraf';
 import { BotContext } from '../../types/context';
 import { getRedis } from '../../db/redis';
 import { getPostgres } from '../../db/postgres';
-import { getAsterClientForUser } from '../../aster/helpers';
+import { UniversalApiClient } from '../../services/universalApi';
 import { showConfirmation } from '../../utils/confirmDialog';
-import type { AsterWriteOp } from '../../aster/writeOps';
+import type { AsterWriteOp } from '../../services/ops/types';
 import { showPositionManagement } from './interface';
 import { cleanupButtonMessages, trackButtonMessage } from '../../utils/buttonCleanup';
 
@@ -299,11 +299,13 @@ async function handleTPSLSetTP(ctx: BotContext, symbol: string, input: string, a
   try {
     const redis = getRedis();
     const db = getPostgres();
-    const client = await getAsterClientForUser(ctx.session.userId, db, redis);
+    const client = new UniversalApiClient();
+    await client.initSession(ctx.session.userId);
 
     // Get position
-    const positions = await client.getPositions();
-    const position = positions.find(p => p.symbol === symbol && parseFloat(p.positionAmt) !== 0);
+    const positionsRes = await client.getPositions();
+    if (!positionsRes.success) throw new Error(positionsRes.error);
+    const position = positionsRes.data.find((p: any) => p.symbol === symbol && parseFloat(p.positionAmt) !== 0);
 
     if (!position) {
       await cleanupButtonMessages(ctx);
@@ -333,10 +335,12 @@ async function handleTPSLSetTP(ctx: BotContext, symbol: string, input: string, a
 
     // If modifying, cancel existing TP order first (still immediate - just cleanup)
     if (action === 'tpsl_modify_tp') {
-      const openOrders = await client.getOpenOrders(symbol);
-      const tpOrder = openOrders.find(o => o.type === 'TAKE_PROFIT_MARKET');
-      if (tpOrder) {
-        await client.cancelOrder(symbol, tpOrder.orderId);
+      const openOrdersRes = await client.getOpenOrders(symbol);
+      if (openOrdersRes.success) {
+        const tpOrder = openOrdersRes.data.find((o: any) => o.type === 'TAKE_PROFIT_MARKET');
+        if (tpOrder) {
+          await client.cancelOrder(tpOrder.orderId.toString(), symbol);
+        }
       }
     }
 
@@ -426,11 +430,13 @@ async function handleTPSLSetSL(ctx: BotContext, symbol: string, input: string, a
   try {
     const redis = getRedis();
     const db = getPostgres();
-    const client = await getAsterClientForUser(ctx.session.userId, db, redis);
+    const client = new UniversalApiClient();
+    await client.initSession(ctx.session.userId);
 
     // Get position
-    const positions = await client.getPositions();
-    const position = positions.find(p => p.symbol === symbol && parseFloat(p.positionAmt) !== 0);
+    const positionsRes = await client.getPositions();
+    if (!positionsRes.success) throw new Error(positionsRes.error);
+    const position = positionsRes.data.find((p: any) => p.symbol === symbol && parseFloat(p.positionAmt) !== 0);
 
     if (!position) {
       await cleanupButtonMessages(ctx);
@@ -460,10 +466,12 @@ async function handleTPSLSetSL(ctx: BotContext, symbol: string, input: string, a
 
     // If modifying, cancel existing SL order first (still immediate - just cleanup)
     if (action === 'tpsl_modify_sl') {
-      const openOrders = await client.getOpenOrders(symbol);
-      const slOrder = openOrders.find(o => o.type === 'STOP_MARKET');
-      if (slOrder) {
-        await client.cancelOrder(symbol, slOrder.orderId);
+      const openOrdersRes = await client.getOpenOrders(symbol);
+      if (openOrdersRes.success) {
+        const slOrder = openOrdersRes.data.find((o: any) => o.type === 'STOP_MARKET');
+        if (slOrder) {
+          await client.cancelOrder(slOrder.orderId.toString(), symbol);
+        }
       }
     }
 
@@ -595,11 +603,13 @@ async function handleTPSLSetBoth(ctx: BotContext, symbol: string, input: string)
   try {
     const redis = getRedis();
     const db = getPostgres();
-    const client = await getAsterClientForUser(ctx.session.userId, db, redis);
+    const client = new UniversalApiClient();
+    await client.initSession(ctx.session.userId);
 
     // Get position
-    const positions = await client.getPositions();
-    const position = positions.find(p => p.symbol === symbol && parseFloat(p.positionAmt) !== 0);
+    const positionsRes = await client.getPositions();
+    if (!positionsRes.success) throw new Error(positionsRes.error);
+    const position = positionsRes.data.find((p: any) => p.symbol === symbol && parseFloat(p.positionAmt) !== 0);
 
     if (!position) {
       await cleanupButtonMessages(ctx);

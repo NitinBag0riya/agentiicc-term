@@ -19,7 +19,7 @@
 import { Redis } from 'ioredis';
 import { Pool } from 'pg';
 import { nanoid } from 'nanoid';
-import { UniversalApiClient } from '../services/universalApi';
+import { UniversalApiClient } from '../universalApi';
 import {
   type AsterWriteOp,
   type CreateOrderOp,
@@ -38,10 +38,10 @@ import {
   getOperationDescription,
   getOperationRiskLevel,
   transformUIParamsToAPI,
-} from './writeOps';
-import { pendingOpKey, setJSON, getJSON, deleteKeys } from '../utils/redisKeys';
-import { getFuturesPrice } from '../services/priceCache.service';
-import { formatQuantityForSymbol, getLotSizeFilter } from '../utils/quantityFormatter';
+} from './types';
+import { pendingOpKey, setJSON, getJSON, deleteKeys } from '../../utils/redisKeys';
+import { getFuturesPrice } from '../priceCache.service';
+import { formatQuantityForSymbol, getLotSizeFilter } from '../../utils/quantityFormatter';
 
 // ========== Constants ==========
 
@@ -457,10 +457,12 @@ async function executeSetMultiAssetsMargin(
       previousMode: op.metadata?.previousMode,
     });
 
-    // Mock success
+    const result = await client.setMultiAssetsMargin(op.params.multiAssetsMargin === 'true');
+    if (!result.success) throw new Error(result.error);
+
     return {
       success: true,
-      data: {},
+      data: result.data,
     };
   } catch (error: any) {
     throw error;
@@ -691,7 +693,7 @@ export async function prepareForConfirmation(
   const operationId = await storePendingOperation(redis, telegramId, userId, operation);
 
   // NEW: Save operation to database with user_confirm=false
-  const { createOperationRecord } = await import('../db/orders');
+  const { createOperationRecord } = await import('../../db/orders');
   await createOperationRecord(db, {
     operationId,
     userId,
