@@ -1504,10 +1504,15 @@ export function setupBot(bot: Telegraf<BotContext>): void {
     // Store matches in session for deep links
     const allMatches: Array<{ symbol: string; type: 'spot' | 'futures'; exchange: string }> = [];
 
-    // Get linked exchanges for grouping
+    // Get linked exchanges - only show the ACTIVE exchange or truly linked ones
     const { getLinkedExchanges } = await import('./db/users');
     const linkedExchanges = ctx.session.userId ? await getLinkedExchanges(ctx.session.userId) : [];
-    const exchangesToShow = linkedExchanges.length > 0 ? linkedExchanges : ['aster']; // Default to aster if none linked
+    
+    // Use ONLY the active exchange from session if set, otherwise use linked exchanges
+    const activeExchange = ctx.session.activeExchange;
+    const exchangesToShow = activeExchange 
+      ? [activeExchange] 
+      : (linkedExchanges.length > 0 ? linkedExchanges : ['aster']);
 
     for (const exchange of exchangesToShow) {
       const exchangeName = exchange === 'hyperliquid' ? 'Hyperliquid' : 'Aster DEX';
