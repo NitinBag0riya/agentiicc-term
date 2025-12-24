@@ -51,27 +51,46 @@ export class HyperliquidAdapter implements ExchangeAdapter {
 
   async getAccount(): Promise<AccountInfo> {
     try {
+      console.log(`[HyperliquidAdapter] Getting account for: ${this.accountAddress}`);
+      
+      // Validate address format
+      if (!this.accountAddress || !this.accountAddress.startsWith('0x') || this.accountAddress.length !== 42) {
+        throw new Error(`Invalid wallet address format: ${this.accountAddress}. Must be 0x + 40 hex chars.`);
+      }
+      
       const state = await this.sdk.info.perpetuals.getClearinghouseState(this.accountAddress);
-      const marginSummary = state.marginSummary;
+      
+      if (!state) {
+        throw new Error('No clearinghouse state returned - account may not exist');
+      }
+      
+      const marginSummary = state.marginSummary || { accountValue: '0' };
 
       return {
         exchange: 'hyperliquid',
         totalBalance: String(marginSummary.accountValue || '0'),
         availableBalance: String(state.withdrawable || '0'),
-        positions: state.assetPositions.map((p: any) => ({
+        positions: (state.assetPositions || []).map((p: any) => ({
           symbol: this.fromExchangeSymbol(p.position.coin),
           size: p.position.szi,
           entryPrice: p.position.entryPx,
           markPrice: p.position.positionValue,
           unrealizedPnl: p.position.unrealizedPnl,
           side: parseFloat(p.position.szi) > 0 ? 'LONG' : 'SHORT',
-          leverage: p.position.leverage.value.toString(),
+          leverage: p.position.leverage?.value?.toString() || '1',
           liquidationPrice: p.position.liquidationPx
         })),
         timestamp: Date.now()
       };
-    } catch (error) {
-      throw new Error(`Failed to fetch Hyperliquid account: ${error}`);
+    } catch (error: any) {
+      console.error('[HyperliquidAdapter] getAccount error:', error);
+      
+      // Check for common issues
+      if (error.message?.includes('deserialize')) {
+        throw new Error(`Invalid wallet address or Hyperliquid API issue. Check address format: ${this.accountAddress?.substring(0, 10)}...`);
+      }
+      
+      throw new Error(`Failed to fetch Hyperliquid account: ${error.message || error}`);
     }
   }
 
