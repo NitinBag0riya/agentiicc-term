@@ -307,9 +307,34 @@ export const linkScene = new Scenes.WizardScene<any>(
       ctx.session.isLinked = true;
       ctx.session.activeExchange = targetExchange;
 
-      console.log(`[LinkScene] ✅ Success! Showing menu...`);
+      console.log(`[LinkScene] ✅ Success! Checking return context...`);
 
-      // Show success and menu
+      // Check if we should return to search results
+      const returnToSearch = ctx.wizard.state.returnToSearch;
+      if (returnToSearch) {
+        console.log(`[LinkScene] Returning to search for: ${returnToSearch}`);
+        
+        // Get bot username for deep link
+        const botUsername = ctx.botInfo?.username || 'your_bot';
+        
+        // Show success with search prompt
+        await ctx.reply(
+          `✅ **${exchangeDisplay} Linked!**\n\n` +
+          `🔍 Search again for **${returnToSearch}** to start trading:\n\n` +
+          `Just type: \`${returnToSearch}\``,
+          { 
+            parse_mode: 'Markdown',
+            ...Markup.inlineKeyboard([
+              [Markup.button.callback(`🔍 Search "${returnToSearch}"`, `search:${returnToSearch}`)],
+              [Markup.button.callback('🏠 Go to Menu', 'menu')],
+            ]),
+          }
+        );
+        
+        return ctx.scene.leave();
+      }
+
+      // Default: Show success and menu
       await exitSceneToMenu(
         ctx,
         '✅ **API Successfully Linked!**\n\n' +

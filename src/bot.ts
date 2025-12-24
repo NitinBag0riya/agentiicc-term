@@ -400,10 +400,12 @@ export function setupBot(bot: Telegraf<BotContext>): void {
             { parse_mode: 'Markdown' }
           );
           
-          // Enter appropriate link scene
+          // Enter appropriate link scene with return context
+          // Extract base symbol (e.g., "BTC" from "BTCUSDT") for search return
+          const searchReturn = result.symbol.replace(/USDT$|USD$/, '');
           return ctx.scene.enter('link', { 
             targetExchange: result.exchange,
-            returnToTrade: true,
+            returnToSearch: searchReturn,
           });
         }
 
@@ -613,6 +615,78 @@ export function setupBot(bot: Telegraf<BotContext>): void {
         ]),
       }
     );
+  });
+
+  // ==================== Search Action Handler ====================
+  // Triggered when user clicks "Search X" button after linking
+  bot.action(/^search:(.+)$/, async (ctx) => {
+    await ctx.answerCbQuery('🔍 Searching...');
+    
+    const searchTerm = ctx.match[1].toUpperCase();
+    console.log(`[Search Action] Searching for: ${searchTerm}`);
+    
+    // Perform the search (same logic as text handler)
+    const spotSymbols = getSpotTradingSymbols();
+    const futuresSymbols = getFuturesTradingSymbols();
+    const matchingSpot = spotSymbols.filter(s => s.includes(searchTerm));
+    const matchingFutures = futuresSymbols.filter(s => s.includes(searchTerm));
+    
+    if (matchingSpot.length === 0 && matchingFutures.length === 0) {
+      await ctx.reply(
+        `🔍 **No symbols found for "${searchTerm}"**\n\nTry searching for:\n• Asset names: BTC, ETH, ASTER\n• Full symbols: BTCUSDT, ETHUSDT`,
+        { parse_mode: 'Markdown', ...Markup.inlineKeyboard([[Markup.button.callback('« Back to Menu', 'menu')]]) }
+      );
+      return;
+    }
+    
+    // Build results message
+    let message = `🔍 **Search Results for "${searchTerm}"**\n\n`;
+    const allMatches: Array<{ symbol: string; type: 'spot' | 'futures'; exchange: string }> = [];
+    
+    const { getLinkedExchanges } = await import('./db/users');
+    const linkedExchanges = ctx.session.userId ? await getLinkedExchanges(ctx.session.userId) : [];
+    const allExchanges = ['aster', 'hyperliquid'];
+    
+    for (const exchange of allExchanges) {
+      const exchangeName = exchange === 'hyperliquid' ? 'Hyperliquid' : 'Aster DEX';
+      const exchangeEmoji = exchange === 'hyperliquid' ? '🟢' : '⭐';
+      const isLinked = linkedExchanges.includes(exchange);
+      const linkStatus = isLinked ? '✅' : '🔗';
+      const exchangeSpot = exchange === 'aster' ? matchingSpot : [];
+      const exchangeFutures = matchingFutures;
+      
+      if (exchangeSpot.length === 0 && exchangeFutures.length === 0) continue;
+      
+      message += `${exchangeEmoji} **${exchangeName}** ${linkStatus}\n━━━━━━━━━━━━━━━━━━━━━━\n`;
+      
+      if (exchangeSpot.length > 0) {
+        message += '**💱 Spot:**\n';
+        exchangeSpot.slice(0, 5).forEach((symbol) => {
+          const idx = allMatches.length;
+          allMatches.push({ symbol, type: 'spot', exchange });
+          message += `• [${symbol}](${getBotDeepLink(`symbol-${idx}`)})\n`;
+        });
+      }
+      
+      if (exchangeFutures.length > 0) {
+        message += '**⚡ Futures:**\n';
+        exchangeFutures.slice(0, 5).forEach((symbol) => {
+          const idx = allMatches.length;
+          allMatches.push({ symbol, type: 'futures', exchange });
+          message += `• [${symbol}](${getBotDeepLink(`symbol-${idx}`)})\n`;
+        });
+      }
+      message += '\n';
+    }
+    
+    message += `_✅ = Linked, 🔗 = Click to link & trade_`;
+    ctx.session.searchResults = allMatches;
+    
+    await ctx.reply(message, {
+      parse_mode: 'Markdown',
+      link_preview_options: { is_disabled: true },
+      ...Markup.inlineKeyboard([[Markup.button.callback('« Back to Menu', 'menu')]]),
+    });
   });
 
   // Main menu - Send fresh /menu

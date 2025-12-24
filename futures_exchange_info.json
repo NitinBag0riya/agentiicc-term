@@ -1,6 +1,6 @@
 {
   "timezone": "UTC",
-  "serverTime": 1766601575109,
+  "serverTime": 1766601575672,
   "futuresType": "U_MARGINED",
   "rateLimits": [
     {
@@ -22512,7 +22512,7 @@
       "triggerProtect": "0.1000",
       "liquidationFee": "0.025000",
       "marketTakeBound": "0.20",
-      "createTime": 1766312791658,
+      "createTime": 1766312791659,
       "filters": [
         {
           "minPrice": "0.0001000",
@@ -22599,7 +22599,7 @@
       "triggerProtect": "0.1000",
       "liquidationFee": "0.025000",
       "marketTakeBound": "0.20",
-      "createTime": 1766312852871,
+      "createTime": 1766312852872,
       "filters": [
         {
           "minPrice": "0.0000100",
@@ -22860,7 +22860,7 @@
       "triggerProtect": "0.1000",
       "liquidationFee": "0.025000",
       "marketTakeBound": "0.20",
-      "createTime": 1766482880936,
+      "createTime": 1766482880937,
       "filters": [
         {
           "minPrice": "0.0000010",
@@ -23036,7 +23036,7 @@
       "triggerProtect": "0.1000",
       "liquidationFee": "0.025000",
       "marketTakeBound": "0.10",
-      "createTime": 1766574543625,
+      "createTime": 1766574543626,
       "filters": [
         {
           "minPrice": "0.0000100",
