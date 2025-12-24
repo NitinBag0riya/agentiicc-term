@@ -422,7 +422,41 @@ export async function showOverview(ctx: BotContext, editMessage = false, style: 
   try {
     const redis = getRedis();
     const db = getPostgres();
-    // Initialize Universal Client
+    
+    // Check if user has any linked exchanges FIRST
+    const linkedExchanges = await getLinkedExchanges(userId);
+    
+    if (linkedExchanges.length === 0) {
+      // User has no exchanges linked - show welcome screen
+      const welcomeMessage = `🏦 **Command Citadel**\n\n` +
+        `👋 Welcome! You haven't linked any exchange yet.\n\n` +
+        `🔗 **Link an exchange to get started:**\n\n` +
+        `• ⭐ **Aster DEX** - Fast & secure trading\n` +
+        `• 🟢 **Hyperliquid** - Advanced perpetuals\n\n` +
+        `_Click a button below to connect your account._`;
+      
+      const keyboard = Markup.inlineKeyboard([
+        [Markup.button.callback('⭐ Link Aster DEX', 'link_aster')],
+        [Markup.button.callback('🟢 Link Hyperliquid', 'link_hyperliquid')],
+        [Markup.button.callback('🔍 Search Symbols', 'search_prompt')],
+      ]);
+      
+      if (editMessage && ctx.callbackQuery?.message) {
+        await ctx.editMessageText(welcomeMessage, { 
+          parse_mode: 'Markdown',
+          ...keyboard 
+        });
+      } else {
+        const msg = await ctx.reply(welcomeMessage, { 
+          parse_mode: 'Markdown',
+          ...keyboard 
+        });
+        trackButtonMessage(ctx, msg.message_id);
+      }
+      return;
+    }
+    
+    // User has exchanges - proceed with session and data fetch
     const client = new UniversalApiClient();
     const isSessionInit = await client.initSession(userId);
     
@@ -430,9 +464,7 @@ export async function showOverview(ctx: BotContext, editMessage = false, style: 
         throw new Error('Failed to initialize session');
     }
 
-    // Get linked exchanges
-    const linkedExchanges = await getLinkedExchanges(userId);
-    // If no exchanges linked (shouldn't happen if isLinked is true, but fallback to aster)
+    // If no exchanges linked (shouldn't happen now, but fallback to aster)
     const exchangesToFetch = linkedExchanges.length > 0 ? linkedExchanges : ['aster'];
     
     console.log(`[Overview] Fetching data for: ${exchangesToFetch.join(', ')}`);

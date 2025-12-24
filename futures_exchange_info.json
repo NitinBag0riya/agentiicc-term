@@ -1,6 +1,6 @@
 {
   "timezone": "UTC",
-  "serverTime": 1766550381543,
+  "serverTime": 1766575295515,
   "futuresType": "U_MARGINED",
   "rateLimits": [
     {
@@ -22599,7 +22599,7 @@
       "triggerProtect": "0.1000",
       "liquidationFee": "0.025000",
       "marketTakeBound": "0.20",
-      "createTime": 1766312852872,
+      "createTime": 1766312852871,
       "filters": [
         {
           "minPrice": "0.0000100",
@@ -22860,7 +22860,7 @@
       "triggerProtect": "0.1000",
       "liquidationFee": "0.025000",
       "marketTakeBound": "0.20",
-      "createTime": 1766482880937,
+      "createTime": 1766482880936,
       "filters": [
         {
           "minPrice": "0.0000010",
@@ -22988,6 +22988,93 @@
           "multiplierDecimal": "4",
           "filterType": "PERCENT_PRICE",
           "ltMultiplierUp": "1.0500"
+        }
+      ],
+      "orderTypes": [
+        "LIMIT",
+        "MARKET",
+        "STOP",
+        "STOP_MARKET",
+        "TAKE_PROFIT",
+        "TAKE_PROFIT_MARKET",
+        "TRAILING_STOP_MARKET"
+      ],
+      "timeInForce": [
+        "GTC",
+        "IOC",
+        "FOK",
+        "GTX",
+        "RPI",
+        "HIDDEN"
+      ]
+    },
+    {
+      "symbol": "SENTISUSDT",
+      "pair": "SENTISUSDT",
+      "contractType": "PERPETUAL",
+      "deliveryDate": 4133404800000,
+      "onboardDate": 1766577600000,
+      "status": "TRADING",
+      "maintMarginPercent": "12.5000",
+      "requiredMarginPercent": "25.0000",
+      "baseAsset": "SENTIS",
+      "quoteAsset": "USDT",
+      "marginAsset": "USDT",
+      "pricePrecision": 7,
+      "quantityPrecision": 0,
+      "baseAssetPrecision": 8,
+      "quotePrecision": 8,
+      "underlyingType": "COIN",
+      "underlyingSubType": [],
+      "symbolType": 0,
+      "tradingMode": 0,
+      "name": "SentismAI",
+      "channel": "",
+      "sequenceNo": 0,
+      "twapMinNotional": "",
+      "settlePlan": 0,
+      "triggerProtect": "0.1000",
+      "liquidationFee": "0.025000",
+      "marketTakeBound": "0.10",
+      "createTime": 1766574543626,
+      "filters": [
+        {
+          "minPrice": "0.0000100",
+          "maxPrice": "200",
+          "filterType": "PRICE_FILTER",
+          "tickSize": "0.0000100"
+        },
+        {
+          "stepSize": "1",
+          "filterType": "LOT_SIZE",
+          "maxQty": "1000000",
+          "minQty": "1"
+        },
+        {
+          "stepSize": "1",
+          "filterType": "MARKET_LOT_SIZE",
+          "maxQty": "10000",
+          "minQty": "1"
+        },
+        {
+          "limit": 200,
+          "filterType": "MAX_NUM_ORDERS"
+        },
+        {
+          "limit": 10,
+          "filterType": "MAX_NUM_ALGO_ORDERS"
+        },
+        {
+          "notional": "5",
+          "filterType": "MIN_NOTIONAL"
+        },
+        {
+          "multiplierDown": "0.9000",
+          "multiplierUp": "1.1000",
+          "ltMultiplierDown": "0.9000",
+          "multiplierDecimal": "4",
+          "filterType": "PERCENT_PRICE",
+          "ltMultiplierUp": "1.1000"
         }
       ],
       "orderTypes": [
