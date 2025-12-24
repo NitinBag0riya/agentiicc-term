@@ -133,74 +133,66 @@ export async function showMenu(ctx: BotContext) {
  */
 function getHelpMessage(isLinked: boolean): string {
   const botFeatures =
-    '📚 **StableSolid Trading Bot Help**\n\n' +
-    '**🎯 Features:**\n\n' +
-    '**Trading:**\n' +
-    '• Market & Limit Orders\n' +
-    '• Take Profit & Stop Loss (TP/SL)\n' +
-    '• Spot & Futures Trading\n\n' +
-    '**Search:**\n' +
-    '• Type any symbol name and hit enter\n' +
-    '• Instantly view prices and open positions\n' +
-    '• Quick access to buy/sell\n\n' +
-    '**Position Management:**\n' +
-    '• Set leverage (1x-125x) per symbol\n' +
-    '• Toggle Isolated/Cross margin per symbol\n' +
-    '• Add/reduce isolated margin\n' +
-    '• Close positions (full or partial)\n\n' +
-    '**Account Settings:**\n' +
-    '• Multi-Asset Mode: Use multiple assets as margin\n' +
-    '• Single-Asset Mode: Use only USDT as margin\n\n' +
-    '**📖 Important Notes:**\n\n' +
-    '**Margin Types:**\n' +
-    '• **Cross Margin:** Uses full account balance as margin\n' +
-    '• **Isolated Margin:** Limits risk to position-specific margin\n\n' +
-    '**Isolated Margin Requirements:**\n' +
-    '⚠️ To use Isolated margin:\n' +
-    '1. Account must be in Single-Asset Mode\n' +
-    '2. Set via /menu → Settings → Asset Mode\n\n' +
-    '⚠️ To switch back to Multi-Asset Mode:\n' +
-    '1. All symbols must be set to Cross margin\n' +
-    '2. Required even with no open orders/positions\n' +
-    '3. This is an Aster DEX restriction\n\n' +
-    '**Per-Symbol Settings:**\n' +
-    '• Each symbol has its own leverage setting\n' +
-    '• Each symbol has its own margin type (Cross/Isolated)\n' +
-    '• Settings persist until you change them\n\n' +
-    '**📚 Learn More:**\n' +
-    '[Aster DEX Documentation](https://docs.asterdex.com/)\n' +
-    '[Leverage & Margin Guide](https://www.asterdex.com/en/futures/trading-rules/leverage-and-margin)\n' +
-    '[Margin Trading Guide](https://docs.asterdex.com/astherusex-orderbook-perp-guide/margin)\n' +
-    '[Hedge Mode Guide](https://docs.asterdex.com/product/aster-perpetual-pro/hedge-mode)\n\n';
+    '📚 **AgentiFi Trading Bot**\\n\\n' +
+    '**🔗 Supported Exchanges:**\\n' +
+    '• Aster DEX (Futures)\\n' +
+    '• Hyperliquid (Perps)\\n\\n' +
+    '━━━━━━━━━━━━━━━━━━━━━━\\n' +
+    '**🧭 Navigation:**\\n\\n' +
+    '`/menu` - Main Dashboard\\n' +
+    '`/positions` - View Open Positions\\n' +
+    '`/help` - This Help Guide\\n' +
+    '`/settings` - Account Settings\\n\\n' +
+    '**🔎 Quick Search:**\\n' +
+    'Type any symbol (e.g., `BTC`, `ETH`) to:\\n' +
+    '• View current price\\n' +
+    '• Open trading interface\\n\\n' +
+    '━━━━━━━━━━━━━━━━━━━━━━\\n' +
+    '**📈 Trading:**\\n\\n' +
+    '**Order Types:**\\n' +
+    '• Market Orders (Instant)\\n' +
+    '• Limit Orders (Set Price)\\n' +
+    '• TP/SL (Take Profit / Stop Loss)\\n\\n' +
+    '**Amount Entry:**\\n' +
+    '• Enter USD value (e.g., `$10`)\\n' +
+    '• Or use % buttons (25%, 50%, etc.)\\n\\n' +
+    '**Leverage:** 1x - 125x\\n' +
+    'Set via Position Details → ⚙️ Settings\\n\\n' +
+    '━━━━━━━━━━━━━━━━━━━━━━\\n' +
+    '**⚙️ Position Management:**\\n\\n' +
+    '• **Close Position:** % or Full\\n' +
+    '• **Manage Orders:** View/Cancel Open Orders\\n' +
+    '• **Adjust Margin:** Add/Reduce (Isolated Mode)\\n\\n' +
+    '━━━━━━━━━━━━━━━━━━━━━━\\n' +
+    '**💡 Tips:**\\n\\n' +
+    '• Switch exchanges via `/settings`\\n' +
+    '• Aster uses symbols like `BTCUSDT`\\n' +
+    '• Hyperliquid uses `BTC`, `ETH`\\n' +
+    '• Min order ~$5 USDT notional\\n\\n';
 
   if (isLinked) {
-    // LOGGED IN: Bot features at top, login instructions at bottom
     return (
       botFeatures +
-      '**🔧 Commands:**\n' +
-      '/menu - Open main menu\n' +
-      '/help - Show this help\n\n' +
-      '**🔗 Account Management:**\n' +
-      'To unlink your API: /menu → Settings → Unlink API'
+      '**🔧 Quick Commands:**\\n' +
+      '`/menu` - Dashboard\\n' +
+      '`/positions` - Positions\\n' +
+      '`/settings` - Settings\\n' +
+      '`/help` - Help\\n\\n' +
+      '🔗 _Linked to your exchange_'
     );
   } else {
-    // NOT LOGGED IN: Login instructions at top, bot features below
     return (
-      '📚 **StableSolid Trading Bot Help**\n\n' +
-      '**🔗 Getting Started (Choose One):**\n\n' +
-      '**Option 1: WalletConnect (Recommended)**\n' +
-      '1️⃣ Use /menu and click "Sign in via WalletConnect"\n' +
-      '2️⃣ Connect your wallet (MetaMask, Trust Wallet, etc.)\n' +
-      '3️⃣ Sign the message to create your API keys\n\n' +
-      '**Option 2: Manual API Key**\n' +
-      '1️⃣ Visit [Aster DEX API Management](https://www.asterdex.com/en/api-management)\n' +
-      '2️⃣ Create API Key & Secret with trading permissions\n' +
-      '3️⃣ Use /menu and click "Link via API Key"\n\n' +
-      '🔒 Your credentials are encrypted and stored securely\n\n' +
+      '📚 **AgentiFi Trading Bot**\\n\\n' +
+      '**🚀 Getting Started:**\\n\\n' +
+      '1️⃣ Use `/menu` to open the dashboard\\n' +
+      '2️⃣ Click **Link Account**\\n' +
+      '3️⃣ Choose your exchange (Aster or Hyperliquid)\\n' +
+      '4️⃣ Connect via WalletConnect or API Key\\n\\n' +
+      '🔒 Your credentials are encrypted securely\\n\\n' +
       botFeatures +
-      '**🔧 Commands:**\n' +
-      '/menu - Open main menu\n' +
-      '/help - Show this help'
+      '**🔧 Commands:**\\n' +
+      '`/menu` - Open Main Menu\\n' +
+      '`/help` - Show This Help'
     );
   }
 }
