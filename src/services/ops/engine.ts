@@ -543,6 +543,11 @@ export async function prepareForConfirmation(
         // Apply leverage: $10 margin with 5x leverage = $50 position value
         const leverage = op.metadata?.leverage || 1;
         const positionValue = parseFloat(op.params.quantityInUSD) * leverage;
+        
+        if (positionValue <= 0) {
+             throw new Error("Invalid quantity. Please enter a positive amount.");
+        }
+
         const rawQuantity = positionValue / price;
         
         console.log('[PrepareForConfirmation] Quantity calc:', {
@@ -647,6 +652,11 @@ export async function prepareForConfirmation(
         
         const accountInfo = accountRes.data;
         const availableBalance = parseFloat(accountInfo.availableBalance || '0');
+        
+        if (availableBalance <= 0) {
+             throw new Error(`Insufficient available balance (${availableBalance}) to open position.`);
+        }
+
         const percent = parseFloat(op.params.quantityAsPercent);
 
         // Get price (limit price if LIMIT order, otherwise market price)

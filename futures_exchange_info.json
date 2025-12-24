@@ -1,6 +1,6 @@
 {
   "timezone": "UTC",
-  "serverTime": 1766577301888,
+  "serverTime": 1766586600522,
   "futuresType": "U_MARGINED",
   "rateLimits": [
     {
@@ -11347,7 +11347,7 @@
         "STOCK"
       ],
       "symbolType": 1,
-      "tradingMode": 1,
+      "tradingMode": 0,
       "name": "Apple Inc.",
       "channel": "nasdaq",
       "sequenceNo": 0,
@@ -11436,7 +11436,7 @@
         "STOCK"
       ],
       "symbolType": 1,
-      "tradingMode": 1,
+      "tradingMode": 0,
       "name": "Tesla Inc.",
       "channel": "nasdaq",
       "sequenceNo": 0,
@@ -11525,7 +11525,7 @@
         "STOCK"
       ],
       "symbolType": 1,
-      "tradingMode": 1,
+      "tradingMode": 0,
       "name": "NVIDIA Corporation",
       "channel": "nasdaq",
       "sequenceNo": 0,
@@ -11614,7 +11614,7 @@
         "STOCK"
       ],
       "symbolType": 1,
-      "tradingMode": 1,
+      "tradingMode": 0,
       "name": "Amazon.com Inc.",
       "channel": "nasdaq",
       "sequenceNo": 0,
@@ -11703,7 +11703,7 @@
         "STOCK"
       ],
       "symbolType": 1,
-      "tradingMode": 1,
+      "tradingMode": 0,
       "name": "Meta Platforms Inc.",
       "channel": "nasdaq",
       "sequenceNo": 0,
@@ -11792,7 +11792,7 @@
         "STOCK"
       ],
       "symbolType": 1,
-      "tradingMode": 1,
+      "tradingMode": 0,
       "name": "Alphabet Inc.",
       "channel": "nasdaq",
       "sequenceNo": 0,
@@ -11881,7 +11881,7 @@
         "STOCK"
       ],
       "symbolType": 1,
-      "tradingMode": 1,
+      "tradingMode": 0,
       "name": "Microsoft Corporation",
       "channel": "nasdaq",
       "sequenceNo": 0,
@@ -12057,7 +12057,7 @@
         "STOCK"
       ],
       "symbolType": 1,
-      "tradingMode": 1,
+      "tradingMode": 0,
       "name": "Sharplink Gaming Inc.",
       "channel": "nasdaq",
       "sequenceNo": 0,
@@ -14843,7 +14843,7 @@
         "STOCK"
       ],
       "symbolType": 1,
-      "tradingMode": 1,
+      "tradingMode": 0,
       "name": "Invesco QQQ Trust",
       "channel": "nasdaq",
       "sequenceNo": 0,
