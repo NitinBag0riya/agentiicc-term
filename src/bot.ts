@@ -424,7 +424,7 @@ export function setupBot(bot: Telegraf<BotContext>): void {
           );
           
           // Enter appropriate link scene
-          return ctx.scene.enter('link-wizard', { 
+          return ctx.scene.enter('link', { 
             targetExchange: result.exchange,
             returnToTrade: true,
           });
