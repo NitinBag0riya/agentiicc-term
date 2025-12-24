@@ -521,20 +521,31 @@ export class HyperliquidAdapter implements ExchangeAdapter {
   }
 
   async getTicker(symbol: string): Promise<Ticker> {
-    // @ts-ignore
-    const mids = await this.sdk.info.getAllMids();
-    // mids is object { "BTC-PERP": "10000", ... }
-
-    const exSymbol = this.toExchangeSymbol(symbol);
-    return {
-      symbol,
-      price: mids[exSymbol] || '0',
-      change24h: '0',
-      volume24h: '0',
-      high24h: '0',
-      low24h: '0',
-      timestamp: Date.now()
-    };
+    try {
+      // Use direct API call as SDK returns different symbol format (e.g., "ETH-PERP" vs "ETH")
+      const response = await fetch('https://api.hyperliquid.xyz/info', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'allMids' })
+      });
+      
+      const mids = await response.json() as Record<string, string>;
+      const exSymbol = this.toExchangeSymbol(symbol); // Converts ETHUSDT -> ETH
+      const price = mids[exSymbol] || '0';
+      
+      return {
+        symbol,
+        price,
+        change24h: '0',
+        volume24h: '0',
+        high24h: '0',
+        low24h: '0',
+        timestamp: Date.now()
+      };
+    } catch (error: any) {
+      console.error('[HyperliquidAdapter] getTicker error:', error.message);
+      throw new Error(`Failed to fetch ticker: ${error.message}`);
+    }
   }
 
   async getAssets(): Promise<Asset[]> {
