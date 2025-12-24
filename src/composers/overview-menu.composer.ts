@@ -427,28 +427,32 @@ export async function showOverview(ctx: BotContext, editMessage = false, style: 
     const linkedExchanges = await getLinkedExchanges(userId);
     
     if (linkedExchanges.length === 0) {
-      // User has no exchanges linked - show welcome screen
+      // User has no exchanges linked - show welcome screen with inline links
+      const botUsername = ctx.botInfo?.username || 'My_Test_Tradeee_bot';
+      const asterLink = `https://t.me/${botUsername}?start=link_aster`;
+      const hyperliquidLink = `https://t.me/${botUsername}?start=link_hyperliquid`;
+      
       const welcomeMessage = `🏦 **Command Citadel**\n\n` +
         `👋 Welcome! You haven't linked any exchange yet.\n\n` +
         `🔗 **Link an exchange to get started:**\n\n` +
-        `• ⭐ **Aster DEX** - Fast & secure trading\n` +
-        `• 🟢 **Hyperliquid** - Advanced perpetuals\n\n` +
-        `_Click a button below to connect your account._`;
+        `• ⭐ **Aster DEX** - Fast & secure trading - [Link Now](${asterLink})\n` +
+        `• 🟢 **Hyperliquid** - Advanced perpetuals - [Link Now](${hyperliquidLink})\n\n` +
+        `_Use /help for assistance._`;
       
       const keyboard = Markup.inlineKeyboard([
-        [Markup.button.callback('⭐ Link Aster DEX', 'link_aster')],
-        [Markup.button.callback('🟢 Link Hyperliquid', 'link_hyperliquid')],
-        [Markup.button.callback('🔍 Search Symbols', 'search_prompt')],
+        [Markup.button.callback('❓ Help', 'help')],
       ]);
       
       if (editMessage && ctx.callbackQuery?.message) {
         await ctx.editMessageText(welcomeMessage, { 
           parse_mode: 'Markdown',
+          link_preview_options: { is_disabled: true },
           ...keyboard 
         });
       } else {
         const msg = await ctx.reply(welcomeMessage, { 
           parse_mode: 'Markdown',
+          link_preview_options: { is_disabled: true },
           ...keyboard 
         });
         trackButtonMessage(ctx, msg.message_id);
