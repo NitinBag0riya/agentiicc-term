@@ -21,11 +21,15 @@ export const linkScene = new Scenes.WizardScene<any>(
   // ==================== STEP 1: Ask for API Key ====================
   async (ctx) => {
     console.log('[LinkScene] Step 1: Asking for API key');
+    console.log('[LinkScene] Scene state:', JSON.stringify(ctx.scene.state));
 
-    // Get target exchange
-    const state = ctx.scene.state as { targetExchange?: string };
+    // Get target exchange and return context
+    const state = ctx.scene.state as { targetExchange?: string; returnToSearch?: string };
     const targetExchange = state.targetExchange || 'aster';
+    const returnToSearch = state.returnToSearch;
+    
     ctx.wizard.state.targetExchange = targetExchange;
+    ctx.wizard.state.returnToSearch = returnToSearch; // Persist return context
     // Explicitly persist to scene session state
     ctx.scene.session.state.targetExchange = targetExchange;
 
