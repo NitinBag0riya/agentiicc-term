@@ -51,17 +51,28 @@ export const linkScene = new Scenes.WizardScene<any>(
     const labelSecret = targetExchange === 'hyperliquid' ? 'API Wallet Private Key' : 'API Secret';
 
     // Send initial message
+    // Construct Web App URL with start param
+    const appUrl = process.env.MINI_APP_URL || '';
+    const param = `link_${targetExchange}`;
+    // Ensure URL has query param for start_param (handled by app.js)
+    const finalUrl = appUrl.includes('?') 
+        ? `${appUrl}&start_param=${param}` 
+        : `${appUrl}?start_param=${param}`;
+
     const message = await ctx.reply(
       `🔗 **Link Your ${exchangeDisplay} API**\n\n` +
-      `**Step 1 of 2 (v2):** Send your ${labelKey}\n\n` +
-      '📝 How to get your API credentials:\n' +
+      `**Option 1:** Connect via Wallet (Recommended)\n` +
+      `**Option 2:** Send your ${labelKey} manually below.\n\n` +
+      `**Step 1:** Send your ${labelKey}\n\n` +
+      '📝 How to get manual credentials:\n' +
       `${instructions}\n` +
       '⚠️ **IMPORTANT**: Use **REAL (Mainnet)** API credentials. Testnet keys may fail validation.\n\n' +
-      `⚠️ **4. Copy both ${labelKey} and ${labelSecret} before proceeding!**\n\n` +
+      `⚠️ **Copy both ${labelKey} and ${labelSecret} before proceeding!**\n\n` +
       '🔒 Your credentials are encrypted before storage.',
       {
         parse_mode: 'Markdown',
         ...Markup.inlineKeyboard([
+          [Markup.button.webApp('🌐 Connect Wallet', finalUrl)],
           [Markup.button.callback('❌ Cancel', 'cancel_link')],
         ]),
       }

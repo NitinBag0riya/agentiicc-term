@@ -134,6 +134,22 @@ function setupTelegramDeepLinks() {
 // Initialize deep link handling
 setupTelegramDeepLinks();
 
+// Handle Deep Link Params for Auto-Selection
+function handleStartParams() {
+    const urlParams = new URLSearchParams(window.location.search);
+    const startParam = tg.initDataUnsafe?.start_param || urlParams.get('start_param') || urlParams.get('startapp');
+    console.log('[TG] Start Param:', startParam);
+    
+    if (startParam === 'link_hyperliquid') {
+        const rad = document.querySelector('input[name="exchange"][value="hyperliquid"]');
+        if (rad) rad.checked = true;
+    } else if (startParam === 'link_aster') {
+         const rad = document.querySelector('input[name="exchange"][value="aster"]');
+        if (rad) rad.checked = true;       
+    }
+}
+handleStartParams();
+
 // Connect wallet and create API key
 async function connectWalletAndCreateApiKey() {
   try {
@@ -247,33 +263,47 @@ async function connectWalletAndCreateApiKey() {
     // Small delay to show success message
     await new Promise(resolve => setTimeout(resolve, 500));
 
-    // Get nonce from Aster API
-    updateLoadingText('Getting authentication nonce...');
-    console.log('[API] Fetching nonce from Aster...');
+    // Get Selected Exchange
+    const exchange = document.querySelector('input[name="exchange"]:checked')?.value || 'aster';
+    console.log('[App] Selected Exchange:', exchange);
 
-    const nonceResponse = await fetch('/tgma/get-nonce', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        walletAddress
-      })
-    });
+    let nonce;
+    let message;
 
-    if (!nonceResponse.ok) {
-      const errorData = await nonceResponse.json().catch(() => ({}));
-      throw new Error(errorData.error || `Failed to get nonce: ${nonceResponse.status}`);
+    if (exchange === 'aster') {
+        // Get nonce from Aster API
+        updateLoadingText('Getting authentication nonce...');
+        console.log('[API] Fetching nonce from Aster...');
+
+        const nonceResponse = await fetch('/tgma/get-nonce', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            walletAddress
+          })
+        });
+
+        if (!nonceResponse.ok) {
+          const errorData = await nonceResponse.json().catch(() => ({}));
+          throw new Error(errorData.error || `Failed to get nonce: ${nonceResponse.status}`);
+        }
+
+        const data = await nonceResponse.json();
+        nonce = data.nonce;
+        console.log('[API] Got nonce from Aster:', nonce);
+        message = `You are signing into Astherus ${nonce}`;
+    } else {
+        // Hyperliquid
+        nonce = Date.now().toString();
+        message = `Link Hyperliquid Account ${nonce}`;
+        console.log('[App] Generated nonce for Hyperliquid:', nonce);
     }
-
-    const { nonce } = await nonceResponse.json();
-    console.log('[API] Got nonce from Aster:', nonce);
-
+    
     // Create signature
     updateLoadingText('Please sign the message in your wallet...');
-    console.log('[Wallet] Requesting signature with nonce:', nonce);
-
-    const message = `You are signing into Astherus ${nonce}`;
+    console.log('[Wallet] Requesting signature...');
 
     const signature = await withTimeout(
       signer.signMessage(message),
@@ -299,6 +329,7 @@ async function connectWalletAndCreateApiKey() {
         signature,
         nonce,
         tgInitData: tg.initData, // Telegram auth data
+        exchange, // Pass selected exchange
       })
     });
 

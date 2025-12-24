@@ -86,9 +86,9 @@ function verifyTelegramWebAppData(
  */
 router.post('/create-api-key', async (req, res) => {
   try {
-    const { walletAddress, signature, nonce, tgInitData } = req.body;
+    const { walletAddress, signature, nonce, tgInitData, exchange = 'aster' } = req.body;
 
-    console.log('[TGMA] Received create-api-key request');
+    console.log('[TGMA] Received create-api-key request', { exchange });
 
     // Validate required fields
     if (!walletAddress || !signature || !nonce || !tgInitData) {
@@ -115,57 +115,90 @@ router.post('/create-api-key', async (req, res) => {
       wallet: walletAddress.slice(0, 6) + '...' + walletAddress.slice(-4)
     });
 
-    // Note: Nonce validation is handled by Aster API
-    // The nonce is a counter/random number from Aster, not a timestamp
-    console.log('[TGMA] Using nonce from Aster:', nonce);
+    let apiKey = '';
+    let apiSecret = '';
 
-    // Call Aster DEX API to create API keys
-    console.log('[TGMA] Calling Aster API to create keys...');
-    console.log('[TGMA] Using nonce/timestamp:', nonce);
-    console.log('[TGMA] Signature:', signature.slice(0, 20) + '...');
-    console.log('[TGMA] Wallet:', walletAddress);
+    if (exchange === 'aster') {
+        // Note: Nonce validation is handled by Aster API
+        // The nonce is a counter/random number from Aster, not a timestamp
+        console.log('[TGMA] Using nonce from Aster:', nonce);
 
-    // Generate a unique desc (max 20 chars)
-    // Format: TG_{last 6 digits of telegram ID}_{random 6 digits}
-    const shortId = telegramUserId.toString().slice(-6);
-    const random = Math.floor(Math.random() * 1000000).toString().padStart(6, '0');
-    const desc = `TG_${shortId}_${random}`; // e.g., TG_461047_123456 (17 chars)
+        // Call Aster DEX API to create API keys
+        console.log('[TGMA] Calling Aster API to create keys...');
+        console.log('[TGMA] Using nonce/timestamp:', nonce);
+        console.log('[TGMA] Signature:', signature.slice(0, 20) + '...');
+        console.log('[TGMA] Wallet:', walletAddress);
 
-    console.log('[TGMA] Generated desc:', desc, `(${desc.length} chars)`);
+        // Generate a unique desc (max 20 chars)
+        // Format: TG_{last 6 digits of telegram ID}_{random 6 digits}
+        const shortId = telegramUserId.toString().slice(-6);
+        const random = Math.floor(Math.random() * 1000000).toString().padStart(6, '0');
+        const desc = `TG_${shortId}_${random}`; // e.g., TG_461047_123456 (17 chars)
 
-    const asterResponse = await fetch('https://sapi.asterdex.com/api/v1/createApiKey', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-      },
-      body: new URLSearchParams({
-        address: walletAddress,
-        userOperationType: 'CREATE_API_KEY',
-        userSignature: signature,
-        desc: desc,
-        timestamp: nonce.toString(),
-      })
-    });
+        console.log('[TGMA] Generated desc:', desc, `(${desc.length} chars)`);
 
-    if (!asterResponse.ok) {
-      const errorText = await asterResponse.text();
-      console.error('[TGMA] Aster API error:', errorText);
-      console.error('[TGMA] Request details:', {
-        address: walletAddress,
-        userOperationType: 'CREATE_API_KEY',
-        timestamp: nonce,
-        signatureLength: signature.length,
-      });
-      return res.status(500).json({
-        error: 'Failed to create API key on Aster DEX',
-        details: errorText
-      });
+        const asterResponse = await fetch('https://sapi.asterdex.com/api/v1/createApiKey', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+          },
+          body: new URLSearchParams({
+            address: walletAddress,
+            userOperationType: 'CREATE_API_KEY',
+            userSignature: signature,
+            desc: desc,
+            timestamp: nonce.toString(),
+          })
+        });
+
+        if (!asterResponse.ok) {
+          const errorText = await asterResponse.text();
+          console.error('[TGMA] Aster API error:', errorText);
+          console.error('[TGMA] Request details:', {
+            address: walletAddress,
+            userOperationType: 'CREATE_API_KEY',
+            timestamp: nonce,
+            signatureLength: signature.length,
+          });
+          return res.status(500).json({
+            error: 'Failed to create API key on Aster DEX',
+            details: errorText
+          });
+        }
+
+        const asterData = await asterResponse.json();
+        apiKey = asterData.apiKey;
+        apiSecret = asterData.apiSecret;
+    } else if (exchange === 'hyperliquid') {
+        console.log('[TGMA] Linking Hyperliquid Wallet...');
+        // Verify Signature
+        // Message format must match what frontend signs: `Link Account ${nonce}`
+        const message = `Link Hyperliquid Account ${nonce}`;
+        
+        try {
+            const { ethers } = await import('ethers');
+            const recoveredAddress = ethers.verifyMessage(message, signature);
+            
+            if (recoveredAddress.toLowerCase() !== walletAddress.toLowerCase()) {
+                console.error('[TGMA] Signature Mismatch:', { recovered: recoveredAddress, expected: walletAddress });
+                return res.status(401).json({ error: 'Invalid Signature' });
+            }
+            
+            // Treat as Linked (Address + Placeholder Secret)
+            // TODO: For full trading, we need Agent Private Key. 
+            // For now, linking Main Address implies "View Only" or "User needs to config Agent later".
+            apiKey = walletAddress;
+            apiSecret = 'WATCH_ONLY'; 
+            
+        } catch (err: any) {
+             console.error('[TGMA] Signature Verification Failed:', err);
+             return res.status(400).json({ error: 'Signature Verification Failed' });
+        }
+    } else {
+        return res.status(400).json({ error: 'Invalid exchange parameter' });
     }
 
-    const asterData = await asterResponse.json();
-    const { apiKey, apiSecret } = asterData;
-
-    console.log('[TGMA] ✅ API keys created from Aster:', {
+    console.log(`[TGMA] ✅ Credentials prepared for ${exchange}:`, {
       apiKey: `${apiKey.slice(0, 8)}...`,
       walletAddress: walletAddress.slice(0, 6) + '...' + walletAddress.slice(-4)
     });
@@ -182,7 +215,7 @@ router.post('/create-api-key', async (req, res) => {
     const encryptedSecret = encrypt(apiSecret);
 
     // Store in database
-    await storeApiCredentials(user.id, encryptedKey, encryptedSecret, false);
+    await storeApiCredentials(user.id, encryptedKey, encryptedSecret, false, exchange);
 
     console.log('[TGMA] ✅ Credentials stored for user', user.id);
 

@@ -702,6 +702,7 @@ export function setupBot(bot: Telegraf<BotContext>): void {
 
     // 3. Standard Settings
     buttons.push(
+      [Markup.button.callback('👥 My Referrals', 'referrals')],
       [Markup.button.callback('💰 Asset Mode', 'settings_asset_mode')],
       [Markup.button.callback('👤 Profile', 'settings_profile')],
       [Markup.button.callback('🔌 Disconnect Exchange', 'settings_unlink')],

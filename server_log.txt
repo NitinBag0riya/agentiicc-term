@@ -84,3 +84,19 @@ error: Failed to place Aster order: Error: Aster API Error: 400 - {"code":-1111,
 [PriceCache] ✅ Fetched spot prices via HTTP (39 symbols)
 [AsterAdapter] Canceling all orders for: BTCUSDT
 [AsterAdapter] Cancel all response: {"code":200,"msg":"The operation of cancel all open order is done."}
+
+📡 Shutting down gracefully...
+[ExchangeInfo] 🛑 Service stopped
+[PriceCache] 🛑 Service stopped
+❌ Unhandled Rejection: 213 |     stop(reason = 'unspecified') {
+214 |         var _a, _b;
+215 |         debug('Stopping bot... Reason:', reason);
+216 |         // https://github.com/telegraf/telegraf/pull/1224#issuecomment-742693770
+217 |         if (this.polling === undefined && this.webhookServer === undefined) {
+218 |             throw new Error('Bot is not running!');
+                            ^
+error: Bot is not running!
+      at stop (/Users/nitinbagoriya/Downloads/Archive/node_modules/telegraf/lib/telegraf.js:218:23)
+      at <anonymous> (/Users/nitinbagoriya/Downloads/Archive/src/main.ts:184:17)
+      at shutdown (/Users/nitinbagoriya/Downloads/Archive/src/main.ts:180:22)
+
