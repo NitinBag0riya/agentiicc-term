@@ -92,14 +92,8 @@ export async function storePendingOperation(
   userId: number,
   operation: AsterWriteOp
 ): Promise<string> {
-  // Debug: Log incoming operation metadata
-  console.log('[StorePending] 📥 Incoming operation metadata:', JSON.stringify((operation as any).metadata));
-  
   // Validate operation first
   const validated = validateWriteOp(operation);
-  
-  // Debug: Log validated operation metadata
-  console.log('[StorePending] ✅ Validated operation metadata:', JSON.stringify((validated as any).metadata));
 
   // Generate unique operation ID (8 chars, URL-safe)
   const operationId = nanoid(8);
@@ -254,15 +248,6 @@ async function executeCreateOrder(
     // Transform UI params to API params (should be mostly pass-through now)
     const apiParams = transformUIParamsToAPI(op.params, {});
 
-    console.log('[WriteEngine] 📤 Sending CREATE_ORDER:', {
-      ...apiParams,
-      note: 'Using confirmed quantity (locked in at confirmation time)',
-    });
-
-    // Debug: Log metadata and exchange
-    console.log('[WriteEngine] 📋 Metadata:', JSON.stringify(op.metadata));
-    console.log('[WriteEngine] 🔄 Exchange:', op.metadata?.exchange || 'aster (fallback)');
-
     // Execute order with API params - use exchange from metadata
     const result = await client.placeOrder({
       ...apiParams,
@@ -408,12 +393,6 @@ async function executeSetLeverage(
   op: SetLeverageOp
 ): Promise<ExecutionResult> {
   try {
-    console.log('[WriteEngine] 📤 Setting leverage:', {
-      symbol: op.params.symbol,
-      leverage: op.params.leverage,
-      previousLeverage: op.metadata?.previousLeverage,
-    });
-
     const result = await client.setLeverage(op.params.symbol, op.params.leverage);
     if (!result.success) throw new Error(result.error);
 
@@ -435,12 +414,6 @@ async function executeSetMarginType(
   op: SetMarginTypeOp
 ): Promise<ExecutionResult> {
   try {
-    console.log('[WriteEngine] 📤 Setting margin type:', {
-      symbol: op.params.symbol,
-      marginType: op.params.marginType,
-      previousMarginType: op.metadata?.previousMarginType,
-    });
-
     const result = await client.setMarginMode(op.params.symbol, op.params.marginType);
     if (!result.success) throw new Error(result.error);
 
@@ -462,11 +435,6 @@ async function executeSetMultiAssetsMargin(
   op: SetMultiAssetsMarginOp
 ): Promise<ExecutionResult> {
   try {
-    console.log('[WriteEngine] 📤 Setting multi-assets margin (Not supported):', {
-      multiAssetsMargin: op.params.multiAssetsMargin,
-      previousMode: op.metadata?.previousMode,
-    });
-
     const result = await client.setMultiAssetsMargin(op.params.multiAssetsMargin === 'true');
     if (!result.success) throw new Error(result.error);
 
@@ -488,13 +456,6 @@ async function executeModifyIsolatedMargin(
   op: ModifyIsolatedMarginOp
 ): Promise<ExecutionResult> {
   try {
-    console.log('[WriteEngine] 📤 Modifying isolated margin:', {
-      symbol: op.params.symbol,
-      amount: op.params.amount,
-      type: op.params.type === '1' ? 'ADD' : 'REDUCE',
-      positionSide: op.params.positionSide,
-    });
-
     const result = await client.modifyPositionMargin(
       op.params.symbol,
       op.params.amount,
@@ -895,8 +856,7 @@ async function executeCreateSpotOrder(
     delete finalParams.quantityInUSD;
     delete finalParams.quantityAsPercent;
 
-    // Simplified for brevity, assume result mapping
-    console.log('[WriteEngine] 📤 Sending CREATE_SPOT_ORDER:', { ...finalParams });
+    // Execute spot order
     const result = await client.placeOrder({ ...finalParams, exchange: operation.metadata?.exchange || 'aster' });
     if (!result.success) throw new Error(result.error);
 
