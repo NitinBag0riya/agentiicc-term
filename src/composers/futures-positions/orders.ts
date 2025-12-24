@@ -26,10 +26,10 @@ export function registerManageOrdersHandler(composer: Composer<BotContext>) {
       const redis = getRedis();
       const db = getPostgres();
       const client = new UniversalApiClient();
-      await client.initSession(ctx.session.userId);
+      await client.initSession(ctx.session.userId, ctx.session.activeExchange);
 
       // Fetch open orders for this symbol
-      const ordersRes = await client.getOpenOrders(symbol);
+      const ordersRes = await client.getOpenOrders(symbol, ctx.session.activeExchange);
       if (!ordersRes.success) throw new Error(ordersRes.error);
       const openOrders = ordersRes.data;
 
@@ -94,9 +94,9 @@ export function registerCancelAllOrdersHandler(composer: Composer<BotContext>) {
       // Get current open orders count for metadata
       const db = getPostgres();
       const client = new UniversalApiClient();
-      await client.initSession(ctx.session.userId);
+      await client.initSession(ctx.session.userId, ctx.session.activeExchange);
       
-      const ordersRes = await client.getOpenOrders(symbol);
+      const ordersRes = await client.getOpenOrders(symbol, ctx.session.activeExchange);
       if (!ordersRes.success) throw new Error(ordersRes.error);
       const openOrders = ordersRes.data;
 
@@ -105,6 +105,7 @@ export function registerCancelAllOrdersHandler(composer: Composer<BotContext>) {
         operation: 'CANCEL_ALL_ORDERS',
         params: {
           symbol,
+          exchange: ctx.session.activeExchange,
         },
         metadata: {
           orderCount: openOrders.length,

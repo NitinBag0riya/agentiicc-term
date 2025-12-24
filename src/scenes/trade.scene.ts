@@ -182,6 +182,8 @@ export const marketOrderScene = new Scenes.WizardScene<BotContext>(
         symbol: state.symbol,
         side: state.side,
         type: 'MARKET',
+        // @ts-ignore
+        exchange: ctx.session.activeExchange || 'aster',
         ...quantityParams,
       },
       metadata: {
@@ -408,6 +410,8 @@ export const limitOrderScene = new Scenes.WizardScene<BotContext>(
         side: state.side,
         type: 'LIMIT',
         price: price.toString(),
+        // @ts-ignore
+        exchange: ctx.session.activeExchange || 'aster',
         ...quantityParams,
       },
       metadata: {

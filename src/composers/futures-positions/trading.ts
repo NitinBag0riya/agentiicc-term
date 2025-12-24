@@ -202,8 +202,8 @@ export function registerCloseHandler(composer: Composer<BotContext>) {
     const redis = getRedis();
     const db = getPostgres();
     const client = new UniversalApiClient();
-    await client.initSession(ctx.session.userId);
-    const positionsRes = await client.getPositions();
+    await client.initSession(ctx.session.userId, ctx.session.activeExchange);
+    const positionsRes = await client.getPositions(ctx.session.activeExchange);
     if (!positionsRes.success) throw new Error(positionsRes.error);
     const positions = positionsRes.data;
     const position = positions.find((p: any) => p.symbol === symbol && parseFloat(p.positionAmt) !== 0);

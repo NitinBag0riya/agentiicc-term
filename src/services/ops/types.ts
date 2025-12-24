@@ -42,6 +42,7 @@ const WorkingTypeSchema = z.enum(['MARK_PRICE', 'CONTRACT_PRICE']).optional();
  */
 const BaseOrderFields = {
   symbol: SymbolSchema,
+  exchange: z.string().optional(),
   side: SideSchema,
   reduceOnly: z.enum(['true', 'false']).optional(),
   positionSide: z.enum(['BOTH', 'LONG', 'SHORT']).optional(),
@@ -254,6 +255,7 @@ export const CancelAllOrdersOpSchema = z.object({
   operation: z.literal('CANCEL_ALL_ORDERS'),
   params: z.object({
     symbol: SymbolSchema,
+    exchange: z.string().optional(),
   }),
 
   metadata: z.object({

@@ -597,12 +597,13 @@ export async function prepareForConfirmation(
       }
     } else if (op.params.quantityAsPercent) {
       univClient = new UniversalApiClient();
-      await univClient.initSession(userId);
+      // Ensure we init session with correct exchange
+      await univClient.initSession(userId, (op.params as any).exchange);
 
       // Handle REDUCE_ONLY (Closing/Reducing Position)
       if (op.params.reduceOnly === true || op.params.reduceOnly === 'true') {
         // Fetch current position size
-        const positionsRes = await univClient.getPositions(op.params.symbol);
+        const positionsRes = await univClient.getPositions((op.params as any).exchange);
         if (!positionsRes.success) throw new Error(positionsRes.error || 'Failed to fetch positions');
         
         const position = positionsRes.data.find(p => p.symbol === op.params.symbol);
