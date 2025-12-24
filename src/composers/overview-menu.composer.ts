@@ -570,6 +570,7 @@ export async function showOverview(ctx: BotContext, editMessage = false, style: 
       ],
       [
         Markup.button.callback('⚙️ Settings', 'settings'),
+        Markup.button.callback('👥 Referrals', 'referrals'),
         Markup.button.callback('❓ Help', 'help'),
       ]
     ];

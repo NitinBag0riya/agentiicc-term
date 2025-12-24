@@ -1,6 +1,6 @@
 {
   "timezone": "UTC",
-  "serverTime": 1766575295515,
+  "serverTime": 1766577301888,
   "futuresType": "U_MARGINED",
   "rateLimits": [
     {
@@ -22599,7 +22599,7 @@
       "triggerProtect": "0.1000",
       "liquidationFee": "0.025000",
       "marketTakeBound": "0.20",
-      "createTime": 1766312852871,
+      "createTime": 1766312852872,
       "filters": [
         {
           "minPrice": "0.0000100",
@@ -22860,7 +22860,7 @@
       "triggerProtect": "0.1000",
       "liquidationFee": "0.025000",
       "marketTakeBound": "0.20",
-      "createTime": 1766482880936,
+      "createTime": 1766482880937,
       "filters": [
         {
           "minPrice": "0.0000010",
@@ -23013,7 +23013,7 @@
       "pair": "SENTISUSDT",
       "contractType": "PERPETUAL",
       "deliveryDate": 4133404800000,
-      "onboardDate": 1766577600000,
+      "onboardDate": 1766579400000,
       "status": "TRADING",
       "maintMarginPercent": "12.5000",
       "requiredMarginPercent": "25.0000",

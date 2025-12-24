@@ -1,0 +1,79 @@
+
+> aster-bot@1.0.0 start
+> bun run src/main.ts
+
+🤖 Starting Aster Trading Bot...
+
+[Redis] Connecting to: redis://localhost:6379
+[Redis] ✅ Connected successfully
+[Postgres] Connecting...
+[Postgres] CA certificate not found, using basic SSL
+[Postgres] ✅ Connected successfully
+[Postgres] Server time: 2025-12-24T13:20:04.607Z
+[Postgres] Initializing schema...
+[Postgres] ✅ Schema initialized
+[Encryption] ✅ Initialized
+[Ngrok] 📡 Detected dynamic ngrok URL: https://b2be89058ab9.ngrok-free.app
+[Bot] Creating bot...
+[Bot] ✅ Bot created
+[Bot] Setting up commands...
+[Bot] ✅ Commands configured
+[BotInfo] Bot username set: @My_Test_Tradeee_bot
+✅ Bot authenticated: @My_Test_Tradeee_bot (Test Unified Trading)
+
+[Bot] ✅ Command menu set
+[ExchangeInfo] 🚀 Starting exchange info service...
+[ExchangeInfo] 📥 Fetching exchange info...
+[ExchangeInfo] ✅ Fetched spot exchange info (41 symbols)
+[ExchangeInfo] ✅ Fetched futures exchange info (263 symbols)
+[ExchangeInfo] ✅ Exchange info cached
+[ExchangeInfo] ✅ Service started (refresh every 10 minutes)
+[PriceCache] 🚀 Starting price cache service...
+[PriceCache] 📥 Fetching prices via HTTP (fallback)...
+[PriceCache] ✅ Fetched spot prices via HTTP (39 symbols)
+[PriceCache] ✅ Fetched futures prices via HTTP (260 symbols)
+[PriceCache] ✅ HTTP prices cached
+[PriceCache] 🔌 Connecting to WebSocket...
+[PriceCache] ✅ Service started (WebSocket + HTTP fallback)
+🌐 Mounting Backend API routes...
+✅ Backend API routes mounted
+[Webhook] ✅ Webhook registered with Telegram
+🚀 Bot is running in WEBHOOK mode
+📡 Webhook URL: https://b2be89058ab9.ngrok-free.app/webhook
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🏥 Health check: http://localhost:3000/health
+🔢 Instance ID: unknown
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[PriceCache] ✅ WebSocket connected
+[PriceCache] 📊 WebSocket prices updated (9 changed, 260 total)
+[API Error] 170 |         price: data.price,
+171 |         status: data.status,
+172 |         timestamp: data.updateTime || Date.now()
+173 |       };
+174 |     } catch (error) {
+175 |       throw new Error(`Failed to place Aster order: ${error}`);
+                      ^
+error: Failed to place Aster order: Error: Aster API Error: 400 - {"code":-2019,"msg":"Margin is insufficient."}
+      at placeOrder (/Users/nitinbagoriya/Downloads/Archive/src/backend/adapters/aster.adapter.ts:175:17)
+      at async <anonymous> (/Users/nitinbagoriya/Downloads/Archive/src/backend/api/routes.ts:239:28)
+      at async <anonymous> (/Users/nitinbagoriya/Downloads/Archive/src/backend/middleware/auth.ts:73:13)
+
+[API Error] 170 |         price: data.price,
+171 |         status: data.status,
+172 |         timestamp: data.updateTime || Date.now()
+173 |       };
+174 |     } catch (error) {
+175 |       throw new Error(`Failed to place Aster order: ${error}`);
+                      ^
+error: Failed to place Aster order: Error: Aster API Error: 400 - {"code":-1111,"msg":"Precision is over the maximum defined for this asset."}
+      at placeOrder (/Users/nitinbagoriya/Downloads/Archive/src/backend/adapters/aster.adapter.ts:175:17)
+      at async <anonymous> (/Users/nitinbagoriya/Downloads/Archive/src/backend/api/routes.ts:239:28)
+      at async <anonymous> (/Users/nitinbagoriya/Downloads/Archive/src/backend/middleware/auth.ts:73:13)
+
+[AsterAdapter] Canceling all orders for: BTCUSDT
+[AsterAdapter] Cancel all response: {"code":200,"msg":"The operation of cancel all open order is done."}
+[ExchangeInfo] 📥 Fetching exchange info...
+[ExchangeInfo] ✅ Fetched spot exchange info (41 symbols)
+[ExchangeInfo] ✅ Fetched futures exchange info (263 symbols)
+[ExchangeInfo] ✅ Exchange info cached
+[PriceCache] ✅ Fetched spot prices via HTTP (39 symbols)
