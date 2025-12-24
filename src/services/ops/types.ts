@@ -219,6 +219,7 @@ export const CreateOrderOpSchema = z.object({
   metadata: z.object({
     action: z.string().optional(), // Human-readable action (e.g., "Long $50", "Set TP")
     leverage: z.number().optional(), // Current leverage for display
+    exchange: z.enum(['aster', 'hyperliquid']).optional(), // Target exchange for order execution
     originalInput: z.object({
       type: z.enum(['USD', 'PERCENT']),
       value: z.string(),
@@ -296,6 +297,7 @@ export const BatchOrdersOpSchema = z.object({
 
   metadata: z.object({
     description: z.string().optional(), // e.g., "Set TP & SL"
+    exchange: z.enum(['aster', 'hyperliquid']).optional(), // Target exchange
   }).optional(),
 });
 
@@ -414,6 +416,7 @@ export const CreateSpotOrderOpSchema = z.object({
     action: z.string().optional(), // "Buy $50 ASTER" or "Sell 100% ASTER"
     baseAsset: z.string().optional(), // "ASTER" (for display)
     quoteAsset: z.string().optional(), // "USDT" (for display)
+    exchange: z.enum(['aster', 'hyperliquid']).optional(), // Target exchange
     originalInput: z.object({
       type: z.enum(['USD', 'PERCENT', 'ASSET']),
       value: z.string(),

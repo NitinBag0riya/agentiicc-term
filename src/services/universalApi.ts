@@ -111,8 +111,8 @@ export class UniversalApiClient {
   /**
    * Get Open Orders
    */
-  public async getOpenOrders(symbol?: string): Promise<ApiResponse> {
-      return (await this.client.get('/orders', { params: { symbol } })).data;
+  public async getOpenOrders(symbol?: string, exchange?: string): Promise<ApiResponse> {
+      return (await this.client.get('/orders', { params: { symbol, exchange } })).data;
   }
   
   /**
@@ -168,6 +168,34 @@ export class UniversalApiClient {
    */
   public async getPositions(exchange?: string): Promise<ApiResponse> {
       return (await this.client.get('/positions', { params: { exchange } })).data;
+  }
+
+  /**
+   * Get Orderbook
+   */
+  public async getOrderbook(symbol: string, exchange?: string, depth?: number): Promise<ApiResponse> {
+      return (await this.client.get(`/orderbook/${symbol}`, { params: { exchange, depth } })).data;
+  }
+
+  /**
+   * Get Order History
+   */
+  public async getOrderHistory(symbol?: string, limit?: number, exchange?: string): Promise<ApiResponse> {
+      return (await this.client.get('/orders/history', { params: { symbol, limit, exchange } })).data;
+  }
+
+  /**
+   * Get Fills (Trade History)
+   */
+  public async getFills(symbol?: string, limit?: number, exchange?: string): Promise<ApiResponse> {
+      return (await this.client.get('/fills', { params: { symbol, limit, exchange } })).data;
+  }
+
+  /**
+   * Get OHLCV (Candlestick Data)
+   */
+  public async getOHLCV(symbol: string, timeframe?: string, limit?: number, exchange?: string): Promise<ApiResponse> {
+      return (await this.client.get(`/ohlcv/${symbol}`, { params: { exchange, tf: timeframe, limit } })).data;
   }
 }
 

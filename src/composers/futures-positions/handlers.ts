@@ -120,7 +120,8 @@ export function registerToggleMarginHandler(composer: Composer<BotContext>) {
       // Get current margin type and asset mode from exchange
       const client = new UniversalApiClient();
       await client.initSession(ctx.session.userId);
-      const positionsRes = await client.getPositions();
+      const exchange = ctx.session.activeExchange || 'aster';
+      const positionsRes = await client.getPositions(exchange);
       if (!positionsRes.success) throw new Error(positionsRes.error);
       const positions = positionsRes.data;
       const positionInfo = positions.find((p: any) => p.symbol === symbol);
@@ -132,7 +133,8 @@ export function registerToggleMarginHandler(composer: Composer<BotContext>) {
 
       // Check asset mode if switching to isolated
       if (newMarginType === 'ISOLATED') {
-        const assetModeRes = await client.getMultiAssetsMargin();
+        const exchange = ctx.session.activeExchange || 'aster';
+        const assetModeRes = await client.getMultiAssetsMargin(exchange);
         if (!assetModeRes.success) throw new Error(assetModeRes.error);
         const assetMode = assetModeRes.data;
         if (assetMode.multiAssetsMargin === true) {
@@ -252,7 +254,8 @@ export function registerSetLeverageHandler(composer: Composer<BotContext>) {
       // Get current leverage from exchange
       const client = new UniversalApiClient();
       await client.initSession(ctx.session.userId);
-      const positionsRes = await client.getPositions();
+      const exchange = ctx.session.activeExchange || 'aster';
+      const positionsRes = await client.getPositions(exchange);
       if (!positionsRes.success) throw new Error(positionsRes.error);
       const positions = positionsRes.data;
       const positionInfo = positions.find((p: any) => p.symbol === symbol);
@@ -291,7 +294,8 @@ export function registerLeverageCustomHandler(composer: Composer<BotContext>) {
       // Get current leverage from exchange
       const client = new UniversalApiClient();
       await client.initSession(ctx.session.userId);
-      const positionsRes = await client.getPositions();
+      const exchange = ctx.session.activeExchange || 'aster';
+      const positionsRes = await client.getPositions(exchange);
       if (!positionsRes.success) throw new Error(positionsRes.error);
       const positions = positionsRes.data;
       const positionInfo = positions.find((p: any) => p.symbol === symbol);

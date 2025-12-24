@@ -15,9 +15,9 @@ import { getFuturesTicker } from '../../services/priceCache.service';
 /**
  * Fetch and format open orders info (shared helper)
  */
-async function getOpenOrdersInfo(client: any, symbol: string) {
+async function getOpenOrdersInfo(client: any, symbol: string, exchange?: string) {
   try {
-    const ordersRes = await client.getOpenOrders(symbol);
+    const ordersRes = await client.getOpenOrders(symbol, exchange);
     if (!ordersRes.success) throw new Error(ordersRes.error);
     const openOrders = ordersRes.data;
 
@@ -74,7 +74,8 @@ export async function buildPositionInterface(ctx: BotContext, symbol: string, us
     state.marginType = 'unknown' as any; // Signal to show (??) placeholder
   } else {
     // Fetch actual values from exchange
-    const positionsRes = await client.getPositions();
+    const exchange = ctx.session.activeExchange || 'aster';
+    const positionsRes = await client.getPositions(exchange);
     if (!positionsRes.success) throw new Error(positionsRes.error);
     const positions = positionsRes.data;
     const positionInfo = positions.find((p: any) => p.symbol === symbol);
@@ -89,13 +90,14 @@ export async function buildPositionInterface(ctx: BotContext, symbol: string, us
     }
   }
 
-  const positionsRes2 = await client.getPositions();
+  const exchange = ctx.session.activeExchange || 'aster';
+  const positionsRes2 = await client.getPositions(exchange);
   if (!positionsRes2.success) throw new Error(positionsRes2.error);
   const position = usePlaceholders ? null : positionsRes2.data.find((p: any) => p.symbol === symbol && parseFloat(p.positionAmt) !== 0);
   const baseAsset = symbol.replace(/USDT$|USD$|BTC$|ETH$/, '');
 
   // Fetch orders once (used by both new and existing position views)
-  const { openOrders, tpOrder, slOrder, otherOrders } = await getOpenOrdersInfo(client, symbol);
+  const { openOrders, tpOrder, slOrder, otherOrders } = await getOpenOrdersInfo(client, symbol, exchange);
 
   if (!position) {
     // No position - show new position UI with market data

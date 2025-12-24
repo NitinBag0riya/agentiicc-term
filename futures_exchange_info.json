@@ -1,6 +1,6 @@
 {
   "timezone": "UTC",
-  "serverTime": 1766500200439,
+  "serverTime": 1766550381543,
   "futuresType": "U_MARGINED",
   "rateLimits": [
     {
@@ -11347,7 +11347,7 @@
         "STOCK"
       ],
       "symbolType": 1,
-      "tradingMode": 0,
+      "tradingMode": 1,
       "name": "Apple Inc.",
       "channel": "nasdaq",
       "sequenceNo": 0,
@@ -11436,7 +11436,7 @@
         "STOCK"
       ],
       "symbolType": 1,
-      "tradingMode": 0,
+      "tradingMode": 1,
       "name": "Tesla Inc.",
       "channel": "nasdaq",
       "sequenceNo": 0,
@@ -11525,7 +11525,7 @@
         "STOCK"
       ],
       "symbolType": 1,
-      "tradingMode": 0,
+      "tradingMode": 1,
       "name": "NVIDIA Corporation",
       "channel": "nasdaq",
       "sequenceNo": 0,
@@ -11614,7 +11614,7 @@
         "STOCK"
       ],
       "symbolType": 1,
-      "tradingMode": 0,
+      "tradingMode": 1,
       "name": "Amazon.com Inc.",
       "channel": "nasdaq",
       "sequenceNo": 0,
@@ -11703,7 +11703,7 @@
         "STOCK"
       ],
       "symbolType": 1,
-      "tradingMode": 0,
+      "tradingMode": 1,
       "name": "Meta Platforms Inc.",
       "channel": "nasdaq",
       "sequenceNo": 0,
@@ -11792,7 +11792,7 @@
         "STOCK"
       ],
       "symbolType": 1,
-      "tradingMode": 0,
+      "tradingMode": 1,
       "name": "Alphabet Inc.",
       "channel": "nasdaq",
       "sequenceNo": 0,
@@ -11881,7 +11881,7 @@
         "STOCK"
       ],
       "symbolType": 1,
-      "tradingMode": 0,
+      "tradingMode": 1,
       "name": "Microsoft Corporation",
       "channel": "nasdaq",
       "sequenceNo": 0,
@@ -12057,7 +12057,7 @@
         "STOCK"
       ],
       "symbolType": 1,
-      "tradingMode": 0,
+      "tradingMode": 1,
       "name": "Sharplink Gaming Inc.",
       "channel": "nasdaq",
       "sequenceNo": 0,
@@ -14843,7 +14843,7 @@
         "STOCK"
       ],
       "symbolType": 1,
-      "tradingMode": 0,
+      "tradingMode": 1,
       "name": "Invesco QQQ Trust",
       "channel": "nasdaq",
       "sequenceNo": 0,
@@ -15385,7 +15385,7 @@
         {
           "stepSize": "1",
           "filterType": "LOT_SIZE",
-          "maxQty": "50000000",
+          "maxQty": "80000000",
           "minQty": "1"
         },
         {
@@ -21740,13 +21740,13 @@
         {
           "stepSize": "1",
           "filterType": "LOT_SIZE",
-          "maxQty": "100000",
+          "maxQty": "1000000",
           "minQty": "1"
         },
         {
           "stepSize": "1",
           "filterType": "MARKET_LOT_SIZE",
-          "maxQty": "2000",
+          "maxQty": "100000",
           "minQty": "1"
         },
         {
@@ -22512,7 +22512,7 @@
       "triggerProtect": "0.1000",
       "liquidationFee": "0.025000",
       "marketTakeBound": "0.20",
-      "createTime": 1766312791658,
+      "createTime": 1766312791659,
       "filters": [
         {
           "minPrice": "0.0001000",
@@ -22599,7 +22599,7 @@
       "triggerProtect": "0.1000",
       "liquidationFee": "0.025000",
       "marketTakeBound": "0.20",
-      "createTime": 1766312852871,
+      "createTime": 1766312852872,
       "filters": [
         {
           "minPrice": "0.0000100",
@@ -22860,7 +22860,7 @@
       "triggerProtect": "0.1000",
       "liquidationFee": "0.025000",
       "marketTakeBound": "0.20",
-      "createTime": 1766482880936,
+      "createTime": 1766482880937,
       "filters": [
         {
           "minPrice": "0.0000010",

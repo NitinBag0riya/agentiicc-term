@@ -152,9 +152,10 @@ export const spotSellWizard = new Scenes.WizardScene<BotWizardContext>(
         ...quantityParams,
       },
       metadata: {
-        action: `Sell ${input} ${state.asset}`,
+        action: `Sell ${input} ${state.asset} on ${ctx.session.activeExchange ? ctx.session.activeExchange.toUpperCase() : 'ASTER'}`,
         baseAsset: state.asset,
         quoteAsset: 'USDT',
+        exchange: ctx.session.activeExchange || 'aster',
         originalInput: {
           type: parsed.type,
           value: parsed.value.toString(),
@@ -172,7 +173,7 @@ export const spotSellWizard = new Scenes.WizardScene<BotWizardContext>(
     // Get client for calculations
     const db = getPostgres();
     const client = new UniversalApiClient();
-    await client.initSession(ctx.session.userId);
+    await client.initSession(ctx.session.userId, ctx.session.activeExchange || 'aster');
 
     await showConfirmation(ctx, db, redis, ctx.session.userId, operation, client);
 

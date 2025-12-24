@@ -10,6 +10,7 @@ import { getPostgres } from '../db/postgres';
 import { UniversalApiClient } from '../services/universalApi';
 import { getBotDeepLink } from '../utils/botInfo';
 import { getSpotPrices } from '../services/priceCache.service';
+import { getLinkedExchanges } from '../db/users';
 import { cleanupButtonMessages, trackButtonMessage } from '../utils/buttonCleanup';
 
 export const overviewMenuComposer = new Composer<BotContext>();
@@ -122,12 +123,18 @@ function calculateFIFOPnL(
  * @param limit - Max positions to show (undefined = show all)
  * @param style - Formatting style (default, style1, style2, style3)
  */
-export async function fetchPerpData(client: UniversalApiClient, ctx: BotContext, limit?: number, style: 'default' | 'style1' | 'style2' | 'style3' = 'default'): Promise<{
+export async function fetchPerpData(
+  client: UniversalApiClient, 
+  ctx: BotContext, 
+  limit?: number, 
+  style: 'default' | 'style1' | 'style2' | 'style3' = 'default',
+  exchangeOverride?: string
+): Promise<{
   message: string;
   totalBalance: number;
   totalAvailable: number;
 }> {
-  const exchange = ctx.session.activeExchange || 'aster';
+  const exchange = exchangeOverride || ctx.session.activeExchange || 'aster';
   const [accountRes, positionsRes] = await Promise.all([
     client.getAccount(exchange),
     // Wait, getAccount in UniversalApi returns specific structure.
@@ -256,12 +263,18 @@ export async function fetchPerpData(client: UniversalApiClient, ctx: BotContext,
  * @param limit - Max assets to show (undefined = show all)
  * @param style - Formatting style (default, style1, style2, style3)
  */
-export async function fetchSpotData(client: UniversalApiClient, ctx: BotContext, limit?: number, style: 'default' | 'style1' | 'style2' | 'style3' = 'default'): Promise<{
+export async function fetchSpotData(
+  client: UniversalApiClient, 
+  ctx: BotContext, 
+  limit?: number, 
+  style: 'default' | 'style1' | 'style2' | 'style3' = 'default',
+  exchangeOverride?: string
+): Promise<{
   message: string;
   totalValue: number;
   usdtBalance: number;
 }> {
-  const exchange = ctx.session.activeExchange || 'aster';
+  const exchange = exchangeOverride || ctx.session.activeExchange || 'aster';
   const [assetsRes] = await Promise.all([
     client.getAssets(exchange),
     // client.getUserTrades(), // Missing in UniversalApi? Yes. We might need to skip PnL for now or add getUserTrades.
@@ -417,115 +430,96 @@ export async function showOverview(ctx: BotContext, editMessage = false, style: 
         throw new Error('Failed to initialize session');
     }
 
-    // Track which sections have loaded
-    // Track which sections have loaded with explicit types
-    interface PerpData { message: string; totalBalance: number; totalAvailable: number }
-    interface SpotData { message: string; totalValue: number; usdtBalance: number }
+    // Get linked exchanges
+    const linkedExchanges = await getLinkedExchanges(userId);
+    // If no exchanges linked (shouldn't happen if isLinked is true, but fallback to aster)
+    const exchangesToFetch = linkedExchanges.length > 0 ? linkedExchanges : ['aster'];
     
-    let perpData: PerpData | null = null;
-    let spotData: SpotData | null = null;
-    let perpError: string | null = null;
-    let spotError: string | null = null;
+    console.log(`[Overview] Fetching data for: ${exchangesToFetch.join(', ')}`);
 
-    // Debug client
-    console.log('[Overview] Client methods:', Object.getOwnPropertyNames(Object.getPrototypeOf(client)));
-
-    // Fetch perp and spot data in parallel, update as each resolves
-    const perpPromise = fetchPerpData(client, ctx, 10, style) // Limit to 10 for overview
-      .then(data => {
-        perpData = data;
-        return data;
-      })
-      .catch(error => {
-        console.error('[Overview] Perp fetch error:', error.message); // Log message only to reduce noise
-        if (error.message.includes('No credentials')) {
-             perpError = 'Credentials missing. Please /link.';
-        } else {
-             perpError = 'Failed to load perp data';
-        }
-        return null; // Don't throw, just return null so Promise.all (or race) continues
-      });
-
-    const spotPromise = fetchSpotData(client, ctx, 10, style) // Limit to 10 for overview
-      .then(data => {
-        spotData = data;
-        return data;
-      })
-      .catch(error => {
-        console.error('[Overview] Spot fetch error:', error);
-        spotError = 'Failed to load spot data';
-        return null;
-      });
-
-    // Wait for the first one to complete and update UI
-    // Use Promise.allSettled pattern via catching above so we don't crash
-    // Actually we are using .then().catch() so result is a resolved promise of null or data.
-    // So Promise.race works fine.
-    await Promise.race([perpPromise, spotPromise]);
-
-    // Build initial message with whichever section loaded first
     let message = style === 'default' ? '🏦 **Command Citadel**\n\n' : `🏦 <b>Command Citadel</b> (Style ${style.replace('style', '')})\n\n`;
+    let globalTotalBalance = 0;
+    
+    // Process each exchange
+    for (const exchange of exchangesToFetch) {
+        // Exchange Header
+        const exchangeName = exchange.charAt(0).toUpperCase() + exchange.slice(1); // Capitalize
+        
+        if (style === 'default') {
+             message += `**#${exchangeName} Exchange**\n`; 
+        } else {
+             message += `<b>#${exchangeName} Exchange</b>\n`;
+        }
+        
+        let perpData: { message: string; totalBalance: number; totalAvailable: number } | null = null;
+        let spotData: { message: string; totalValue: number; usdtBalance: number } | null = null;
+        let perpError: string | null = null;
+        let spotError: string | null = null;
 
-    if (perpData) {
-      message += (perpData as any).message + '\n';
-    } else if (perpError) {
-      message += `📊 **Perp Portfolio:** ⚠️ ${perpError}\n\n`;
+        try {
+            // Fetch concurrently for this exchange
+            const [perpResult, spotResult] = await Promise.allSettled([
+                fetchPerpData(client, ctx, 10, style, exchange),
+                fetchSpotData(client, ctx, 10, style, exchange)
+            ]);
+
+            // Handle Perp Result
+            if (perpResult.status === 'fulfilled') {
+                perpData = perpResult.value;
+                globalTotalBalance += perpResult.value.totalBalance;
+            } else {
+                console.error(`[Overview] ${exchange} perp error:`, perpResult.reason);
+                if (perpResult.reason?.message?.includes('No credentials')) {
+                    perpError = 'Credentials missing.';
+                } else {
+                    perpError = 'Failed to load.';
+                }
+            }
+
+            // Handle Spot Result
+            if (spotResult.status === 'fulfilled') {
+                 spotData = spotResult.value;
+                 globalTotalBalance += spotResult.value.totalValue;
+            } else {
+                 console.error(`[Overview] ${exchange} spot error:`, spotResult.reason);
+                 spotError = 'Failed to load.';
+            }
+
+        } catch (err) {
+            console.error(`[Overview] Error fetching ${exchange}:`, err);
+        }
+
+        // Add to message
+        if (perpData) {
+            message += (perpData as any).message;
+        } else if (perpError) {
+            message += `📊 **Perp Portfolio:** ⚠️ ${perpError}\n\n`;
+        }
+
+        if (spotData) {
+            message += (spotData as any).message;
+        } else if (spotError) {
+             message += `💼 **Spot Portfolio:** ⚠️ ${spotError}\n\n`;
+        }
+        
+        // Summary Line for this Exchange
+        const spotAvailable = spotData ? spotData.usdtBalance : 0;
+        const perpAvailable = perpData ? perpData.totalAvailable : 0;
+        const exchangeTotal = (perpData ? perpData.totalBalance : 0) + (spotData ? spotData.totalValue : 0);
+        
+        message += `Spot available $${spotAvailable.toFixed(2)} USDT | Perp available $${perpAvailable.toFixed(2)} Margin\n\n`;
+        message += `Account Balance: $${exchangeTotal.toFixed(2)}\n\n`;
+
+        if (!perpData && !spotData && !perpError && !spotError) {
+             message += `(No data available)\n\n`;
+        }
+    }
+    
+    // Global Total Balance
+    if (style === 'default') {
+        message += `💰 **Total Account Balance:** $${globalTotalBalance.toFixed(2)}\n`;
     } else {
-      message += `📊 **Perp Portfolio:** ⏳ Loading...\n\n`;
-    }
-
-    if (spotData) {
-      message += (spotData as any).message + '\n';
-    } else if (spotError) {
-      message += `💼 **Spot Portfolio:** ⚠️ ${spotError}\n\n`;
-    } else {
-      message += `💼 **Spot Portfolio:** ⏳ Loading...\n\n`;
-    }
-
-    // Update message with first section loaded
-    await ctx.telegram.editMessageText(
-      messageToEdit.chat.id,
-      messageToEdit.message_id,
-      undefined,
-      message,
-      { parse_mode: style === 'default' ? 'Markdown' : 'HTML' }
-    );
-
-    // Wait for both to complete
-    await Promise.all([perpPromise, spotPromise]);
-
-    // Build final message with both sections
-    message = style === 'default' ? '🏦 **Command Citadel**\n\n' : `🏦 <b>Command Citadel</b> (Style ${style.replace('style', '')})\n\n`;
-
-    // Add perp section
-    if (perpData) {
-      message += (perpData as any).message + '\n';
-    } else if (perpError) {
-      message += `📊 **Perp Portfolio:** ⚠️ ${perpError}\n\n`;
-    }
-
-    // Add spot section
-    if (spotData) {
-      message += (spotData as any).message + '\n';
-    } else if (spotError) {
-      message += `💼 **Spot Portfolio:** ⚠️ ${spotError}\n\n`;
-    }
-
-    // Add summary (only if we have data from at least one section)
-    if (perpData || spotData) {
-      const totalFuturesBalance = (perpData as any)?.totalBalance || 0;
-      const totalFuturesAvailable = (perpData as any)?.totalAvailable || 0;
-      const totalSpotValue = (spotData as any)?.totalValue || 0;
-      const spotUsdtBalance = (spotData as any)?.usdtBalance || 0;
-      const totalWalletValue = totalSpotValue + totalFuturesBalance;
-
-      if (style === 'style1' || style === 'style2' || style === 'style3') {
-        message += `━━━━━━━━━━━━━━━\n`;
-        message += `Spot <b>$${spotUsdtBalance.toFixed(2)}</b> | Perp <b>$${totalFuturesAvailable.toFixed(2)}</b>\nTotal <b>$${totalWalletValue.toFixed(2)}</b>`;
-      } else {
-        message += `Spot available $${spotUsdtBalance.toFixed(2)} USDT | Perp available $${totalFuturesAvailable.toFixed(2)} Margin\n\n`;
-        message += `Account Balance: $${totalWalletValue.toFixed(2)}`;
-      }
+        message += `💰 <b>Total Account Balance:</b> $${globalTotalBalance.toFixed(2)}\n`;
     }
 
     // Add main menu buttons
@@ -556,10 +550,9 @@ export async function showOverview(ctx: BotContext, editMessage = false, style: 
       }
     );
 
-    // Store overview message ID in session for deep link editing
+    // Store overview message ID in session
     ctx.session.overviewMessageId = messageToEdit.message_id;
 
-    // Note: Message is already tracked by cleanupButtonMessages() call above
   } catch (error: any) {
     console.error('[Overview] Error:', error);
 

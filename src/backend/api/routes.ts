@@ -225,7 +225,19 @@ router.post('/order', withAuth(async (req: Request, res: Response) => {
     trailingDelta: req.body.trailingDelta || req.body.callbackRate
   };
 
-  const result = await adapter.placeOrder(params);
+  // Detect if this is a spot order:
+  // - Must have explicit isSpot=true flag, OR
+  // - Must have quoteOrderQty (used for spot buy by USD amount)
+  // For Hyperliquid, default to perp orders since spot catalog is very limited
+  const isSpotOrder = req.body.isSpot === true || req.body.quoteOrderQty !== undefined;
+
+  let result;
+  if (isSpotOrder && exchangeId === 'hyperliquid' && (adapter as any).placeSpotOrder) {
+    // Use spot-specific method for Hyperliquid
+    result = await (adapter as any).placeSpotOrder(params);
+  } else {
+    result = await adapter.placeOrder(params);
+  }
 
   res.json({
     success: true,

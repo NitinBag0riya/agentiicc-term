@@ -92,8 +92,14 @@ export async function storePendingOperation(
   userId: number,
   operation: AsterWriteOp
 ): Promise<string> {
+  // Debug: Log incoming operation metadata
+  console.log('[StorePending] 📥 Incoming operation metadata:', JSON.stringify((operation as any).metadata));
+  
   // Validate operation first
   const validated = validateWriteOp(operation);
+  
+  // Debug: Log validated operation metadata
+  console.log('[StorePending] ✅ Validated operation metadata:', JSON.stringify((validated as any).metadata));
 
   // Generate unique operation ID (8 chars, URL-safe)
   const operationId = nanoid(8);
@@ -253,10 +259,14 @@ async function executeCreateOrder(
       note: 'Using confirmed quantity (locked in at confirmation time)',
     });
 
-    // Execute order with API params
+    // Debug: Log metadata and exchange
+    console.log('[WriteEngine] 📋 Metadata:', JSON.stringify(op.metadata));
+    console.log('[WriteEngine] 🔄 Exchange:', op.metadata?.exchange || 'aster (fallback)');
+
+    // Execute order with API params - use exchange from metadata
     const result = await client.placeOrder({
       ...apiParams,
-      exchange: 'aster' 
+      exchange: op.metadata?.exchange || 'aster' 
     });
 
     if (!result.success) {
@@ -356,7 +366,7 @@ async function executeBatchOrders(
     // Execute orders sequentially
     for (const orderParams of op.params.orders) {
       try {
-        const result = await client.placeOrder({ ...orderParams, exchange: 'aster' });
+        const result = await client.placeOrder({ ...orderParams, exchange: op.metadata?.exchange || 'aster' });
         if (!result.success) throw new Error(result.error);
         results.push(result.data);
       } catch (error: any) {
@@ -811,6 +821,9 @@ async function executeCreateSpotOrder(
   operation: CreateSpotOrderOp
 ): Promise<ExecutionResult> {
   try {
+    // Hyperliquid spot is now supported via placeSpotOrder in the adapter
+    // Routes.ts handles routing to the correct method
+
     const { params } = operation;
     let finalParams = { ...params };
 
@@ -884,7 +897,7 @@ async function executeCreateSpotOrder(
 
     // Simplified for brevity, assume result mapping
     console.log('[WriteEngine] 📤 Sending CREATE_SPOT_ORDER:', { ...finalParams });
-    const result = await client.placeOrder({ ...finalParams, exchange: 'aster' });
+    const result = await client.placeOrder({ ...finalParams, exchange: operation.metadata?.exchange || 'aster' });
     if (!result.success) throw new Error(result.error);
 
     return { success: true, data: result.data };

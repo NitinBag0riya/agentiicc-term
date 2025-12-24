@@ -13,6 +13,7 @@ import { leverageWizard } from './scenes/leverage.scene';
 import { marginWizard } from './scenes/margin.scene';
 import { spotBuyWizard } from './scenes/spot-buy-wizard.scene';
 import { spotSellWizard } from './scenes/spot-sell-wizard.scene';
+import { tradeAssetScene } from './scenes/trade-asset.scene';
 import { spotAssetsComposer } from './composers/spot-assets';
 import { futuresPositionsComposer, showPositionManagement } from './composers/futures-positions';
 import { overviewMenuComposer, showOverview, cleanupButtonMessages, trackButtonMessage } from './composers/overview-menu.composer';
@@ -25,6 +26,7 @@ import {
 } from './services/exchangeInfo.service';
 import { handleConfirm, handleCancel, handleRecalc } from './utils/confirmDialog';
 import { getRedis } from './db/redis';
+import { getLinkedExchanges } from './db/users';
 import { getPostgres } from './db/postgres';
 import { getBotDeepLink } from './utils/botInfo';
 import { normalizeSymbol } from './utils/inputParser';
@@ -54,6 +56,7 @@ export function createBot(token: string): Telegraf<BotContext> {
     marginWizard,
     spotBuyWizard,
     spotSellWizard,
+    tradeAssetScene,
   ] as any);
   bot.use(stage.middleware());
 
@@ -76,12 +79,15 @@ export function createBot(token: string): Telegraf<BotContext> {
 /**
  * Common welcome message for unlinked users
  */
-const WELCOME_MESSAGE_UNLINKED =
+const WELCOME_MESSAGE_UNLINKED = (botUsername: string) =>
   '👋 **Welcome to StableSolid**\n' +
-  '_Your Easy Terminal into Trading on Aster Dex_\n\n' +
+  'Your Command Citadel for Aster & Hyperliquid\n\n' +
   '**Choose How to Connect:**\n\n' +
   '🔐 **WalletConnect (Recommended)** - One-click wallet connection\n' +
-  '🔗 **API Key** - Manual setup from Aster DEX\n\n' +
+  '🔗 **API Key** - Manual setup for your exchange\n\n' +
+  '**Available Exchanges:**\n' +
+  `• 🔴 Aster DEX ([Link](https://t.me/${botUsername}?start=link_aster))\n` +
+  `• 🔴 Hyperliquid ([Link](https://t.me/${botUsername}?start=link_hyperliquid))\n\n` +
   '🔒 _Your credentials are encrypted and stored securely_\n\n' +
   '**Available Commands:**\n' +
   '/menu - Open main menu\n' +
@@ -104,7 +110,6 @@ function getUnlinkedKeyboard() {
 
   return Markup.inlineKeyboard([
     [Markup.button.webApp('🔐 Sign in via WalletConnect', url)],
-    [Markup.button.callback('🔗 Link via API Key', 'start_link')],
     [Markup.button.callback('❓ Help', 'help')],
   ]);
 }
@@ -116,7 +121,7 @@ export async function showMenu(ctx: BotContext) {
   if (ctx.session.isLinked) {
     await showOverview(ctx);
   } else {
-    await ctx.reply(WELCOME_MESSAGE_UNLINKED, {
+    await ctx.reply(WELCOME_MESSAGE_UNLINKED(ctx.botInfo.username), {
       parse_mode: 'Markdown',
       ...getUnlinkedKeyboard(),
     });
@@ -302,8 +307,23 @@ export function setupBot(bot: Telegraf<BotContext>): void {
     // User is verified - handle normal /start flow
     const isLinked = ctx.session.isLinked;
 
-    if (payload && isLinked) {
-      // Delete the /start command message
+    if (payload) {
+      // Handle Link Actions (Works for Linked and Unlinked)
+      if (payload === 'link_aster') {
+        try { await ctx.deleteMessage(); } catch (e) {}
+        await removeButtonsFromCallback(ctx);
+        return ctx.scene.enter('link', { targetExchange: 'aster' });
+      }
+
+      if (payload === 'link_hyperliquid') {
+        try { await ctx.deleteMessage(); } catch (e) {}
+        await removeButtonsFromCallback(ctx);
+        return ctx.scene.enter('link', { targetExchange: 'hyperliquid' });
+      }
+
+      // Handle other deep links (Require Linked Account)
+      if (isLinked) {
+        // Delete the /start command message
       try {
         await ctx.deleteMessage();
       } catch (error) {
@@ -378,12 +398,22 @@ export function setupBot(bot: Telegraf<BotContext>): void {
         const result = results[index];
 
         if (result && result.type === 'futures') {
+          // Auto-set activeExchange to the exchange from search results
+          if (result.exchange) {
+            ctx.session.activeExchange = result.exchange as 'aster' | 'hyperliquid';
+            console.log(`[Symbol] Auto-set activeExchange to ${result.exchange}`);
+          }
           // For futures, check if user has an open position and show position management
           await showPositionManagement(ctx, result.symbol);
           return;
         }
 
         if (result && result.type === 'spot') {
+          // Auto-set activeExchange to the exchange from search results
+          if (result.exchange) {
+            ctx.session.activeExchange = result.exchange as 'aster' | 'hyperliquid';
+            console.log(`[Symbol] Auto-set activeExchange to ${result.exchange}`);
+          }
           // Get symbol info
           const symbolInfo = getSpotSymbol(result.symbol);
 
@@ -468,9 +498,13 @@ export function setupBot(bot: Telegraf<BotContext>): void {
       }
     }
 
+
+
+    }
+
     if (!isLinked) {
       // NOT LINKED: Show welcome message with API setup instructions
-      await ctx.reply(WELCOME_MESSAGE_UNLINKED, {
+      await ctx.reply(WELCOME_MESSAGE_UNLINKED(ctx.botInfo.username), {
         parse_mode: 'Markdown',
         ...getUnlinkedKeyboard(),
       });
@@ -539,10 +573,24 @@ export function setupBot(bot: Telegraf<BotContext>): void {
   // ==================== Button Handlers ====================
 
   // Start link flow
+  // Link Actions
+  bot.action('link_aster', async (ctx) => {
+    await ctx.answerCbQuery();
+    await removeButtonsFromCallback(ctx);
+    return ctx.scene.enter('link', { targetExchange: 'aster' });
+  });
+
+  bot.action('link_hyperliquid', async (ctx) => {
+    await ctx.answerCbQuery();
+    await removeButtonsFromCallback(ctx);
+    return ctx.scene.enter('link', { targetExchange: 'hyperliquid' });
+  });
+
+  // Legacy/Fallback Link Action
   bot.action('start_link', async (ctx) => {
     await ctx.answerCbQuery();
     await removeButtonsFromCallback(ctx);
-    return ctx.scene.enter('link');
+    return ctx.scene.enter('link', { targetExchange: 'aster' });
   });
 
   // Help
@@ -577,7 +625,7 @@ export function setupBot(bot: Telegraf<BotContext>): void {
       const isLinked = ctx.session.isLinked;
 
       if (!isLinked) {
-        const sentMessage = await ctx.reply(WELCOME_MESSAGE_UNLINKED, {
+        const sentMessage = await ctx.reply(WELCOME_MESSAGE_UNLINKED(ctx.botInfo.username), {
           parse_mode: 'Markdown',
           ...getUnlinkedKeyboard(),
         });
@@ -597,7 +645,8 @@ export function setupBot(bot: Telegraf<BotContext>): void {
   // Placeholder handlers (TODO: implement these)
   bot.action('trade', async (ctx) => {
     await ctx.answerCbQuery();
-    await ctx.reply('💰 Trade feature coming soon!');
+    await removeButtonsFromCallback(ctx);
+    return ctx.scene.enter('trade-asset-wizard');
   });
 
   // Refresh overview action
@@ -608,20 +657,124 @@ export function setupBot(bot: Telegraf<BotContext>): void {
 
   bot.action('settings', async (ctx) => {
     await ctx.answerCbQuery();
+    
+    // Check linked exchanges
+    const { getLinkedExchanges } = await import('./db/users');
+    const linkedExchanges = ctx.session.userId ? await getLinkedExchanges(ctx.session.userId) : [];
+    
+    // Define buttons
+    const buttons: any[][] = [];
+
+    // 1. Link Exchange (Always visible)
+    buttons.push([Markup.button.callback('🔗 Link Exchange', 'settings_link_exchange')]);
+
+    // 2. Switch Exchange (Visible if multiple linked)
+    if (linkedExchanges.length > 1) {
+       buttons.push([Markup.button.callback('🔄 Switch Exchange', 'settings_switch_exchange')]);
+    }
+
+    // 3. Standard Settings
+    buttons.push(
+      [Markup.button.callback('💰 Asset Mode', 'settings_asset_mode')],
+      [Markup.button.callback('👤 Profile', 'settings_profile')],
+      [Markup.button.callback('🔌 Disconnect Exchange', 'settings_unlink')],
+      [Markup.button.callback('🗑️ Perm Delete My Acc', 'settings_delete')],
+      [Markup.button.callback('« Back', 'menu')]
+    );
+
     await ctx.editMessageText(
       '⚙️ **Settings**\n\n' +
       'Manage your account and preferences.',
       {
         parse_mode: 'Markdown',
-        ...Markup.inlineKeyboard([
-          [Markup.button.callback('💰 Asset Mode', 'settings_asset_mode')],
-          [Markup.button.callback('👤 Profile', 'settings_profile')],
-          [Markup.button.callback('🔓 Unlink My Creds', 'settings_unlink')],
-          [Markup.button.callback('🗑️ Perm Delete My Acc', 'settings_delete')],
-          [Markup.button.callback('« Back', 'menu')],
-        ]),
+        ...Markup.inlineKeyboard(buttons),
       }
     );
+  });
+  
+  // Link Exchange Submenu
+  bot.action('settings_link_exchange', async (ctx) => {
+      await ctx.answerCbQuery();
+      
+      const { getLinkedExchanges } = await import('./db/users');
+      const linkedExchanges = ctx.session.userId ? await getLinkedExchanges(ctx.session.userId) : [];
+      
+      console.log(`[Settings] User ${ctx.session.userId} Linked Exchanges:`, linkedExchanges);
+
+      // Normalize check
+      const isAsterLinked = linkedExchanges.includes('aster');
+      const isHLLinked = linkedExchanges.includes('hyperliquid');
+
+      const asterStatus = isAsterLinked ? '✅' : '🔴';
+      const hlStatus = isHLLinked ? '✅' : '🔴';
+
+      await ctx.editMessageText(
+        '🔗 **Link Exchange**\n\n' +
+        'Select an exchange to link:\n' +
+        '✅ = Already Linked\n' +
+        '🔴 = Not Linked',
+        {
+          parse_mode: 'Markdown',
+          ...Markup.inlineKeyboard([
+             [Markup.button.callback(`${asterStatus} Aster DEX`, 'link_aster')],
+             [Markup.button.callback(`${hlStatus} Hyperliquid`, 'link_hyperliquid')],
+             [Markup.button.callback('« Back', 'settings')],
+          ])
+        }
+      );
+  });
+
+  // Switch Exchange Submenu
+  bot.action('settings_switch_exchange', async (ctx) => {
+      await ctx.answerCbQuery();
+
+      const { getLinkedExchanges } = await import('./db/users');
+      const linkedExchanges = ctx.session.userId ? await getLinkedExchanges(ctx.session.userId) : [];
+      const activeExchange = ctx.session.activeExchange || 'aster';
+
+      const buttons = linkedExchanges.map(ex => {
+          const isActive = ex === activeExchange;
+          const label = isActive ? `✅ ${ex.toUpperCase()} (Active)` : `🔄 ${ex.toUpperCase()}`;
+          return [Markup.button.callback(label, `switch_exchange_${ex}`)];
+      });
+
+      buttons.push([Markup.button.callback('« Back', 'settings')]);
+
+      await ctx.editMessageText(
+        '🔄 **Switch Exchange**\n\n' +
+        'Select an exchange to switch to:',
+        {
+           parse_mode: 'Markdown',
+           ...Markup.inlineKeyboard(buttons)
+        }
+      );
+  });
+
+  // Handle Exchange Switching
+  bot.action(/^switch_exchange_(.+)$/, async (ctx) => {
+      const targetExchange = ctx.match[1];
+      
+      // Initialize new session
+      const { universalApi } = await import('./services/universalApi');
+      if (ctx.session.userId) {
+          const success = await universalApi.initSession(ctx.session.userId, targetExchange);
+          if (success) {
+              ctx.session.activeExchange = targetExchange;
+              await ctx.answerCbQuery(`Switched to ${targetExchange}`);
+              
+              // Go back to settings
+              await ctx.editMessageText(
+                `✅ **Switched to ${targetExchange.toUpperCase()}**\n\n` +
+                'You are now trading on ' + targetExchange,
+                {
+                    parse_mode: 'Markdown',
+                    ...Markup.inlineKeyboard([[Markup.button.callback('« Back to Settings', 'settings')]])
+                }
+              );
+          } else {
+              await ctx.answerCbQuery('❌ Failed to switch', { show_alert: true });
+          }
+      }
   });
 
   // Settings submenu handlers
@@ -783,7 +936,41 @@ export function setupBot(bot: Telegraf<BotContext>): void {
   bot.action('settings_unlink', async (ctx) => {
     await ctx.answerCbQuery();
     await removeButtonsFromCallback(ctx);
-    return ctx.scene.enter('unlink');
+
+    const { getLinkedExchanges } = await import('./db/users');
+    const linkedExchanges = ctx.session.userId ? await getLinkedExchanges(ctx.session.userId) : [];
+
+    if (linkedExchanges.length === 0) {
+        await ctx.reply('❌ No exchanges linked to disconnect.');
+        return;
+    }
+
+    if (linkedExchanges.length === 1) {
+        // Only one, unlink it directly
+        return ctx.scene.enter('unlink', { targetExchange: linkedExchanges[0] });
+    }
+
+    // Multiple exchanges, show menu
+    const buttons = linkedExchanges.map(ex => [
+        Markup.button.callback(`🔌 Disconnect ${ex.toUpperCase()}`, `settings_unlink_exchange_${ex}`)
+    ]);
+    buttons.push([Markup.button.callback('« Cancel', 'settings')]);
+
+    await ctx.reply(
+        '🔌 **Disconnect Exchange**\n\n' +
+        'Select the exchange you want to disconnect:',
+        {
+            parse_mode: 'Markdown',
+            ...Markup.inlineKeyboard(buttons)
+        }
+    );
+  });
+
+  bot.action(/^settings_unlink_exchange_(.+)$/, async (ctx) => {
+      await ctx.answerCbQuery();
+      const targetExchange = ctx.match[1];
+      await removeButtonsFromCallback(ctx);
+      return ctx.scene.enter('unlink', { targetExchange });
   });
 
   bot.action('settings_delete', async (ctx) => {
@@ -1311,38 +1498,60 @@ export function setupBot(bot: Telegraf<BotContext>): void {
       return;
     }
 
-    // Build results message
+    // Build results message grouped by exchange
     let message = `🔍 **Search Results for "${searchTerm}"**\n\n`;
 
     // Store matches in session for deep links
-    const allMatches: Array<{ symbol: string; type: 'spot' | 'futures' }> = [];
+    const allMatches: Array<{ symbol: string; type: 'spot' | 'futures'; exchange: string }> = [];
 
-    if (matchingSpot.length > 0) {
-      message += '**💱 Spot Markets:**\n';
-      matchingSpot.slice(0, 10).forEach((symbol, index) => {
-        const idx = allMatches.length;
-        allMatches.push({ symbol, type: 'spot' });
-        message += `• [${symbol}](${getBotDeepLink(`symbol-${idx}`)})\n`;
-      });
-      if (matchingSpot.length > 10) {
-        message += `_...and ${matchingSpot.length - 10} more_\n`;
+    // Get linked exchanges for grouping
+    const { getLinkedExchanges } = await import('./db/users');
+    const linkedExchanges = ctx.session.userId ? await getLinkedExchanges(ctx.session.userId) : [];
+    const exchangesToShow = linkedExchanges.length > 0 ? linkedExchanges : ['aster']; // Default to aster if none linked
+
+    for (const exchange of exchangesToShow) {
+      const exchangeName = exchange === 'hyperliquid' ? 'Hyperliquid' : 'Aster DEX';
+      const exchangeEmoji = exchange === 'hyperliquid' ? '🟢' : '⭐';
+
+      // Exchange-specific symbol availability:
+      // - Aster: Full spot catalog available
+      // - Hyperliquid: Spot very limited (only PURR/USDC etc.), hide from search for now
+      // Both exchanges support futures from the shared futures list
+      const exchangeSpot = exchange === 'aster' ? matchingSpot : []; // Only show Aster spot
+      const exchangeFutures = matchingFutures; // Both exchanges support futures
+
+      if (exchangeSpot.length === 0 && exchangeFutures.length === 0) continue;
+
+      message += `${exchangeEmoji} **${exchangeName}**\n`;
+      message += `━━━━━━━━━━━━━━━━━━━━━━\n`;
+
+      if (exchangeSpot.length > 0) {
+        message += '**💱 Spot:**\n';
+        exchangeSpot.slice(0, 5).forEach((symbol) => {
+          const idx = allMatches.length;
+          allMatches.push({ symbol, type: 'spot', exchange });
+          message += `• [${symbol}](${getBotDeepLink(`symbol-${idx}`)})\n`;
+        });
+        if (exchangeSpot.length > 5) {
+          message += `_...+${exchangeSpot.length - 5} more_\n`;
+        }
+      }
+
+      if (exchangeFutures.length > 0) {
+        message += '**⚡ Futures:**\n';
+        exchangeFutures.slice(0, 5).forEach((symbol) => {
+          const idx = allMatches.length;
+          allMatches.push({ symbol, type: 'futures', exchange });
+          message += `• [${symbol}](${getBotDeepLink(`symbol-${idx}`)})\n`;
+        });
+        if (exchangeFutures.length > 5) {
+          message += `_...+${exchangeFutures.length - 5} more_\n`;
+        }
       }
       message += '\n';
     }
 
-    if (matchingFutures.length > 0) {
-      message += '**⚡ Futures Markets:**\n';
-      matchingFutures.slice(0, 10).forEach((symbol, index) => {
-        const idx = allMatches.length;
-        allMatches.push({ symbol, type: 'futures' });
-        message += `• [${symbol}](${getBotDeepLink(`symbol-${idx}`)})\n`;
-      });
-      if (matchingFutures.length > 10) {
-        message += `_...and ${matchingFutures.length - 10} more_\n`;
-      }
-    }
-
-    message += `\n_Click on a symbol to see details and trade_`;
+    message += `_Click on a symbol to see details and trade_`;
 
     // Store matches in session
     ctx.session.searchResults = allMatches;

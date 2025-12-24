@@ -550,6 +550,162 @@ export class HyperliquidAdapter implements ExchangeAdapter {
     }));
   }
 
+  /**
+   * Get spot assets/markets from Hyperliquid
+   */
+  async getSpotAssets(): Promise<Asset[]> {
+    try {
+      const response = await fetch('https://api.hyperliquid.xyz/info', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'spotMeta' })
+      });
+
+      const data: any = await response.json();
+      
+      if (!data || !data.universe) {
+        return [];
+      }
+
+      // Map spot pairs to Asset format
+      // universe contains pairs like { name: "PURR/USDC", tokens: [1, 0], index: 0 }
+      // tokens contains token details like { name: "USDC", szDecimals: 8, index: 0 }
+      return data.universe
+        .filter((pair: any) => pair.isCanonical) // Only show canonical pairs
+        .map((pair: any) => {
+          const baseToken = data.tokens.find((t: any) => t.index === pair.tokens[0]);
+          const quoteToken = data.tokens.find((t: any) => t.index === pair.tokens[1]);
+          
+          return {
+            symbol: pair.name, // e.g., "PURR/USDC"
+            name: baseToken?.name || pair.name,
+            baseAsset: baseToken?.name || 'UNKNOWN',
+            quoteAsset: quoteToken?.name || 'USDC',
+            minQuantity: String(Math.pow(10, -(baseToken?.szDecimals || 0))),
+            tickSize: '0.0001'
+          };
+        });
+    } catch (error) {
+      console.error('[Hyperliquid] Failed to fetch spot assets:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Place a spot order on Hyperliquid
+   */
+  async placeSpotOrder(params: PlaceOrderParams): Promise<OrderResult> {
+    try {
+      // Ensure connected
+      // @ts-ignore
+      if (!this.sdk.isWebSocketConnected || !this.sdk.isWebSocketConnected()) {
+        // @ts-ignore
+        await this.sdk.connect();
+      }
+
+      const isBuy = params.side === 'BUY';
+      
+      // For spot, symbol format is "PURR/USDC" or we need to convert
+      let spotSymbol = params.symbol;
+      if (spotSymbol.endsWith('USDT')) {
+        // Convert "PURRUSDT" -> "PURR/USDC" (Hyperliquid uses USDC)
+        spotSymbol = spotSymbol.replace('USDT', '/USDC');
+      }
+
+      // Get spot meta to find the correct asset index
+      const spotMetaRes = await fetch('https://api.hyperliquid.xyz/info', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'spotMeta' })
+      });
+      const spotMeta: any = await spotMetaRes.json();
+
+      // Find the pair
+      const pair = spotMeta.universe.find((p: any) => 
+        p.name === spotSymbol || 
+        p.name.startsWith(params.symbol.replace('USDT', '').replace('USDC', ''))
+      );
+
+      if (!pair) {
+        throw new Error(`Spot pair not found: ${spotSymbol}`);
+      }
+
+      // Get current mid price for market orders
+      const midPriceRes = await fetch('https://api.hyperliquid.xyz/info', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'spotMetaAndAssetCtxs' })
+      });
+      const midPriceData: any = await midPriceRes.json();
+      
+      // midPriceData[1] contains asset contexts with markPx
+      const assetCtx = midPriceData[1]?.[pair.index];
+      const currentPrice = parseFloat(assetCtx?.midPx || assetCtx?.markPx || '0');
+
+      if (!currentPrice && params.type === 'MARKET') {
+        throw new Error(`Cannot determine market price for ${spotSymbol}`);
+      }
+
+      // Helper for price precision
+      const formatPrice = (price: number): number => parseFloat(price.toPrecision(5));
+
+      // Calculate limit price
+      let limitPrice: number;
+      if (params.type === 'MARKET') {
+        // Use aggressive price for IOC order
+        limitPrice = formatPrice(isBuy ? currentPrice * 1.05 : currentPrice * 0.95);
+      } else {
+        limitPrice = formatPrice(parseFloat(params.price || '0'));
+      }
+
+      // Spot orders use a different API endpoint format
+      // The SDK's exchange.placeOrder should work with spot if we pass the right asset
+      // @ts-ignore
+      const result = await this.sdk.exchange.placeOrder({
+        coin: pair.name,
+        is_buy: isBuy,
+        sz: parseFloat(params.quantity),
+        limit_px: limitPrice,
+        order_type: params.type === 'MARKET' 
+          ? { limit: { tif: 'Ioc' } } 
+          : { limit: { tif: 'Gtc' } },
+        reduce_only: false
+      });
+
+      if (result.status === 'err') {
+        throw new Error(`Order failed: ${result.response}`);
+      }
+
+      const statuses = result.response?.data?.statuses || [];
+      const firstError = statuses.find((s: any) => s.error);
+      if (firstError) {
+        throw new Error(`Order rejected: ${firstError.error}`);
+      }
+
+      const firstStatus = statuses[0];
+      let oid: number | undefined;
+
+      if (firstStatus?.resting?.oid) {
+        oid = firstStatus.resting.oid;
+      } else if (firstStatus?.filled) {
+        oid = firstStatus.filled.oid || Date.now();
+      }
+
+      return {
+        orderId: String(oid || Date.now()),
+        symbol: params.symbol,
+        side: params.side,
+        type: params.type,
+        quantity: params.quantity,
+        price: limitPrice.toString(),
+        status: firstStatus?.filled ? 'FILLED' : 'NEW',
+        timestamp: Date.now()
+      };
+    } catch (error) {
+      throw new Error(`Failed to place Hyperliquid spot order: ${error}`);
+    }
+  }
+
   async getFills(symbol?: string, limit: number = 50): Promise<any[]> {
     try {
       const response = await fetch('https://api.hyperliquid.xyz/info', {

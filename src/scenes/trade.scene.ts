@@ -185,8 +185,9 @@ export const marketOrderScene = new Scenes.WizardScene<BotContext>(
         ...quantityParams,
       },
       metadata: {
-        action: `${action} ${input} (${state.leverage || 5}x ${state.marginType || 'cross'})`,
+        action: `${action} ${input} (${state.leverage || 5}x ${state.marginType || 'cross'}) on ${ctx.session.activeExchange ? ctx.session.activeExchange.toUpperCase() : 'ASTER'}`,
         leverage: state.leverage || 5,
+        exchange: ctx.session.activeExchange || 'aster',
         // Store return context for post-confirmation
         returnTo: state.returnTo,
       },
@@ -202,9 +203,10 @@ export const marketOrderScene = new Scenes.WizardScene<BotContext>(
 
     // Client is optional in showConfirmation (it instantiates UniversalApi internally if needed)
     const db = getPostgres();
-    // const client = await getAsterClientForUser(ctx.session.userId, db, redis);
+    const client = new UniversalApiClient();
+    await client.initSession(ctx.session.userId, ctx.session.activeExchange || 'aster');
 
-    const operationId = await showConfirmation(ctx, db, redis, ctx.session.userId, operation);
+    const operationId = await showConfirmation(ctx, db, redis, ctx.session.userId, operation, client);
 
     // Leave wizard (confirmation takes over, or error was already shown)
     return ctx.scene.leave();
@@ -409,8 +411,9 @@ export const limitOrderScene = new Scenes.WizardScene<BotContext>(
         ...quantityParams,
       },
       metadata: {
-        action: `${action} ${state.amount} @ $${price} (${state.leverage || 5}x ${state.marginType || 'cross'})`,
+        action: `${action} ${state.amount} @ $${price} (${state.leverage || 5}x ${state.marginType || 'cross'}) on ${ctx.session.activeExchange ? ctx.session.activeExchange.toUpperCase() : 'ASTER'}`,
         leverage: state.leverage || 5,
+        exchange: ctx.session.activeExchange || 'aster',
         // Store return context for post-confirmation
         returnTo: state.returnTo,
       },
@@ -426,9 +429,10 @@ export const limitOrderScene = new Scenes.WizardScene<BotContext>(
 
     // Client is optional in showConfirmation (it instantiates UniversalApi internally if needed)
     const db = getPostgres();
-    // const client = await getAsterClientForUser(ctx.session.userId, db, redis);
+    const client = new UniversalApiClient();
+    await client.initSession(ctx.session.userId, ctx.session.activeExchange || 'aster');
 
-    const operationId = await showConfirmation(ctx, db, redis, ctx.session.userId, operation);
+    const operationId = await showConfirmation(ctx, db, redis, ctx.session.userId, operation, client);
 
     // Leave wizard (confirmation takes over, or error was already shown)
     return ctx.scene.leave();

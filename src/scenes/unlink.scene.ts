@@ -26,10 +26,14 @@ export const unlinkScene = new Scenes.WizardScene<BotContext>(
       return ctx.scene.leave();
     }
 
+    const state = ctx.wizard.state as { targetExchange?: string };
+    const targetExchange = state.targetExchange || 'aster';
+    const exchangeDisplay = targetExchange === 'hyperliquid' ? 'Hyperliquid' : 'Aster DEX';
+
     // Send confirmation message
     const message = await ctx.reply(
       '⚠️ **Unlink API Credentials**\n\n' +
-      'Are you sure you want to unlink your Aster DEX API?\n\n' +
+      `Are you sure you want to unlink your **${exchangeDisplay}** API?\n\n` +
       '**This will:**\n' +
       '• Remove your encrypted API credentials\n' +
       '• Disable all trading functionality\n' +
@@ -90,21 +94,40 @@ unlinkScene.action('confirm_unlink', async (ctx) => {
     }
 
     // Delete credentials from database
-    await deleteApiCredentials(userId);
+    const state = ctx.wizard.state as { targetExchange?: string };
+    const targetExchange = state.targetExchange || 'aster';
+    await deleteApiCredentials(userId, targetExchange);
 
-    console.log(`[UnlinkScene] ✅ Credentials deleted for user ${userId}`);
+    console.log(`[UnlinkScene] ✅ Credentials deleted for user ${userId} exchange ${targetExchange}`);
 
-    // Update session
-    ctx.session.isLinked = false;
-    ctx.session.userId = undefined;
+    // Update session: Check if any exchanges remain
+    const { getLinkedExchanges } = await import('../db/users');
+    const linkedExchanges = await getLinkedExchanges(userId);
+    
+    if (linkedExchanges.length === 0) {
+        ctx.session.isLinked = false;
+        ctx.session.activeExchange = undefined;
+    } else {
+        // If unlinked active exchange, switch to another
+        if (ctx.session.activeExchange === targetExchange) {
+            ctx.session.activeExchange = linkedExchanges[0];
+        }
+    }
+    
+    // Explicitly clear session user ID only if no links left
+    if (linkedExchanges.length === 0) {
+        // ctx.session.userId = undefined; // Keeping userId might be safer for re-linking
+    }
 
     console.log(`[UnlinkScene] ✅ Success! Showing menu...`);
+
+    const exchangeDisplay = targetExchange === 'hyperliquid' ? 'Hyperliquid' : 'Aster DEX';
 
     // Show success and menu
     await exitSceneToMenu(
       ctx,
       '✅ **API Unlinked Successfully**\n\n' +
-      '🔓 Your Aster DEX API credentials have been removed.\n\n' +
+      `🔓 Your ${exchangeDisplay} API credentials have been removed.\n\n` +
       'Use /link to connect your account again.'
     );
 

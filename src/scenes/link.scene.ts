@@ -22,24 +22,38 @@ export const linkScene = new Scenes.WizardScene<any>(
   async (ctx) => {
     console.log('[LinkScene] Step 1: Asking for API key');
 
-    // Check if already linked
-    if (ctx.session.isLinked) {
-      await ctx.reply('✅ You already have API credentials linked.\n\nUse /unlink to disconnect first.');
+    // Get target exchange
+    const state = ctx.scene.state as { targetExchange?: string };
+    const targetExchange = state.targetExchange || 'aster';
+    ctx.wizard.state.targetExchange = targetExchange;
+    // Explicitly persist to scene session state
+    ctx.scene.session.state.targetExchange = targetExchange;
+
+    const exchangeDisplay = targetExchange === 'hyperliquid' ? 'Hyperliquid' : 'Aster DEX';
+    const instructions = targetExchange === 'hyperliquid'
+        ? '1. Visit app.hyperliquid.xyz\n2. Connect Wallet -> API\n3. Create API Wallet'
+        : '1. Visit aster.exchange\n2. Go to Account → API Management\n3. Create API key with trading permissions';
+
+    // Check if already linked (basic check, could improve to check specific exchange)
+    if (ctx.session.isLinked && ctx.session.activeExchange === targetExchange) {
+      await ctx.reply(`✅ You already have ${exchangeDisplay} credentials linked.\n\nUse /unlink to disconnect first.`);
       return ctx.scene.leave();
     }
 
     // Initialize retry counter
     ctx.wizard.state.retryCount = 0;
 
+    const labelKey = targetExchange === 'hyperliquid' ? 'Wallet Address' : 'API Key';
+    const labelSecret = targetExchange === 'hyperliquid' ? 'API Wallet Private Key' : 'API Secret';
+
     // Send initial message
     const message = await ctx.reply(
-      '🔗 **Link Your Aster DEX API**\n\n' +
-      '**Step 1 of 2:** Send your API Key\n\n' +
+      `🔗 **Link Your ${exchangeDisplay} API**\n\n` +
+      `**Step 1 of 2 (v2):** Send your ${labelKey}\n\n` +
       '📝 How to get your API credentials:\n' +
-      '1. Visit aster.exchange\n' +
-      '2. Go to Account → API Management\n' +
-      '3. Create API key with trading permissions\n' +
-      '⚠️ **4. Copy both API Key and API Secret before proceeding!**\n\n' +
+      `${instructions}\n` +
+      '⚠️ **IMPORTANT**: Use **REAL (Mainnet)** API credentials. Testnet keys may fail validation.\n\n' +
+      `⚠️ **4. Copy both ${labelKey} and ${labelSecret} before proceeding!**\n\n` +
       '🔒 Your credentials are encrypted before storage.',
       {
         parse_mode: 'Markdown',
@@ -113,11 +127,16 @@ export const linkScene = new Scenes.WizardScene<any>(
       }
     }
 
+    // Determine labels again using persistent state
+    const targetExchange = ctx.scene.session.state.targetExchange || ctx.wizard.state.targetExchange || 'aster';
+    const labelKey = targetExchange === 'hyperliquid' ? 'Wallet Address' : 'API Key';
+    const labelSecret = targetExchange === 'hyperliquid' ? 'API Wallet Private Key' : 'API Secret';
+
     // Send NEW message for Step 2
     const step2Message = await ctx.reply(
-      '✅ **API Key received**\n\n' +
-      '**Step 2 of 2:** Send your API Secret\n\n' +
-      'Now send your API Secret.',
+      `✅ **${labelKey} received**\n\n` +
+      `**Step 2 of 2:** Send your ${labelSecret}\n\n` +
+      `Now send your ${labelSecret}.`,
       {
         parse_mode: 'Markdown',
         ...Markup.inlineKeyboard([
@@ -203,29 +222,47 @@ export const linkScene = new Scenes.WizardScene<any>(
       console.log(`[LinkScene] Linking credentials for user ${user.id} via Universal API...`);
       
       const { universalApi } = await import('../services/universalApi');
+      const targetExchange = ctx.scene.session.state.targetExchange || ctx.wizard.state.targetExchange || 'aster';
+      const exchangeDisplay = targetExchange === 'hyperliquid' ? 'Hyperliquid' : 'Aster DEX';
 
       // 1. Store credentials via Backend
-      const linkResult = await universalApi.linkCredentials(user.id, 'aster', {
-          apiKey,
-          apiSecret
-      });
+      let payload;
+      if (targetExchange === 'hyperliquid') {
+          payload = { address: apiKey, privateKey: apiSecret }; // apiKey holds address, apiSecret holds privateKey
+      } else {
+          payload = { apiKey, apiSecret };
+      }
+
+      const linkResult = await universalApi.linkCredentials(user.id, targetExchange as 'aster' | 'hyperliquid', payload);
 
       if (!linkResult.success) {
           throw new Error(linkResult.error || 'Failed to store credentials');
       }
 
       // 2. Init Session (Authentication)
-      const sessionInit = await universalApi.initSession(user.id, 'aster');
+      const sessionInit = await universalApi.initSession(user.id, targetExchange);
       if (!sessionInit) {
            throw new Error('Failed to initialize API session');
       }
 
       // 3. Validate by fetching account
-      await ctx.reply('⏳ Validating with Aster Exchange...', { parse_mode: 'Markdown' });
-      const accountRes = await universalApi.getAccount('aster');
+      await ctx.reply(`⏳ Validating with ${exchangeDisplay}...`, { parse_mode: 'Markdown' });
+      const accountRes = await universalApi.getAccount(targetExchange);
 
       if (!accountRes.success) {
-          throw new Error('Validation Failed: ' + (accountRes.error || 'Could not fetch account'));
+          console.error('[LinkScene] Validation failed:', accountRes.error);
+          await ctx.reply(
+            `❌ **Validation Failed**\n\n` +
+            `Could not verify these credentials with ${exchangeDisplay}.\n` +
+            `Error: ${accountRes.error || 'Unknown error'}\n\n` +
+            `Possible reasons:\n` +
+            `• Invalid API Key or Secret\n` +
+            `• Wrong permissions (Trading enabled?)\n` +
+            `• IP restriction blocking the bot (Disable IP restriction for API keys)\n\n` +
+            `Please try again with /link`,
+            { parse_mode: 'Markdown' }
+          );
+          return ctx.scene.leave();
       }
 
       console.log(`[LinkScene] ✅ Validation success!`);
@@ -235,7 +272,7 @@ export const linkScene = new Scenes.WizardScene<any>(
       ctx.session.telegramId = ctx.from!.id;
       ctx.session.username = ctx.from!.username;
       ctx.session.isLinked = true;
-      ctx.session.activeExchange = 'aster';
+      ctx.session.activeExchange = targetExchange;
 
       console.log(`[LinkScene] ✅ Success! Showing menu...`);
 
@@ -243,10 +280,10 @@ export const linkScene = new Scenes.WizardScene<any>(
       await exitSceneToMenu(
         ctx,
         '✅ **API Successfully Linked!**\n\n' +
-        '🎉 Your Aster DEX account is now connected via Universal API.\n\n' +
+        `🎉 Your ${exchangeDisplay} account is now connected via Universal API.\n\n` +
         '**Summary:**\n' +
         '• API credentials verified & stored\n' +
-        '• Ready to trade on Aster DEX'
+        `• Ready to trade on ${exchangeDisplay}`
       );
 
       return ctx.scene.leave();
