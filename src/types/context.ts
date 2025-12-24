@@ -25,7 +25,7 @@ export interface SessionData {
   overviewMessageId?: number;
 
   // Symbol search results
-  searchResults?: Array<{ symbol: string; type: 'spot' | 'futures' }>;
+  searchResults?: Array<{ symbol: string; type: 'spot' | 'futures'; exchange: string }>;
 
   // Trading state per symbol
   tradingState?: {
@@ -48,6 +48,13 @@ export interface SessionData {
 
   // Message cleanup - track messages with buttons for removal
   buttonMessages?: number[];
+
+  // Pending trade (used when user clicks unlinked exchange symbol)
+  pendingTrade?: {
+    symbol: string;
+    type: 'spot' | 'futures';
+    exchange: string;
+  };
 
   // Scene data (managed by Telegraf)
   __scenes?: any;

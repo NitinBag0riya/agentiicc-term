@@ -397,23 +397,50 @@ export function setupBot(bot: Telegraf<BotContext>): void {
         const results = ctx.session.searchResults || [];
         const result = results[index];
 
-        if (result && result.type === 'futures') {
+        if (!result) {
+          await ctx.reply('❌ Symbol not found. Please search again.');
+          return;
+        }
+
+        // Check if user has this exchange linked
+        const { getLinkedExchanges } = await import('./db/users');
+        const linkedExchanges = ctx.session.userId ? await getLinkedExchanges(ctx.session.userId) : [];
+        const isLinked = linkedExchanges.includes(result.exchange);
+
+        if (!isLinked) {
+          // Store pending trade and trigger link flow
+          ctx.session.pendingTrade = {
+            symbol: result.symbol,
+            type: result.type,
+            exchange: result.exchange,
+          };
+          
+          const exchangeName = result.exchange === 'hyperliquid' ? 'Hyperliquid' : 'Aster DEX';
+          await ctx.reply(
+            `🔗 **Link ${exchangeName} to Trade**\n\n` +
+            `You need to link your ${exchangeName} account before trading ${result.symbol}.\n\n` +
+            `_After linking, you'll be redirected to trade ${result.symbol}._`,
+            { parse_mode: 'Markdown' }
+          );
+          
+          // Enter appropriate link scene
+          return ctx.scene.enter('link-wizard', { 
+            targetExchange: result.exchange,
+            returnToTrade: true,
+          });
+        }
+
+        if (result.type === 'futures') {
           // Auto-set activeExchange to the exchange from search results
-          if (result.exchange) {
-            ctx.session.activeExchange = result.exchange as 'aster' | 'hyperliquid';
-            console.log(`[Symbol] Auto-set activeExchange to ${result.exchange}`);
-          }
+          ctx.session.activeExchange = result.exchange as 'aster' | 'hyperliquid';
           // For futures, check if user has an open position and show position management
           await showPositionManagement(ctx, result.symbol);
           return;
         }
 
-        if (result && result.type === 'spot') {
+        if (result.type === 'spot') {
           // Auto-set activeExchange to the exchange from search results
-          if (result.exchange) {
-            ctx.session.activeExchange = result.exchange as 'aster' | 'hyperliquid';
-            console.log(`[Symbol] Auto-set activeExchange to ${result.exchange}`);
-          }
+          ctx.session.activeExchange = result.exchange as 'aster' | 'hyperliquid';
           // Get symbol info
           const symbolInfo = getSpotSymbol(result.symbol);
 
@@ -1504,19 +1531,18 @@ export function setupBot(bot: Telegraf<BotContext>): void {
     // Store matches in session for deep links
     const allMatches: Array<{ symbol: string; type: 'spot' | 'futures'; exchange: string }> = [];
 
-    // Get linked exchanges - only show the ACTIVE exchange or truly linked ones
+    // Get linked exchanges to determine status
     const { getLinkedExchanges } = await import('./db/users');
     const linkedExchanges = ctx.session.userId ? await getLinkedExchanges(ctx.session.userId) : [];
     
-    // Use ONLY the active exchange from session if set, otherwise use linked exchanges
-    const activeExchange = ctx.session.activeExchange;
-    const exchangesToShow = activeExchange 
-      ? [activeExchange] 
-      : (linkedExchanges.length > 0 ? linkedExchanges : ['aster']);
+    // Show ALL exchanges (linked or not) - user can trade on linked, or link first on unlinked
+    const allExchanges = ['aster', 'hyperliquid'];
 
-    for (const exchange of exchangesToShow) {
+    for (const exchange of allExchanges) {
       const exchangeName = exchange === 'hyperliquid' ? 'Hyperliquid' : 'Aster DEX';
       const exchangeEmoji = exchange === 'hyperliquid' ? '🟢' : '⭐';
+      const isLinked = linkedExchanges.includes(exchange);
+      const linkStatus = isLinked ? '✅' : '🔗';
 
       // Exchange-specific symbol availability:
       // - Aster: Full spot catalog available
@@ -1527,7 +1553,7 @@ export function setupBot(bot: Telegraf<BotContext>): void {
 
       if (exchangeSpot.length === 0 && exchangeFutures.length === 0) continue;
 
-      message += `${exchangeEmoji} **${exchangeName}**\n`;
+      message += `${exchangeEmoji} **${exchangeName}** ${linkStatus}\n`;
       message += `━━━━━━━━━━━━━━━━━━━━━━\n`;
 
       if (exchangeSpot.length > 0) {
@@ -1556,7 +1582,7 @@ export function setupBot(bot: Telegraf<BotContext>): void {
       message += '\n';
     }
 
-    message += `_Click on a symbol to see details and trade_`;
+    message += `_✅ = Linked, 🔗 = Click to link & trade_`;
 
     // Store matches in session
     ctx.session.searchResults = allMatches;
