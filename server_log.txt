@@ -77,3 +77,10 @@ error: Failed to place Aster order: Error: Aster API Error: 400 - {"code":-1111,
 [ExchangeInfo] ✅ Fetched futures exchange info (263 symbols)
 [ExchangeInfo] ✅ Exchange info cached
 [PriceCache] ✅ Fetched spot prices via HTTP (39 symbols)
+[ExchangeInfo] 📥 Fetching exchange info...
+[ExchangeInfo] ✅ Fetched spot exchange info (41 symbols)
+[ExchangeInfo] ✅ Fetched futures exchange info (263 symbols)
+[ExchangeInfo] ✅ Exchange info cached
+[PriceCache] ✅ Fetched spot prices via HTTP (39 symbols)
+[AsterAdapter] Canceling all orders for: BTCUSDT
+[AsterAdapter] Cancel all response: {"code":200,"msg":"The operation of cancel all open order is done."}
