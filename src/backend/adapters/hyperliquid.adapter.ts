@@ -13,7 +13,7 @@ export class HyperliquidAdapter implements ExchangeAdapter {
     this.accountAddress = accountAddress;
 
     // Initialize SDK with proper options object for exchange module
-    if (privateKey) {
+    if (privateKey && privateKey !== 'WATCH_ONLY') {
       const cleanKey = privateKey.startsWith('0x') ? privateKey : `0x${privateKey}`;
       // @ts-ignore - SDK type definitions may not match actual implementation
       this.sdk = new Hyperliquid({
