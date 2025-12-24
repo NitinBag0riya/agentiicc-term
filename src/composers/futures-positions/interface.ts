@@ -68,38 +68,54 @@ export async function buildPositionInterface(ctx: BotContext, symbol: string, us
 
   const state = ctx.session.tradingState[symbol];
 
-  // If usePlaceholders=true, return immediately without fetching
-  if (usePlaceholders) {
-    // Use sensible defaults instead of -1 placeholder
-    const defaultLev = (ctx.session.activeExchange === 'hyperliquid') ? 20 : 5;
-    state.leverage = state.leverage > 0 ? state.leverage : defaultLev;
-    state.marginType = 'cross'; // Both exchanges default to cross
-  } else {
-    // Fetch actual values from exchange
-    const exchange = ctx.session.activeExchange || 'aster';
-    const positionsRes = await client.getPositions(exchange);
-    if (!positionsRes.success) throw new Error(positionsRes.error);
-    const positions = positionsRes.data;
-    
-    // Match symbol - handle Hyperliquid format (e.g., "ETH" vs "ETHUSDT")
-    const normalizedSymbol = symbol.replace(/USDT$|USD$/, '');
-    const positionInfo = positions.find((p: any) => {
-      const pSym = p.symbol || p.coin || '';
-      return pSym === symbol || pSym === normalizedSymbol || pSym.startsWith(normalizedSymbol);
-    });
+  // Determine exchange-specific defaults
+  const exchange = ctx.session.activeExchange || 'aster';
+  const exchangeDefaults = {
+    hyperliquid: { leverage: 20, marginType: 'cross' as const },
+    aster: { leverage: 5, marginType: 'cross' as const }
+  };
+  const defaults = exchangeDefaults[exchange as keyof typeof exchangeDefaults] || exchangeDefaults.aster;
 
-    if (positionInfo) {
-      // Sync session state with exchange state
-      const parsedLev = parseInt(positionInfo.leverage);
-      state.leverage = parsedLev > 0 ? parsedLev : state.leverage;
-      // marginType may not be returned by all exchanges (e.g., Hyperliquid defaults to cross)
-      state.marginType = positionInfo.marginType 
-        ? positionInfo.marginType.toLowerCase() as 'cross' | 'isolated'
-        : 'cross'; // Default to cross if not provided
+  // Always try to fetch actual leverage from exchange (even when usePlaceholders)
+  // This makes the leverage dynamic rather than hardcoded
+  if (!usePlaceholders) {
+    try {
+      const positionsRes = await client.getPositions(exchange);
+      if (positionsRes.success) {
+        const positions = positionsRes.data;
+        
+        // Match symbol - handle Hyperliquid format (e.g., "ETH" vs "ETHUSDT")
+        const normalizedSymbol = symbol.replace(/USDT$|USD$/, '');
+        const positionInfo = positions.find((p: any) => {
+          const pSym = p.symbol || p.coin || '';
+          return pSym === symbol || pSym === normalizedSymbol || pSym.startsWith(normalizedSymbol);
+        });
+
+        if (positionInfo) {
+          // Sync session state with exchange state
+          const parsedLev = parseInt(positionInfo.leverage);
+          if (parsedLev > 0) state.leverage = parsedLev;
+          
+          // marginType may not be returned by all exchanges (Hyperliquid defaults to cross)
+          state.marginType = positionInfo.marginType 
+            ? positionInfo.marginType.toLowerCase() as 'cross' | 'isolated'
+            : defaults.marginType;
+        }
+      }
+    } catch (err) {
+      console.warn('[buildPositionInterface] Failed to fetch leverage, using defaults');
     }
   }
 
-  const exchange = ctx.session.activeExchange || 'aster';
+  // If leverage is still unset or invalid, use exchange-specific default
+  if (!state.leverage || state.leverage <= 0) {
+    state.leverage = defaults.leverage;
+  }
+  if (!state.marginType) {
+    state.marginType = defaults.marginType;
+  }
+
+
   const positionsRes2 = await client.getPositions(exchange);
   if (!positionsRes2.success) throw new Error(positionsRes2.error);
   
