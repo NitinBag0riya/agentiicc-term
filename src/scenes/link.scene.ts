@@ -86,6 +86,19 @@ export const linkScene = new Scenes.WizardScene<any>(
 
   // ==================== STEP 2: Receive API Key, Ask for Secret ====================
   async (ctx) => {
+    // Handle Web App Data (Success from Mini App)
+    if (ctx.message && 'web_app_data' in ctx.message) {
+        const data = JSON.parse(ctx.message.web_app_data.data);
+        console.log('[LinkScene] Received Web App Data:', data);
+        
+        if (data.success) {
+             await ctx.reply(`✅ Successfully linked ${data.exchange || 'wallet'}!`);
+             const { showOverview } = await import('../composers/overview-menu.composer');
+             await showOverview(ctx); // Navigate to Citadel
+             return ctx.scene.leave();
+        }
+    }
+
     if (!ctx.message || !('text' in ctx.message)) {
       await ctx.reply('❌ Please send text only', { reply_to_message_id: ctx.message?.message_id });
       return;

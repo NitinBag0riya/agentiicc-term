@@ -147,6 +147,12 @@ function handleStartParams() {
          const rad = document.querySelector('input[name="exchange"][value="aster"]');
         if (rad) rad.checked = true;       
     }
+    
+    // Auto-Connect if param present
+    if (startParam) {
+        console.log('[App] Auto-clicking Connect...');
+        setTimeout(() => document.getElementById('connect-btn').click(), 500);
+    }
 }
 handleStartParams();
 
@@ -348,17 +354,24 @@ async function connectWalletAndCreateApiKey() {
     walletAddressEl.textContent = walletAddress;
     showSection(successSection);
 
+    // Send data to Bot
+    if (tg.initData) {
+        console.log('[TG] Sending data to bot...');
+        tg.sendData(JSON.stringify({ 
+            success: true, 
+            exchange, 
+            walletAddress 
+        }));
+    }
+
     // Disconnect provider
     if (provider) {
       await provider.disconnect();
       console.log('[Wallet] Disconnected');
     }
 
-    // Close mini app after 2 seconds
-    setTimeout(() => {
-      console.log('[TG] Closing Mini App');
-      tg.close();
-    }, 2000);
+    // Close mini app immediately
+    tg.close();
 
   } catch (error) {
     console.error('[Error] Wallet connection failed:', error);
