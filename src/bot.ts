@@ -1396,9 +1396,11 @@ export function setupBot(bot: Telegraf<BotContext>): void {
         message += '\n';
       }
 
+      const botUsername = ctx.botInfo?.username || 'your_bot';
+      const shareLink = `https://t.me/${botUsername}?start=${code}`;
       message += `**Share your code:**\n`;
-      message += `\`/start ${code}\`\n\n`;
-      message += `_Share this message with friends to invite them!_`;
+      message += `🔗 [Click to share invite link](${shareLink})\n\n`;
+      message += `_Or copy: \`/start ${code}\`_`;
 
       await ctx.reply(message, {
         parse_mode: 'Markdown',
@@ -1446,9 +1448,11 @@ export function setupBot(bot: Telegraf<BotContext>): void {
         message += '\n';
       }
 
+      const botUsername = ctx.botInfo?.username || 'your_bot';
+      const shareLink = `https://t.me/${botUsername}?start=${code}`;
       message += `**Share your code:**\n`;
-      message += `\`/start ${code}\`\n\n`;
-      message += `_Share this message with friends to invite them!_`;
+      message += `🔗 [Click to share invite link](${shareLink})\n\n`;
+      message += `_Or copy: \`/start ${code}\`_`;
 
       await ctx.editMessageText(message, {
         parse_mode: 'Markdown',
