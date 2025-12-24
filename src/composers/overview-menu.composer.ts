@@ -476,8 +476,24 @@ export async function showOverview(ctx: BotContext, editMessage = false, style: 
     let message = style === 'default' ? '🏦 **Command Citadel**\n\n' : `🏦 <b>Command Citadel</b> (Style ${style.replace('style', '')})\n\n`;
     let globalTotalBalance = 0;
     
-    // Process each exchange
-    for (const exchange of exchangesToFetch) {
+    // OPTIMIZATION: Pre-fetch ALL exchange data in parallel (faster than sequential)
+    console.log(`[Overview] Fetching ${exchangesToFetch.length} exchanges in parallel...`);
+    const startTime = Date.now();
+    
+    const allExchangeData = await Promise.all(
+      exchangesToFetch.map(async (exchange) => {
+        const [perpResult, spotResult] = await Promise.allSettled([
+          fetchPerpData(client, ctx, 10, style, exchange),
+          fetchSpotData(client, ctx, 10, style, exchange)
+        ]);
+        return { exchange, perpResult, spotResult };
+      })
+    );
+    
+    console.log(`[Overview] All exchanges fetched in ${Date.now() - startTime}ms`);
+
+    // Process pre-fetched data
+    for (const { exchange, perpResult, spotResult } of allExchangeData) {
         // Exchange Header
         const exchangeName = exchange.charAt(0).toUpperCase() + exchange.slice(1); // Capitalize
         
@@ -492,13 +508,7 @@ export async function showOverview(ctx: BotContext, editMessage = false, style: 
         let perpError: string | null = null;
         let spotError: string | null = null;
 
-        try {
-            // Fetch concurrently for this exchange
-            const [perpResult, spotResult] = await Promise.allSettled([
-                fetchPerpData(client, ctx, 10, style, exchange),
-                fetchSpotData(client, ctx, 10, style, exchange)
-            ]);
-
+        // Use pre-fetched results (already have perpResult and spotResult from parallel fetch)
             // Handle Perp Result
             if (perpResult.status === 'fulfilled') {
                 perpData = perpResult.value;
@@ -521,9 +531,6 @@ export async function showOverview(ctx: BotContext, editMessage = false, style: 
                  spotError = 'Failed to load.';
             }
 
-        } catch (err) {
-            console.error(`[Overview] Error fetching ${exchange}:`, err);
-        }
 
         // Add to message
         if (perpData) {
