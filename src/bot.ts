@@ -275,24 +275,9 @@ export function setupBot(bot: Telegraf<BotContext>): void {
       ctx.session.telegramId = telegramId;
       ctx.session.username = username || undefined;
 
-      // Show success message with their own referral code
-      await ctx.reply(
-        '✅ **Welcome to StableSolid!**\n\n' +
-        `You've successfully joined using ${validation.referrerUsername}'s referral code!\n\n` +
-        `🎁 **Your Referral Code:** \`${result.ownReferralCode}\`\n\n` +
-        'Share your code to invite friends and earn rewards!\n\n' +
-        '**Next Steps:**\n' +
-        '1️⃣ Link your trading account (/menu)\n' +
-        '2️⃣ Start trading on Aster DEX\n' +
-        '3️⃣ Share your referral code with friends',
-        {
-          parse_mode: 'Markdown',
-          ...Markup.inlineKeyboard([
-            [Markup.button.callback('🚀 Get Started', 'menu')],
-            [Markup.button.callback('📊 My Referrals', 'referrals')],
-          ]),
-        }
-      );
+      // Skip confirmation screen - go directly to welcome/Citadel
+      const { showOverview } = await import('./composers/overview-menu.composer');
+      await showOverview(ctx);
       return;
     }
 
