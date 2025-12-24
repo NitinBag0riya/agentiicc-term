@@ -70,19 +70,28 @@ export async function buildPositionInterface(ctx: BotContext, symbol: string, us
 
   // If usePlaceholders=true, return immediately without fetching
   if (usePlaceholders) {
-    state.leverage = -1; // Signal to show (?) placeholder
-    state.marginType = 'unknown' as any; // Signal to show (??) placeholder
+    // Use sensible defaults instead of -1 placeholder
+    const defaultLev = (ctx.session.activeExchange === 'hyperliquid') ? 20 : 5;
+    state.leverage = state.leverage > 0 ? state.leverage : defaultLev;
+    state.marginType = 'cross'; // Both exchanges default to cross
   } else {
     // Fetch actual values from exchange
     const exchange = ctx.session.activeExchange || 'aster';
     const positionsRes = await client.getPositions(exchange);
     if (!positionsRes.success) throw new Error(positionsRes.error);
     const positions = positionsRes.data;
-    const positionInfo = positions.find((p: any) => p.symbol === symbol);
+    
+    // Match symbol - handle Hyperliquid format (e.g., "ETH" vs "ETHUSDT")
+    const normalizedSymbol = symbol.replace(/USDT$|USD$/, '');
+    const positionInfo = positions.find((p: any) => {
+      const pSym = p.symbol || p.coin || '';
+      return pSym === symbol || pSym === normalizedSymbol || pSym.startsWith(normalizedSymbol);
+    });
 
     if (positionInfo) {
       // Sync session state with exchange state
-      state.leverage = parseInt(positionInfo.leverage) || state.leverage;
+      const parsedLev = parseInt(positionInfo.leverage);
+      state.leverage = parsedLev > 0 ? parsedLev : state.leverage;
       // marginType may not be returned by all exchanges (e.g., Hyperliquid defaults to cross)
       state.marginType = positionInfo.marginType 
         ? positionInfo.marginType.toLowerCase() as 'cross' | 'isolated'
@@ -93,7 +102,14 @@ export async function buildPositionInterface(ctx: BotContext, symbol: string, us
   const exchange = ctx.session.activeExchange || 'aster';
   const positionsRes2 = await client.getPositions(exchange);
   if (!positionsRes2.success) throw new Error(positionsRes2.error);
-  const position = usePlaceholders ? null : positionsRes2.data.find((p: any) => p.symbol === symbol && parseFloat(p.positionAmt) !== 0);
+  
+  // Match symbol - handle Hyperliquid format (e.g., "ETH" vs "ETHUSDT")
+  const normSymbol = symbol.replace(/USDT$|USD$/, '');
+  const position = usePlaceholders ? null : positionsRes2.data.find((p: any) => {
+    const pSym = p.symbol || p.coin || '';
+    const size = parseFloat(p.positionAmt || p.size || '0');
+    return (pSym === symbol || pSym === normSymbol || pSym.startsWith(normSymbol)) && size !== 0;
+  });
   const baseAsset = symbol.replace(/USDT$|USD$|BTC$|ETH$/, '');
 
   // Fetch orders once (used by both new and existing position views)
