@@ -92,7 +92,14 @@ export const linkScene = new Scenes.WizardScene<any>(
         console.log('[LinkScene] Received Web App Data:', data);
         
         if (data.success) {
-             await ctx.reply(`✅ Successfully linked ${data.exchange || 'wallet'}!`);
+             const exchange = data.exchange as 'aster' | 'hyperliquid';
+             await ctx.reply(`✅ Successfully linked ${exchange || 'wallet'}!`);
+             
+             // Update session
+             if (exchange && ['aster', 'hyperliquid'].includes(exchange)) {
+                 ctx.session.activeExchange = exchange;
+             }
+             
              const { showOverview } = await import('../composers/overview-menu.composer');
              await showOverview(ctx); // Navigate to Citadel
              return ctx.scene.leave();

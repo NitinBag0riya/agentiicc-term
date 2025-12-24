@@ -166,7 +166,7 @@ router.post('/create-api-key', async (req, res) => {
           });
         }
 
-        const asterData = await asterResponse.json();
+        const asterData = await asterResponse.json() as any;
         apiKey = asterData.apiKey;
         apiSecret = asterData.apiSecret;
     } else if (exchange === 'hyperliquid') {
