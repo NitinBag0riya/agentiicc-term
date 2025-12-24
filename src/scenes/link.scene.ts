@@ -59,20 +59,18 @@ export const linkScene = new Scenes.WizardScene<any>(
         ? `${appUrl}&start_param=${param}` 
         : `${appUrl}?start_param=${param}`;
 
+    // Compact view - hide detailed instructions behind a button
     const message = await ctx.reply(
       `🔗 **Link Your ${exchangeDisplay} API**\n\n` +
-      `**Option 1:** Connect via Wallet (Recommended)\n` +
-      `**Option 2:** Send your ${labelKey} manually below.\n\n` +
+      `➡️ **Option 1:** Connect via Wallet (Recommended)\n` +
+      `➡️ **Option 2:** Send your ${labelKey} manually\n\n` +
       `**Step 1:** Send your ${labelKey}\n\n` +
-      '📝 How to get manual credentials:\n' +
-      `${instructions}\n` +
-      '⚠️ **IMPORTANT**: Use **REAL (Mainnet)** API credentials. Testnet keys may fail validation.\n\n' +
-      `⚠️ **Copy both ${labelKey} and ${labelSecret} before proceeding!**\n\n` +
       '🔒 Your credentials are encrypted before storage.',
       {
         parse_mode: 'Markdown',
         ...Markup.inlineKeyboard([
           [Markup.button.webApp('🌐 Connect Wallet', finalUrl)],
+          [Markup.button.callback('📋 View Instructions', `link_instructions:${targetExchange}`)],
           [Markup.button.callback('❌ Cancel', 'cancel_link')],
         ]),
       }
@@ -368,6 +366,71 @@ linkScene.action('cancel_link', async (ctx: any) => {
   );
 
   return ctx.scene.leave();
+});
+
+// ==================== View Instructions Handler ====================
+linkScene.action(/^link_instructions:(.+)$/, async (ctx: any) => {
+  await ctx.answerCbQuery();
+  
+  const targetExchange = ctx.match[1];
+  const exchangeDisplay = targetExchange === 'hyperliquid' ? 'Hyperliquid' : 'Aster DEX';
+  const instructions = targetExchange === 'hyperliquid'
+    ? '1️⃣ Visit app.hyperliquid.xyz\n2️⃣ Connect Wallet → API\n3️⃣ Create API Wallet'
+    : '1️⃣ Visit aster.exchange\n2️⃣ Go to Account → API Management\n3️⃣ Create API key with trading permissions';
+  const labelKey = targetExchange === 'hyperliquid' ? 'Wallet Address' : 'API Key';
+  const labelSecret = targetExchange === 'hyperliquid' ? 'Private Key' : 'API Secret';
+
+  try {
+    await ctx.editMessageText(
+      `📋 **${exchangeDisplay} Setup Instructions**\n\n` +
+      `${instructions}\n\n` +
+      `⚠️ Use **REAL (Mainnet)** credentials only\n` +
+      `⚠️ Copy both ${labelKey} and ${labelSecret}!`,
+      {
+        parse_mode: 'Markdown',
+        ...Markup.inlineKeyboard([
+          [Markup.button.callback('« Back', `link_back:${targetExchange}`)],
+        ]),
+      }
+    );
+  } catch (e) {
+    console.log('[LinkScene] Could not edit message for instructions');
+  }
+});
+
+// ==================== Back from Instructions Handler ====================
+linkScene.action(/^link_back:(.+)$/, async (ctx: any) => {
+  await ctx.answerCbQuery();
+  
+  const targetExchange = ctx.match[1];
+  const exchangeDisplay = targetExchange === 'hyperliquid' ? 'Hyperliquid' : 'Aster DEX';
+  const labelKey = targetExchange === 'hyperliquid' ? 'Wallet Address' : 'API Key';
+  
+  const appUrl = process.env.MINI_APP_URL || '';
+  const param = `link_${targetExchange}`;
+  const finalUrl = appUrl.includes('?') 
+    ? `${appUrl}&start_param=${param}` 
+    : `${appUrl}?start_param=${param}`;
+
+  try {
+    await ctx.editMessageText(
+      `🔗 **Link Your ${exchangeDisplay} API**\n\n` +
+      `➡️ **Option 1:** Connect via Wallet (Recommended)\n` +
+      `➡️ **Option 2:** Send your ${labelKey} manually\n\n` +
+      `**Step 1:** Send your ${labelKey}\n\n` +
+      '🔒 Your credentials are encrypted before storage.',
+      {
+        parse_mode: 'Markdown',
+        ...Markup.inlineKeyboard([
+          [Markup.button.webApp('🌐 Connect Wallet', finalUrl)],
+          [Markup.button.callback('📋 View Instructions', `link_instructions:${targetExchange}`)],
+          [Markup.button.callback('❌ Cancel', 'cancel_link')],
+        ]),
+      }
+    );
+  } catch (e) {
+    console.log('[LinkScene] Could not edit message back');
+  }
 });
 
 // ==================== Leave Handler ====================
