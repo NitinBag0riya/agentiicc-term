@@ -35,8 +35,12 @@ export const linkScene = new Scenes.WizardScene<any>(
         : '1. Visit aster.exchange\n2. Go to Account → API Management\n3. Create API key with trading permissions';
 
     // Check if already linked (basic check, could improve to check specific exchange)
-    if (ctx.session.isLinked && ctx.session.activeExchange === targetExchange) {
-      await ctx.reply(`✅ You already have ${exchangeDisplay} credentials linked.\n\nUse /unlink to disconnect first.`);
+    // Check if already linked
+    if (ctx.session.linkedExchanges?.includes(targetExchange)) {
+      console.log(`[LinkScene] Already linked to ${targetExchange}, switching and redirecting to Citadel`);
+      ctx.session.activeExchange = targetExchange;
+      const { showOverview } = await import('../composers/overview-menu.composer');
+      await showOverview(ctx);
       return ctx.scene.leave();
     }
 
