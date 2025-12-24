@@ -76,31 +76,38 @@ export async function buildPositionInterface(ctx: BotContext, symbol: string, us
   };
   const defaults = exchangeDefaults[exchange as keyof typeof exchangeDefaults] || exchangeDefaults.aster;
 
-  // Always try to fetch actual leverage from exchange (even when usePlaceholders)
-  // This makes the leverage dynamic rather than hardcoded
-  if (!usePlaceholders) {
-    try {
-      const positionsRes = await client.getPositions(exchange);
-      if (positionsRes.success) {
-        const positions = positionsRes.data;
-        
-        // Match symbol - handle Hyperliquid format (e.g., "ETH" vs "ETHUSDT")
-        const normalizedSymbol = symbol.replace(/USDT$|USD$/, '');
-        const positionInfo = positions.find((p: any) => {
-          const pSym = p.symbol || p.coin || '';
-          return pSym === symbol || pSym === normalizedSymbol || pSym.startsWith(normalizedSymbol);
-        });
+  // OPTIMIZATION: Fetch positions and orders in parallel (both needed for UI)
+  console.log('[buildPositionInterface] Fetching positions and orders in parallel...');
+  const startTime = Date.now();
+  
+  const [positionsRes, ordersInfo] = await Promise.all([
+    client.getPositions(exchange),
+    getOpenOrdersInfo(client, symbol, exchange)
+  ]);
+  
+  console.log(`[buildPositionInterface] Fetched in ${Date.now() - startTime}ms`);
 
-        if (positionInfo) {
-          // Sync session state with exchange state
-          const parsedLev = parseInt(positionInfo.leverage);
-          if (parsedLev > 0) state.leverage = parsedLev;
-          
-          // marginType may not be returned by all exchanges (Hyperliquid defaults to cross)
-          state.marginType = positionInfo.marginType 
-            ? positionInfo.marginType.toLowerCase() as 'cross' | 'isolated'
-            : defaults.marginType;
-        }
+  // Use positions response for leverage sync and position lookup
+  if (!usePlaceholders && positionsRes.success) {
+    try {
+      const positions = positionsRes.data;
+      
+      // Match symbol - handle Hyperliquid format (e.g., "ETH" vs "ETHUSDT")
+      const normalizedSymbol = symbol.replace(/USDT$|USD$/, '');
+      const positionInfo = positions.find((p: any) => {
+        const pSym = p.symbol || p.coin || '';
+        return pSym === symbol || pSym === normalizedSymbol || pSym.startsWith(normalizedSymbol);
+      });
+
+      if (positionInfo) {
+        // Sync session state with exchange state
+        const parsedLev = parseInt(positionInfo.leverage);
+        if (parsedLev > 0) state.leverage = parsedLev;
+        
+        // marginType may not be returned by all exchanges (Hyperliquid defaults to cross)
+        state.marginType = positionInfo.marginType 
+          ? positionInfo.marginType.toLowerCase() as 'cross' | 'isolated'
+          : defaults.marginType;
       }
     } catch (err) {
       console.warn('[buildPositionInterface] Failed to fetch leverage, using defaults');
@@ -115,21 +122,20 @@ export async function buildPositionInterface(ctx: BotContext, symbol: string, us
     state.marginType = defaults.marginType;
   }
 
-
-  const positionsRes2 = await client.getPositions(exchange);
-  if (!positionsRes2.success) throw new Error(positionsRes2.error);
+  // Use already-fetched positions (no duplicate API call)
+  if (!positionsRes.success) throw new Error(positionsRes.error);
   
   // Match symbol - handle Hyperliquid format (e.g., "ETH" vs "ETHUSDT")
   const normSymbol = symbol.replace(/USDT$|USD$/, '');
-  const position = usePlaceholders ? null : positionsRes2.data.find((p: any) => {
+  const position = usePlaceholders ? null : positionsRes.data.find((p: any) => {
     const pSym = p.symbol || p.coin || '';
     const size = parseFloat(p.positionAmt || p.size || '0');
     return (pSym === symbol || pSym === normSymbol || pSym.startsWith(normSymbol)) && size !== 0;
   });
   const baseAsset = symbol.replace(/USDT$|USD$|BTC$|ETH$/, '');
 
-  // Fetch orders once (used by both new and existing position views)
-  const { openOrders, tpOrder, slOrder, otherOrders } = await getOpenOrdersInfo(client, symbol, exchange);
+  // Use pre-fetched orders (no duplicate call)
+  const { openOrders, tpOrder, slOrder, otherOrders } = ordersInfo;
 
   if (!position) {
     // No position - show new position UI with market data
