@@ -530,8 +530,9 @@ export class HyperliquidAdapter implements ExchangeAdapter {
       });
       
       const mids = await response.json() as Record<string, string>;
-      const exSymbol = this.toExchangeSymbol(symbol); // Converts ETHUSDT -> ETH
-      const price = mids[exSymbol] || '0';
+      // Strip USDT suffix and -PERP suffix for clean lookup (API uses "ETH", "BTC" etc.)
+      let cleanSymbol = symbol.replace(/USDT$|USD$/, '').replace(/-PERP$/, '');
+      const price = mids[cleanSymbol] || '0';
       
       return {
         symbol,
