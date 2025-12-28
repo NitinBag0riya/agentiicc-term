@@ -20,7 +20,9 @@ export interface TickerPrice {
 // In-memory cache
 let spotPrices: TickerPrice[] = [];
 let futuresPrices: TickerPrice[] = [];
+let hyperliquidPrices: TickerPrice[] = []; // Hyperliquid price cache
 let lastFetchTime = 0;
+let lastHyperliquidFetchTime = 0;
 
 // WebSocket state
 let ws: WebSocket | null = null;
@@ -28,14 +30,22 @@ let reconnectTimer: NodeJS.Timeout | null = null;
 let reconnectAttempts = 0;
 let is24HourReconnectScheduled = false;
 let fallbackIntervalId: NodeJS.Timeout | null = null;
+let hyperliquidIntervalId: NodeJS.Timeout | null = null;
 
 const SPOT_BASE_URL = 'https://sapi.asterdex.com';
 const FUTURES_BASE_URL = 'https://fapi.asterdex.com';
 const WS_BASE_URL = 'wss://fstream.asterdex.com';
+const HYPERLIQUID_API_URL = 'https://api.hyperliquid.xyz/info';
+const HYPERLIQUID_WS_URL = 'wss://api.hyperliquid.xyz/ws';  // Real-time WebSocket
 const FALLBACK_INTERVAL_MS = 10 * 60 * 1000; // 10 minutes
 const WS_24HR_MS = 24 * 60 * 60 * 1000; // 24 hours
 const RECONNECT_DELAY_MS = 5000; // 5 seconds
 const MAX_RECONNECT_ATTEMPTS = 10;
+
+// Hyperliquid WebSocket state
+let hlWs: WebSocket | null = null;
+let hlReconnectTimer: NodeJS.Timeout | null = null;
+let hlReconnectAttempts = 0;
 
 /**
  * Fetch spot ticker prices via HTTP
@@ -71,6 +81,124 @@ async function fetchFuturesPrices(): Promise<TickerPrice[] | null> {
     );
     return null;
   }
+}
+
+/**
+ * Fetch Hyperliquid prices via HTTP
+ */
+async function fetchHyperliquidPrices(): Promise<TickerPrice[] | null> {
+  try {
+    // Get all mids (current prices)
+    const [midsResponse, metaResponse] = await Promise.all([
+      axios.post(HYPERLIQUID_API_URL, { type: 'allMids' }, { timeout: 10000 }),
+      axios.post(HYPERLIQUID_API_URL, { type: 'meta' }, { timeout: 10000 })
+    ]);
+
+    const mids = midsResponse.data; // { "BTC": "94000.5", "ETH": "3400.2", ... }
+    const meta = metaResponse.data; // { universe: [{ name: "BTC", ... }, ...] }
+
+    if (!mids || typeof mids !== 'object') {
+      throw new Error('Invalid mids response');
+    }
+
+    // Transform to TickerPrice format
+    const prices: TickerPrice[] = Object.entries(mids).map(([symbol, price]) => ({
+      symbol: symbol, // Hyperliquid uses short symbols like "BTC", "ETH"
+      lastPrice: String(price),
+      priceChangePercent: '0', // Not available in allMids
+      highPrice: String(price),
+      lowPrice: String(price),
+      openPrice: String(price),
+      volume: '0',
+      quoteVolume: '0'
+    }));
+
+    console.log(`[PriceCache] ✅ Fetched Hyperliquid prices (${prices.length} symbols)`);
+    return prices;
+  } catch (error: unknown) {
+    console.error('[PriceCache] ❌ Failed to fetch Hyperliquid prices:',
+      error instanceof Error ? error.message : 'Unknown error'
+    );
+    return null;
+  }
+}
+
+/**
+ * Connect to Hyperliquid WebSocket for real-time price updates
+ * Subscribes to allMids for all asset mid-prices
+ */
+function connectHyperliquidWebSocket(): void {
+  console.log('[PriceCache] 🔌 Connecting to Hyperliquid WebSocket...');
+
+  hlWs = new WebSocket(HYPERLIQUID_WS_URL);
+
+  hlWs.on('open', () => {
+    console.log('[PriceCache] ✅ Hyperliquid WebSocket connected');
+    hlReconnectAttempts = 0;
+
+    // Subscribe to allMids for real-time price updates
+    const subscribeMsg = JSON.stringify({
+      method: 'subscribe',
+      subscription: { type: 'allMids' }
+    });
+    hlWs!.send(subscribeMsg);
+    console.log('[PriceCache] 📡 Subscribed to Hyperliquid allMids');
+  });
+
+  hlWs.on('message', (data: WebSocket.Data) => {
+    try {
+      const msg = JSON.parse(data.toString());
+      
+      // Handle allMids updates
+      if (msg.channel === 'allMids' && msg.data && msg.data.mids) {
+        const mids = msg.data.mids;
+        
+        // Transform to TickerPrice format
+        hyperliquidPrices = Object.entries(mids).map(([symbol, price]) => ({
+          symbol: symbol,
+          lastPrice: String(price),
+          priceChangePercent: '0',
+          highPrice: String(price),
+          lowPrice: String(price),
+          openPrice: String(price),
+          volume: '0',
+          quoteVolume: '0'
+        }));
+        
+        lastHyperliquidFetchTime = Date.now();
+        
+        // Log first update
+        if (hlReconnectAttempts === 0) {
+          console.log(`[PriceCache] 📊 Hyperliquid WebSocket prices updated (${hyperliquidPrices.length} symbols)`);
+          hlReconnectAttempts = -1; // Prevent multiple logs
+        }
+      }
+    } catch (error) {
+      console.error('[PriceCache] ❌ Failed to parse Hyperliquid WebSocket message:', error);
+    }
+  });
+
+  hlWs.on('error', (error) => {
+    console.error('[PriceCache] ❌ Hyperliquid WebSocket error:', error.message);
+  });
+
+  hlWs.on('close', (code, reason) => {
+    console.log(`[PriceCache] ❌ Hyperliquid WebSocket closed (code: ${code})`);
+
+    // Attempt reconnection with exponential backoff
+    if (hlReconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
+      hlReconnectAttempts++;
+      const delay = RECONNECT_DELAY_MS * Math.min(hlReconnectAttempts, 5);
+
+      console.log(`[PriceCache] 🔄 Hyperliquid reconnecting in ${delay / 1000}s (attempt ${hlReconnectAttempts}/${MAX_RECONNECT_ATTEMPTS})...`);
+
+      hlReconnectTimer = setTimeout(() => {
+        connectHyperliquidWebSocket();
+      }, delay);
+    } else {
+      console.error('[PriceCache] ❌ Hyperliquid max reconnect attempts reached. Will use HTTP fallback.');
+    }
+  });
 }
 
 /**
@@ -199,19 +327,30 @@ function connectWebSocket(): void {
 
 /**
  * Start the price cache service
- * Primary: WebSocket for real-time futures prices
- * Fallback: HTTP polling every 10 minutes
+ * Primary: WebSocket for real-time futures prices (Aster)
+ * Fallback: HTTP polling every 10 minutes (Aster)
+ * Hyperliquid: WebSocket real-time (allMids subscription)
  */
 export async function startPriceCacheService(): Promise<void> {
   console.log('[PriceCache] 🚀 Starting price cache service...');
 
   // Initial fetch via HTTP (populate cache immediately)
   await fetchAllPricesViaHTTP();
+  
+  // Initial Hyperliquid fetch (before WebSocket connects)
+  const hlPrices = await fetchHyperliquidPrices();
+  if (hlPrices) {
+    hyperliquidPrices = hlPrices;
+    lastHyperliquidFetchTime = Date.now();
+  }
 
-  // Start WebSocket for real-time futures prices
+  // Start WebSocket for real-time futures prices (Aster)
   connectWebSocket();
 
-  // HTTP fallback: Fetch prices every 10 minutes (in case WS fails)
+  // Start WebSocket for real-time Hyperliquid prices
+  connectHyperliquidWebSocket();
+
+  // HTTP fallback: Fetch Aster prices every 10 minutes (in case WS fails)
   fallbackIntervalId = setInterval(() => {
     // Only fetch via HTTP if WebSocket is not connected or unhealthy
     if (!ws || ws.readyState !== WebSocket.OPEN) {
@@ -223,31 +362,61 @@ export async function startPriceCacheService(): Promise<void> {
         if (spot) spotPrices = spot;
       });
     }
+    
+    // Hyperliquid HTTP fallback (if WS is down)
+    if (!hlWs || hlWs.readyState !== WebSocket.OPEN) {
+      console.log('[PriceCache] ⚠️ Hyperliquid WebSocket down, using HTTP fallback');
+      fetchHyperliquidPrices().then(prices => {
+        if (prices) {
+          hyperliquidPrices = prices;
+          lastHyperliquidFetchTime = Date.now();
+        }
+      });
+    }
   }, FALLBACK_INTERVAL_MS);
 
-  console.log('[PriceCache] ✅ Service started (WebSocket + HTTP fallback)');
+  console.log('[PriceCache] ✅ Service started (Aster WS + Hyperliquid WS + HTTP fallback)');
 }
 
 /**
  * Stop the price cache service
  */
 export function stopPriceCacheService(): void {
-  // Close WebSocket
+  // Close Aster WebSocket
   if (ws) {
     ws.removeAllListeners();
     ws.close();
     ws = null;
   }
 
-  // Clear timers
+  // Close Hyperliquid WebSocket
+  if (hlWs) {
+    hlWs.removeAllListeners();
+    hlWs.close();
+    hlWs = null;
+  }
+
+  // Clear Aster reconnect timer
   if (reconnectTimer) {
     clearTimeout(reconnectTimer);
     reconnectTimer = null;
   }
 
+  // Clear Hyperliquid reconnect timer
+  if (hlReconnectTimer) {
+    clearTimeout(hlReconnectTimer);
+    hlReconnectTimer = null;
+  }
+
   if (fallbackIntervalId) {
     clearInterval(fallbackIntervalId);
     fallbackIntervalId = null;
+  }
+
+  // Remove unused hyperliquidIntervalId (now using WebSocket)
+  if (hyperliquidIntervalId) {
+    clearInterval(hyperliquidIntervalId);
+    hyperliquidIntervalId = null;
   }
 
   console.log('[PriceCache] 🛑 Service stopped');
@@ -285,9 +454,32 @@ export function getFuturesPrice(symbol: string): string | undefined {
 
 /**
  * Get full futures ticker for a specific symbol
+ * @param symbol - Symbol to look up
+ * @param exchange - Exchange to get price from ('aster' | 'hyperliquid')
  */
-export function getFuturesTicker(symbol: string): TickerPrice | undefined {
+export function getFuturesTicker(symbol: string, exchange: string = 'aster'): TickerPrice | undefined {
+  if (exchange === 'hyperliquid') {
+    // Hyperliquid uses short symbols (BTC, ETH) while Aster uses BTCUSDT
+    const normalizedSymbol = symbol.replace(/USDT$|USD$/, '');
+    return hyperliquidPrices.find(t => t.symbol === normalizedSymbol || t.symbol === symbol);
+  }
   return futuresPrices.find(t => t.symbol === symbol);
+}
+
+/**
+ * Get Hyperliquid prices
+ */
+export function getHyperliquidPrices(): TickerPrice[] {
+  return hyperliquidPrices;
+}
+
+/**
+ * Get Hyperliquid price for a specific symbol
+ */
+export function getHyperliquidPrice(symbol: string): string | undefined {
+  const normalizedSymbol = symbol.replace(/USDT$|USD$/, '');
+  const ticker = hyperliquidPrices.find(t => t.symbol === normalizedSymbol || t.symbol === symbol);
+  return ticker?.lastPrice;
 }
 
 /**

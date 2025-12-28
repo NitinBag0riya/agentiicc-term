@@ -205,44 +205,52 @@ router.get('/account', withAuth(async (req: Request, res: Response) => {
 // ============ ORDERS ============
 
 router.post('/order', withAuth(async (req: Request, res: Response) => {
-  const exchangeId = req.body.exchange || req.session?.activeExchange;
-  const adapter = await AdapterFactory.createAdapter(
-    req.session!.userId,
-    exchangeId
-  );
+  try {
+    const exchangeId = req.body.exchange || req.session?.activeExchange;
+    const adapter = await AdapterFactory.createAdapter(
+      req.session!.userId,
+      exchangeId
+    );
 
-  const params: PlaceOrderParams = {
-    symbol: req.body.symbol,
-    side: req.body.side,
-    type: req.body.type,
-    quantity: req.body.quantity,
-    price: req.body.price,
-    triggerPrice: req.body.triggerPrice || req.body.stopPrice,
-    takeProfit: req.body.takeProfit,
-    stopLoss: req.body.stopLoss,
-    reduceOnly: req.body.reduceOnly,
-    leverage: req.body.leverage,
-    trailingDelta: req.body.trailingDelta || req.body.callbackRate
-  };
+    const params: PlaceOrderParams = {
+      symbol: req.body.symbol,
+      side: req.body.side,
+      type: req.body.type,
+      quantity: req.body.quantity,
+      price: req.body.price,
+      triggerPrice: req.body.triggerPrice || req.body.stopPrice,
+      takeProfit: req.body.takeProfit,
+      stopLoss: req.body.stopLoss,
+      reduceOnly: req.body.reduceOnly,
+      leverage: req.body.leverage,
+      trailingDelta: req.body.trailingDelta || req.body.callbackRate
+    };
 
-  // Detect if this is a spot order:
-  // - Must have explicit isSpot=true flag, OR
-  // - Must have quoteOrderQty (used for spot buy by USD amount)
-  // For Hyperliquid, default to perp orders since spot catalog is very limited
-  const isSpotOrder = req.body.isSpot === true || req.body.quoteOrderQty !== undefined;
+    // Detect if this is a spot order:
+    // - Must have explicit isSpot=true flag, OR
+    // - Must have quoteOrderQty (used for spot buy by USD amount)
+    // For Hyperliquid, default to perp orders since spot catalog is very limited
+    const isSpotOrder = req.body.isSpot === true || req.body.quoteOrderQty !== undefined;
 
-  let result;
-  if (isSpotOrder && exchangeId === 'hyperliquid' && (adapter as any).placeSpotOrder) {
-    // Use spot-specific method for Hyperliquid
-    result = await (adapter as any).placeSpotOrder(params);
-  } else {
-    result = await adapter.placeOrder(params);
+    let result;
+    if (isSpotOrder && exchangeId === 'hyperliquid' && (adapter as any).placeSpotOrder) {
+      // Use spot-specific method for Hyperliquid
+      result = await (adapter as any).placeSpotOrder(params);
+    } else {
+      result = await adapter.placeOrder(params);
+    }
+
+    res.json({
+      success: true,
+      data: result
+    });
+  } catch (error: any) {
+    console.error('[Order Route] Error:', error.message);
+    res.json({
+      success: false,
+      error: error.message || 'Failed to place order'
+    });
   }
-
-  res.json({
-    success: true,
-    data: result
-  });
 }));
 
 router.get('/orders', withAuth(async (req: Request, res: Response) => {

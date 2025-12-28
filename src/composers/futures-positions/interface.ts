@@ -10,7 +10,7 @@ import { getRedis } from '../../db/redis';
 import { getPostgres } from '../../db/postgres';
 import { UniversalApiClient } from '../../services/universalApi';
 import { cleanupButtonMessages, trackButtonMessage } from '../../utils/buttonCleanup';
-import { getFuturesTicker } from '../../services/priceCache.service';
+import { getFuturesTicker, getHyperliquidPrice } from '../../services/priceCache.service';
 
 /**
  * Fetch and format open orders info (shared helper)
@@ -142,7 +142,7 @@ export async function buildPositionInterface(ctx: BotContext, symbol: string, us
     let message = `⚡ **${symbol} - New Position**\n\n`;
 
     // Get current price from cached ticker
-    const ticker = getFuturesTicker(symbol);
+    const ticker = getFuturesTicker(symbol, exchange);
 
     if (ticker) {
       const currentPrice = parseFloat(ticker.lastPrice);
