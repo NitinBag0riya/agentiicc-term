@@ -154,7 +154,23 @@ export function formatQuantityForSymbol(
   quantity: number
 ): string | null {
   const filter = getLotSizeFilter(symbol);
+  
+  // If no LOT_SIZE filter found (e.g., Hyperliquid symbols like HYPE)
+  // Use default precision based on typical exchange requirements
   if (!filter) {
+    // Check if it's likely a Hyperliquid symbol (no USDT suffix)
+    const isHyperliquid = !symbol.endsWith('USDT');
+    if (isHyperliquid) {
+      // Hyperliquid: use 5 decimal places as default
+      const formatted = quantity.toFixed(5);
+      console.log('[QuantityFormatter] Hyperliquid fallback:', {
+        symbol,
+        rawQuantity: quantity,
+        formattedQuantity: formatted,
+      });
+      return formatted;
+    }
+    
     console.error(`[QuantityFormatter] No LOT_SIZE filter found for ${symbol}`);
     return null;
   }

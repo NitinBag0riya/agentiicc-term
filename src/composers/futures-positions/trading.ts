@@ -195,6 +195,10 @@ export function registerCloseHandler(composer: Composer<BotContext>) {
 
     const state = ctx.session.tradingState?.[symbol];
     const isMarket = state?.orderType === 'Market';
+    
+    // Determine exchange from trading state or symbol format
+    // Hyperliquid symbols don't have USDT suffix, Aster symbols do
+    const positionExchange = state?.exchange || (!symbol.endsWith('USDT') ? 'hyperliquid' : 'aster');
 
     // Determine close side based on position direction
     // LONG (positive) → SELL to close
@@ -202,15 +206,21 @@ export function registerCloseHandler(composer: Composer<BotContext>) {
     const redis = getRedis();
     const db = getPostgres();
     const client = new UniversalApiClient();
-    await client.initSession(ctx.session.userId, ctx.session.activeExchange);
-    const positionsRes = await client.getPositions(ctx.session.activeExchange);
+    await client.initSession(ctx.session.userId, positionExchange);
+    const positionsRes = await client.getPositions(positionExchange);
     if (!positionsRes.success) throw new Error(positionsRes.error);
     const positions = positionsRes.data;
-    const position = positions.find((p: any) => p.symbol === symbol && parseFloat(p.positionAmt) !== 0);
+    
+    // Normalize symbol for position lookup (HYPEUSDT -> HYPE)
+    const normalizedSymbol = symbol.replace(/USDT$|USD$/, '');
+    const position = positions.find((p: any) => {
+      const pSym = (p.symbol || '').replace(/USDT$|USD$/, '');
+      return (pSym === normalizedSymbol || p.symbol === symbol) && parseFloat(p.positionAmt || p.size || '0') !== 0;
+    });
 
-    const closeSide = position && parseFloat(position.positionAmt) < 0 ? 'BUY' : 'SELL';
+    const closeSide = position && parseFloat(position.positionAmt || position.size || '0') < 0 ? 'BUY' : 'SELL';
 
-    // Launch wizard with prefilled amount (percentage)
+    // Launch wizard with prefilled amount (percentage) and correct exchange
     await ctx.scene.enter(
       isMarket ? 'market-order-wizard' : 'limit-order-wizard',
       {
@@ -221,6 +231,7 @@ export function registerCloseHandler(composer: Composer<BotContext>) {
         reduceOnly: true,
         prefilledAmount: `${percentage}%`,
         retryCount: 0,
+        exchange: positionExchange, // Pass position's exchange
       }
     );
   });

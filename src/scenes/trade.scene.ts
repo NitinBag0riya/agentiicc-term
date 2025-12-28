@@ -30,6 +30,8 @@ interface BaseWizardState {
   retryCount: number;
   // Pre-filled amount (for fixed $50/$200 buttons)
   prefilledAmount?: string;
+  // Target exchange for the order (important for close position)
+  exchange?: string;
 }
 
 interface MarketOrderState extends BaseWizardState {}
@@ -176,6 +178,9 @@ export const marketOrderScene = new Scenes.WizardScene<BotContext>(
 
     // Build operation
     const action = state.reduceOnly ? 'Sell' : (state.side === 'BUY' ? 'Long' : 'Short');
+    // Use exchange from state if provided (e.g., close position), otherwise session
+    const targetExchange = state.exchange || ctx.session.activeExchange || 'aster';
+    
     const operation: AsterWriteOp = {
       operation: 'CREATE_ORDER',
       params: {
@@ -183,13 +188,13 @@ export const marketOrderScene = new Scenes.WizardScene<BotContext>(
         side: state.side,
         type: 'MARKET',
         // @ts-ignore
-        exchange: ctx.session.activeExchange || 'aster',
+        exchange: targetExchange,
         ...quantityParams,
       },
       metadata: {
-        action: `${action} ${input} (${state.leverage || 5}x ${state.marginType || 'cross'}) on ${ctx.session.activeExchange ? ctx.session.activeExchange.toUpperCase() : 'ASTER'}`,
+        action: `${action} ${input} (${state.leverage || 5}x ${state.marginType || 'cross'}) on ${targetExchange.toUpperCase()}`,
         leverage: state.leverage || 5,
-        exchange: ctx.session.activeExchange || 'aster',
+        exchange: targetExchange,
         // Store return context for post-confirmation
         returnTo: state.returnTo,
       },

@@ -611,7 +611,10 @@ export async function prepareForConfirmation(
         const positionsRes = await univClient.getPositions((op.params as any).exchange);
         if (!positionsRes.success) throw new Error(positionsRes.error || 'Failed to fetch positions');
         
-        const position = positionsRes.data.find(p => p.symbol === op.params.symbol);
+        // Normalize symbol for comparison (handles Aster HYPEUSDT vs Hyperliquid HYPE)
+        const normalizeSymbol = (s: string) => s.replace(/USDT$|USD$/, '').toUpperCase();
+        const targetSymbol = normalizeSymbol(op.params.symbol);
+        const position = positionsRes.data.find(p => normalizeSymbol(p.symbol) === targetSymbol);
         const positionAmt = position ? parseFloat(position.size || position.positionAmt || '0') : 0;
         const positionSize = Math.abs(positionAmt);
 
