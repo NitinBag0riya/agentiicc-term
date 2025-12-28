@@ -6,3 +6,5 @@
 
 export * from './messages';
 export * from './keyboards';
+export * from './welcome';
+export * from './help';
