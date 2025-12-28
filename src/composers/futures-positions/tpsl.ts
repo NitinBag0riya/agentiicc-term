@@ -135,7 +135,10 @@ export function registerRemoveTPHandler(composer: Composer<BotContext>) {
       const redis = getRedis();
       const db = getPostgres();
       const client = new UniversalApiClient();
-      await client.initSession(ctx.session.userId);
+      
+      // Determine exchange from symbol format
+      const exchange = !symbol.endsWith('USDT') ? 'hyperliquid' : 'aster';
+      await client.initSession(ctx.session.userId, exchange);
 
       const res = await client.cancelOrder(orderId.toString(), symbol);
       if (!res.success) throw new Error(res.error);
@@ -173,7 +176,10 @@ export function registerRemoveSLHandler(composer: Composer<BotContext>) {
       const redis = getRedis();
       const db = getPostgres();
       const client = new UniversalApiClient();
-      await client.initSession(ctx.session.userId);
+      
+      // Determine exchange from symbol format
+      const exchange = !symbol.endsWith('USDT') ? 'hyperliquid' : 'aster';
+      await client.initSession(ctx.session.userId, exchange);
 
       const res = await client.cancelOrder(orderId.toString(), symbol);
       if (!res.success) throw new Error(res.error);
