@@ -88,7 +88,7 @@ router.get('/user/exchanges', async (req: Request, res: Response) => {
 /**
  * Create session
  */
-router.post('/session', async (req: Request, res: Response) => {
+router.post('/auth/session', async (req: Request, res: Response) => {
   try {
     const { userId, exchangeId } = req.body;
 
@@ -131,7 +131,7 @@ router.post('/session', async (req: Request, res: Response) => {
 /**
  * Get session info
  */
-router.get('/session/info', requireAuth, (req: Request, res: Response) => {
+router.get('/auth/session/info', requireAuth, (req: Request, res: Response) => {
   res.json({
     success: true,
     data: {
@@ -147,7 +147,7 @@ router.get('/session/info', requireAuth, (req: Request, res: Response) => {
 /**
  * Switch active exchange
  */
-router.post('/session/switch', requireAuth, (req: Request, res: Response) => {
+router.post('/auth/session/switch', requireAuth, (req: Request, res: Response) => {
   try {
     const { exchange } = req.body;
 
@@ -175,7 +175,7 @@ router.post('/session/switch', requireAuth, (req: Request, res: Response) => {
 /**
  * Delete session
  */
-router.delete('/session', requireAuth, (req: Request, res: Response) => {
+router.delete('/auth/session', requireAuth, (req: Request, res: Response) => {
   const token = req.headers.authorization?.replace('Bearer ', '');
   if (token) {
     SessionStore.delete(token);

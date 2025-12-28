@@ -18,18 +18,21 @@ router.get('/health', (_req: Request, res: Response) => {
   res.json({ status: 'ok', timestamp: Date.now() });
 });
 
-// Mount route modules
-router.use('/auth', authRoutes);
+// User and auth routes (mounted at root - auth.routes has full paths)
+router.use('/', authRoutes);
+
+// Order routes - /order and /orders both use same handler
 router.use('/order', orderRoutes);
 router.use('/orders', orderRoutes);
+
+// Account routes - /account/*
 router.use('/account', accountRoutes);
+
+// Position routes - /positions and /position
 router.use('/positions', positionRoutes);
 router.use('/position', positionRoutes);
 
-// Market data routes (mounted at root level for backwards compatibility)
+// Market data routes (mounted at root)
 router.use('/', marketRoutes);
-
-// User routes from auth module (mounted at root for backwards compatibility)
-router.use('/', authRoutes);
 
 export default router;
